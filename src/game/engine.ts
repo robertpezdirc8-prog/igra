@@ -1,4 +1,5 @@
 import { AudioEngine } from './audio';
+import { WebGPURenderer } from './webgpu-renderer';
 
 // ============= TYPES =============
 interface Vec2 { x: number; y: number; }
@@ -63,6 +64,7 @@ interface FloatingText {
 export class GameEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
+  private webgpuRenderer: WebGPURenderer | null = null;
   private width = 0;
   private height = 0;
   private audio: AudioEngine;
@@ -107,28 +109,29 @@ export class GameEngine {
     this.audio = new AudioEngine();
     this.onStateChange = onStateChange;
     this.player = this.createPlayer();
-    this.checkWebGPU();
+    this.initWebGPU();
     this.initStars();
     this.loadHighScore();
     this.generateUpgrades();
     this.generateSeed();
   }
 
+  private async initWebGPU() {
+    this.webgpuRenderer = new WebGPURenderer(this.canvas);
+    this.webgpuSupported = await this.webgpuRenderer.initialize();
+    if (this.webgpuSupported) {
+      console.log('WebGPU rendering enabled');
+    } else {
+      console.log('Falling back to Canvas2D');
+      this.webgpuRenderer = null;
+    }
+  }
+
   private generateSeed() {
     this.seed = Math.random().toString(36).substring(2, 10).toUpperCase();
   }
 
-  private async checkWebGPU() {
-    try {
-      const nav = navigator as any;
-      if (nav.gpu) {
-        const adapter = await nav.gpu.requestAdapter();
-        this.webgpuSupported = !!adapter;
-      }
-    } catch (e) {
-      this.webgpuSupported = false;
-    }
-  }
+  // checkWebGPU moved to initWebGPU
 
   private initStars() {
     for (let i = 0; i < 200; i++) {
@@ -813,8 +816,9 @@ export class GameEngine {
     this.audio.playExplosion();
     this.enemiesKilled++;
 
-    // Death particles
-    for (let i = 0; i < (e.type === 'boss' ? 80 : 20); i++) {
+    // Death particles - more when WebGPU is active
+    const particleCount = this.webgpuSupported ? (e.type === 'boss' ? 200 : 50) : (e.type === 'boss' ? 80 : 20);
+    for (let i = 0; i < particleCount; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = Math.random() * 8 + 2;
       this.particles.push({
@@ -1000,20 +1004,35 @@ export class GameEngine {
   }
 
   private updateParticles() {
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vx *= 0.96;
-      p.vy *= 0.96;
-      p.life -= this.deltaTime;
-      if (p.life <= 0) {
-        this.particles.splice(i, 1);
+    // WebGPU handles physics via compute shaders
+    if (this.webgpuSupported && this.webgpuRenderer) {
+      // Just update life on CPU side
+      for (let i = this.particles.length - 1; i >= 0; i--) {
+        const p = this.particles[i];
+        p.life -= this.deltaTime;
+        if (p.life <= 0) {
+          this.particles.splice(i, 1);
+        }
+      }
+    } else {
+      // Canvas2D fallback - full physics on CPU
+      for (let i = this.particles.length - 1; i >= 0; i--) {
+        const p = this.particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= 0.96;
+        p.vy *= 0.96;
+        p.life -= this.deltaTime;
+        if (p.life <= 0) {
+          this.particles.splice(i, 1);
+        }
       }
     }
+    
     // Limit particles
-    if (this.particles.length > 2000) {
-      this.particles.splice(0, this.particles.length - 2000);
+    const maxParticles = this.webgpuSupported ? 10000 : 2000;
+    if (this.particles.length > maxParticles) {
+      this.particles.splice(0, this.particles.length - maxParticles);
     }
   }
 
@@ -1186,7 +1205,14 @@ export class GameEngine {
   private renderGame(ctx: CanvasRenderingContext2D, w: number, h: number) {
     this.renderCrystals(ctx);
     this.renderPowerOrbs(ctx);
-    this.renderParticles(ctx);
+    
+    // Use WebGPU for particles if available
+    if (this.webgpuSupported && this.webgpuRenderer) {
+      this.webgpuRenderer.render(this.particles, this.time);
+    } else {
+      this.renderParticles(ctx);
+    }
+    
     this.renderBullets(ctx);
     this.renderEnemies(ctx);
     this.renderPlayer(ctx);
@@ -1676,7 +1702,11 @@ export class GameEngine {
     // WebGPU indicator
     if (this.webgpuSupported) {
       ctx.fillStyle = '#00ff88';
-      ctx.fillText('WebGPU ✓', padding, 56);
+      ctx.fillText('WebGPU ACTIVE', padding, 56);
+      ctx.fillText(`Particles: ${this.particles.length}`, padding, 68);
+    } else {
+      ctx.fillStyle = '#ffaa00';
+      ctx.fillText('Canvas2D Fallback', padding, 56);
     }
 
     // Secondary weapon indicator
@@ -1795,8 +1825,8 @@ export class GameEngine {
 
     // WebGPU status
     ctx.fillStyle = this.webgpuSupported ? '#00ff88' : '#ff8800';
-    ctx.font = '10px monospace';
-    ctx.fillText(this.webgpuSupported ? '● WebGPU Available' : '● Canvas2D Fallback Mode', w / 2, h * 0.95);
+    ctx.font = '12px monospace';
+    ctx.fillText(this.webgpuSupported ? '● WebGPU ACTIVE - GPU Accelerated' : '● Canvas2D Mode', w / 2, h * 0.95);
 
     ctx.restore();
 
@@ -2032,5 +2062,8 @@ export class GameEngine {
   destroy() {
     this.stopLoop();
     this.audio.dispose();
+    if (this.webgpuRenderer) {
+      this.webgpuRenderer.dispose();
+    }
   }
 }
