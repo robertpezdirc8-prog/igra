@@ -1,0 +1,75 @@
+interface ScoreDisplayProps {
+  score: number;
+  wave: number;
+  combo: number;
+  fps: number;
+  seed: string;
+  webgpuSupported: boolean;
+}
+
+export function ScoreDisplay({ score, wave, combo, fps, seed, webgpuSupported }: ScoreDisplayProps) {
+  return (
+    <div className="fixed top-4 right-4 z-30 text-right">
+      {/* Score */}
+      <div className="mb-4">
+        <p className="text-gray-500 font-mono text-xs uppercase tracking-wider">Rezultat</p>
+        <p
+          className="text-3xl font-bold font-mono"
+          style={{
+            color: '#00ffff',
+            textShadow: '0 0 15px rgba(0, 255, 255, 0.6)'
+          }}
+        >
+          {score.toLocaleString()}
+        </p>
+      </div>
+
+      {/* Wave */}
+      <div className="mb-4">
+        <p className="text-gray-500 font-mono text-xs uppercase tracking-wider">Val</p>
+        <p
+          className="text-2xl font-bold font-mono"
+          style={{
+            color: '#ff8800',
+            textShadow: '0 0 10px rgba(255, 136, 0, 0.6)'
+          }}
+        >
+          {wave}
+        </p>
+      </div>
+
+      {/* Combo */}
+      {combo > 1 && (
+        <div className="mb-4 animate-pulse">
+          <p className="text-gray-500 font-mono text-xs uppercase tracking-wider">Combo</p>
+          <p
+            className="text-2xl font-bold font-mono"
+            style={{
+              color: '#ffaa00',
+              textShadow: '0 0 15px rgba(255, 170, 0, 0.8)'
+            }}
+          >
+            {combo}x
+          </p>
+        </div>
+      )}
+
+      {/* Technical info */}
+      <div className="mt-6 pt-4 border-t border-gray-700">
+        <p className="text-gray-600 font-mono text-xs">
+          FPS: <span className={fps >= 50 ? 'text-green-400' : fps >= 30 ? 'text-yellow-400' : 'text-red-400'}>{fps}</span>
+        </p>
+        <p className="text-gray-600 font-mono text-xs mt-1">
+          SEED: <span className="text-gray-400">{seed}</span>
+        </p>
+        <p className="text-gray-600 font-mono text-xs mt-1">
+          {webgpuSupported ? (
+            <span className="text-green-400">● WebGPU</span>
+          ) : (
+            <span className="text-yellow-400">● Canvas2D</span>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
