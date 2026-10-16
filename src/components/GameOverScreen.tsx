@@ -11,6 +11,7 @@ interface GameOverScreenProps {
   seed: string;
   highScore: number;
   isNewHighScore: boolean;
+  playerLevel: number;
   onRestart: () => void;
   onMainMenu: () => void;
 }
@@ -25,6 +26,7 @@ export function GameOverScreen({
   seed,
   highScore,
   isNewHighScore,
+  playerLevel,
   onRestart,
   onMainMenu
 }: GameOverScreenProps) {
@@ -39,6 +41,7 @@ export function GameOverScreen({
 
   const stats = [
     { label: 'Končni rezultat', value: score.toLocaleString(), color: '#00ffff' },
+    { label: 'Nivo igralca', value: playerLevel.toString(), color: '#ffaa00' },
     { label: 'Val dosežen', value: wave.toString(), color: '#ff8800' },
     { label: 'Sovražniki ubiti', value: enemiesKilled.toString(), color: '#ff4444' },
     { label: 'Skupna škoda', value: Math.floor(totalDamage).toLocaleString(), color: '#ffff00' },

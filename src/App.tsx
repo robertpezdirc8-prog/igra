@@ -27,10 +27,14 @@ import {
   WaveInfo,
   ComboDisplay,
   PowerUpNotificationDisplay,
-  GameTimer
+  GameTimer,
+  LevelDisplay,
+  LevelInfo,
+  LevelUpChoiceScreen
 } from './components';
+import { getLevelForPlayer } from './game/levels';
 
-type GameState = 'loading' | 'menu' | 'playing' | 'paused' | 'levelup' | 'gameover';
+type GameState = 'loading' | 'menu' | 'playing' | 'paused' | 'levelup' | 'levelchoice' | 'gameover';
 
 interface Settings {
   musicVolume: number;
@@ -69,7 +73,10 @@ export default function App() {
     weaponLevel: 1,
     secondaryWeapon: 'none' as 'none' | 'gravity' | 'chain' | 'temporal',
     secondaryCooldown: 0,
-    dashCooldown: 0
+    dashCooldown: 0,
+    level: 1,
+    xp: 0,
+    xpToNextLevel: 100
   });
 
   const handleStateChange = useCallback((state: string) => {
@@ -95,7 +102,10 @@ export default function App() {
             weaponLevel: player.weaponLevel,
             secondaryWeapon: player.secondaryWeapon,
             secondaryCooldown: player.secondaryCooldown,
-            dashCooldown: player.dashCooldown
+            dashCooldown: player.dashCooldown,
+            level: engineRef.current.getPlayerLevel(),
+            xp: engineRef.current.getPlayerXP(),
+            xpToNextLevel: engineRef.current.getPlayerXPToNext()
           });
         }
       }
@@ -239,6 +249,19 @@ export default function App() {
       {/* In-Game UI */}
       {gameState === 'playing' && (
         <>
+          {/* Level Display */}
+          <LevelDisplay
+            level={playerStats.level}
+            xp={playerStats.xp}
+            xpToNext={playerStats.xpToNextLevel}
+          />
+
+          {/* Level Info */}
+          <LevelInfo
+            level={getLevelForPlayer(playerStats.level)}
+            playerLevel={playerStats.level}
+          />
+
           {/* Health Bar */}
           <HealthBar
             hp={playerStats.hp}
@@ -336,6 +359,7 @@ export default function App() {
           seed="DEMO123"
           highScore={highScore}
           isNewHighScore={playerStats.score > highScore}
+          playerLevel={playerStats.level}
           onRestart={handleRestart}
           onMainMenu={handleMainMenu}
         />
@@ -351,6 +375,40 @@ export default function App() {
           ]}
           onSelectUpgrade={(index) => {
             addNotification('Nadgradnja izbrana!', 'success');
+            setGameState('playing');
+          }}
+        />
+      )}
+
+      {/* Level Choice Screen */}
+      {gameState === 'levelchoice' && (
+        <LevelUpChoiceScreen
+          level={playerStats.level}
+          choices={[
+            {
+              id: 'damage',
+              name: 'Plasma Overcharge',
+              description: '+25% škoda, +1 nivo orožja',
+              icon: '⚡',
+              rarity: 'rare'
+            },
+            {
+              id: 'speed',
+              name: 'Neural Reflexes',
+              description: '+15% hitrost gibanja',
+              icon: '🧠',
+              rarity: 'common'
+            },
+            {
+              id: 'shield',
+              name: 'Void Shield',
+              description: '+30 max ščit, polna obnovitev',
+              icon: '🛡️',
+              rarity: 'epic'
+            }
+          ]}
+          onSelect={(choice) => {
+            addNotification(`${choice.name} izbrana!`, 'success');
             setGameState('playing');
           }}
         />

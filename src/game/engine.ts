@@ -33,6 +33,10 @@ interface Player {
   secondaryWeapon: 'none' | 'gravity' | 'chain' | 'temporal';
   secondaryCooldown: number;
   stasisActive: boolean; stasisTimer: number;
+  level: number;
+  xp: number;
+  xpToNextLevel: number;
+  totalXp: number;
 }
 interface Upgrade {
   name: string; description: string; icon: string;
@@ -47,7 +51,7 @@ interface Crystal {
   x: number; y: number; size: number; hp: number;
   rotation: number; rotSpeed: number; color: string;
 }
-type GameState = 'menu' | 'playing' | 'paused' | 'levelup' | 'gameover';
+type GameState = 'menu' | 'playing' | 'paused' | 'levelup' | 'levelchoice' | 'gameover';
 
 interface WaveAnnouncement {
   text: string;
@@ -170,7 +174,11 @@ export class GameEngine {
       score: 0, combo: 1, comboTimer: 0,
       secondaryWeapon: 'none',
       secondaryCooldown: 0,
-      stasisActive: false, stasisTimer: 0
+      stasisActive: false, stasisTimer: 0,
+      level: 1,
+      xp: 0,
+      xpToNextLevel: 100,
+      totalXp: 0
     };
   }
 
@@ -809,12 +817,17 @@ export class GameEngine {
   }
 
   private onEnemyDeath(e: Enemy) {
-    this.player.score += (e.type === 'boss' ? 1000 : e.type === 'titan' ? 100 : 25) * this.player.combo;
+    const baseScore = e.type === 'boss' ? 1000 : e.type === 'titan' ? 100 : 25;
+    this.player.score += baseScore * this.player.combo;
     this.player.combo = Math.min(10, this.player.combo + 1);
     this.player.comboTimer = 5;
     this.screenShake = e.type === 'boss' ? 20 : 5;
     this.audio.playExplosion();
     this.enemiesKilled++;
+
+    // Award XP based on enemy type
+    const xpGained = e.type === 'boss' ? 500 : e.type === 'titan' ? 50 : 15;
+    this.awardXP(xpGained, e.x, e.y);
 
     // Death particles - more when WebGPU is active
     const particleCount = this.webgpuSupported ? (e.type === 'boss' ? 200 : 50) : (e.type === 'boss' ? 80 : 20);
@@ -873,6 +886,96 @@ export class GameEngine {
         });
       }
     }
+  }
+
+  private awardXP(amount: number, x: number, y: number) {
+    this.player.xp += amount;
+    this.player.totalXp += amount;
+
+    // Show floating XP text
+    this.floatingTexts.push({
+      x: x,
+      y: y - 20,
+      text: `+${amount} XP`,
+      color: '#ffaa00',
+      life: 1.5,
+      maxLife: 1.5,
+      vy: -1.5
+    });
+
+    // Check for level up
+    while (this.player.xp >= this.player.xpToNextLevel) {
+      this.levelUp();
+    }
+  }
+
+  private levelUp() {
+    this.player.level++;
+    this.player.xp -= this.player.xpToNextLevel;
+    
+    // Exponential XP curve
+    this.player.xpToNextLevel = Math.floor(100 * Math.pow(1.5, this.player.level - 1));
+
+    // Level up rewards
+    this.player.maxHp += 10;
+    this.player.hp = Math.min(this.player.hp + 20, this.player.maxHp);
+    this.player.maxShield += 5;
+    this.player.shield = Math.min(this.player.shield + 10, this.player.maxShield);
+    this.player.maxEnergy += 5;
+    this.player.energy = Math.min(this.player.energy + 15, this.player.maxEnergy);
+    this.player.speed *= 1.02;
+    this.player.critRate = Math.min(0.5, this.player.critRate + 0.01);
+
+    // Visual effects
+    this.screenShake = 15;
+    this.audio.playPowerUp();
+
+    // Level up particle explosion - golden spiral
+    for (let i = 0; i < 80; i++) {
+      const angle = (Math.PI * 2 * i) / 80;
+      const spiralOffset = i * 0.1;
+      const speed = 4 + Math.random() * 6;
+      this.particles.push({
+        x: this.player.x,
+        y: this.player.y,
+        vx: Math.cos(angle + spiralOffset) * speed,
+        vy: Math.sin(angle + spiralOffset) * speed,
+        life: 2,
+        maxLife: 2,
+        size: 2 + Math.random() * 4,
+        color: i % 3 === 0 ? '#ffaa00' : i % 3 === 1 ? '#ffffff' : '#ffff00',
+        type: 'energy'
+      });
+    }
+
+    // Level up ring effect
+    for (let i = 0; i < 40; i++) {
+      const angle = (Math.PI * 2 * i) / 40;
+      const speed = 8;
+      this.particles.push({
+        x: this.player.x,
+        y: this.player.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 1,
+        maxLife: 1,
+        size: 5,
+        color: '#ffaa00',
+        type: 'spark'
+      });
+    }
+
+    // Level up announcement
+    this.waveAnnouncement = {
+      text: `LEVEL ${this.player.level}`,
+      subtext: 'Izberi nadgradnjo!',
+      timer: 2,
+      color: '#ffaa00'
+    };
+
+    // Trigger level choice screen
+    this.state = 'levelchoice';
+    this.onStateChange(this.state);
   }
 
   private updateBullets() {
@@ -2058,6 +2161,9 @@ export class GameEngine {
   getPlayer(): Player { return this.player; }
   getWave(): number { return this.wave; }
   getFPS(): number { return this.fps; }
+  getPlayerLevel(): number { return this.player.level; }
+  getPlayerXP(): number { return this.player.xp; }
+  getPlayerXPToNext(): number { return this.player.xpToNextLevel; }
 
   destroy() {
     this.stopLoop();
