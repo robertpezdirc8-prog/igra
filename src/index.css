@@ -77,6 +77,17 @@ canvas {
   75%, 100% { transform: scale(2); opacity: 0; }
 }
 
+@keyframes floatUp {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50px) scale(1.5);
+  }
+}
+
 /* Range input styling */
 input[type="range"] {
   -webkit-appearance: none;
@@ -148,5 +159,115 @@ canvas {
   }
   .text-5xl {
     font-size: 2rem;
+  }
+  
+  .mobile-hide {
+    display: none;
+  }
+  
+  .mobile-full {
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .mobile-stack {
+    flex-direction: column;
+  }
+  
+  .mobile-text-sm {
+    font-size: 0.875rem;
+  }
+  
+  .mobile-padding {
+    padding: 0.5rem;
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Glass morphism effect */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Neon glow effects */
+.neon-cyan {
+  box-shadow: 0 0 5px rgba(0, 255, 255, 0.5),
+              0 0 10px rgba(0, 255, 255, 0.3),
+              0 0 15px rgba(0, 255, 255, 0.2);
+}
+
+.neon-purple {
+  box-shadow: 0 0 5px rgba(255, 0, 255, 0.5),
+              0 0 10px rgba(255, 0, 255, 0.3),
+              0 0 15px rgba(255, 0, 255, 0.2);
+}
+
+.neon-red {
+  box-shadow: 0 0 5px rgba(255, 0, 0, 0.5),
+              0 0 10px rgba(255, 0, 0, 0.3),
+              0 0 15px rgba(255, 0, 0, 0.2);
+}
+
+/* Text glow effects */
+.text-glow-cyan {
+  text-shadow: 0 0 5px rgba(0, 255, 255, 0.8),
+               0 0 10px rgba(0, 255, 255, 0.5),
+               0 0 15px rgba(0, 255, 255, 0.3);
+}
+
+.text-glow-purple {
+  text-shadow: 0 0 5px rgba(255, 0, 255, 0.8),
+               0 0 10px rgba(255, 0, 255, 0.5),
+               0 0 15px rgba(255, 0, 255, 0.3);
+}
+
+/* Hover effects */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+}
+
+.hover-glow {
+  transition: box-shadow 0.2s ease;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+}
+
+/* Print styles */
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+  
+  .no-print {
+    display: none !important;
   }
 }
