@@ -40,16 +40,19 @@ export default function App() {
       engine.handleMouseMove(e.clientX, e.clientY);
     };
     const handleMouseDown = (e: MouseEvent) => {
-      engine.handleMouseDown();
+      engine.handleMouseDown(e.button);
       engine.handleClick(e.clientX, e.clientY);
     };
-    const handleMouseUp = () => {
-      engine.handleMouseUp();
+    const handleMouseUp = (e: MouseEvent) => {
+      engine.handleMouseUp(e.button);
+    };
+    const handleContextMenu = (e: Event) => {
+      e.preventDefault();
     };
     const handleTouchStart = (e: TouchEvent) => {
       const touch = e.touches[0];
       engine.handleMouseMove(touch.clientX, touch.clientY);
-      engine.handleMouseDown();
+      engine.handleMouseDown(0);
       engine.handleClick(touch.clientX, touch.clientY);
     };
     const handleTouchMove = (e: TouchEvent) => {
@@ -57,7 +60,7 @@ export default function App() {
       engine.handleMouseMove(touch.clientX, touch.clientY);
     };
     const handleTouchEnd = () => {
-      engine.handleMouseUp();
+      engine.handleMouseUp(0);
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -65,6 +68,7 @@ export default function App() {
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mouseup', handleMouseUp);
+    canvas.addEventListener('contextmenu', handleContextMenu);
     canvas.addEventListener('touchstart', handleTouchStart, { passive: true });
     canvas.addEventListener('touchmove', handleTouchMove, { passive: true });
     canvas.addEventListener('touchend', handleTouchEnd);
@@ -76,6 +80,7 @@ export default function App() {
       canvas.removeEventListener('mousemove', handleMouseMove);
       canvas.removeEventListener('mousedown', handleMouseDown);
       canvas.removeEventListener('mouseup', handleMouseUp);
+      canvas.removeEventListener('contextmenu', handleContextMenu);
       canvas.removeEventListener('touchstart', handleTouchStart);
       canvas.removeEventListener('touchmove', handleTouchMove);
       canvas.removeEventListener('touchend', handleTouchEnd);
@@ -112,6 +117,8 @@ export default function App() {
                 <p>WASD / Arrows — Move</p>
                 <p>Mouse — Aim & Shoot</p>
                 <p>Space — Dash (invincibility frames)</p>
+                <p>Right Click — Secondary Weapon</p>
+                <p>Q — Temporal Stasis (if unlocked)</p>
                 <p>ESC — Pause / Resume</p>
               </div>
             )}
