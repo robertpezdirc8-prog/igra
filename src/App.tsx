@@ -10,7 +10,24 @@ import {
   TutorialOverlay,
   Notification,
   AchievementNotification,
-  MobileControls
+  MobileControls,
+  HealthBar,
+  ScoreDisplay,
+  WeaponIndicator,
+  MiniMap,
+  KeyboardHints,
+  Crosshair,
+  BossHealthBar,
+  DamageFlash,
+  WaveProgress,
+  StatsPanel,
+  AchievementPanel,
+  PerformanceMonitor,
+  ControlsOverlay,
+  WaveInfo,
+  ComboDisplay,
+  PowerUpNotificationDisplay,
+  GameTimer
 } from './components';
 
 type GameState = 'loading' | 'menu' | 'playing' | 'paused' | 'levelup' | 'gameover';
@@ -28,6 +45,13 @@ export default function App() {
   const [gameState, setGameState] = useState<GameState>('loading');
   const [showTutorial, setShowTutorial] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+  const [showAchievements, setShowAchievements] = useState(false);
+  const [showControls, setShowControls] = useState(false);
+  const [showPerformance, setShowPerformance] = useState(false);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isShooting, setIsShooting] = useState(false);
+  const [damageFlash, setDamageFlash] = useState(false);
   const [settings, setSettings] = useState<Settings>({
     musicVolume: 0.5,
     sfxVolume: 0.6,
@@ -37,10 +61,49 @@ export default function App() {
   const [notifications, setNotifications] = useState<Array<{ id: number; message: string; type: 'success' | 'warning' | 'error' | 'info' }>>([]);
   const [highScore, setHighScore] = useState(0);
   const [webgpuSupported, setWebgpuSupported] = useState(false);
+  const [playerStats, setPlayerStats] = useState({
+    hp: 100, maxHp: 100,
+    shield: 50, maxShield: 50,
+    energy: 100, maxEnergy: 100,
+    score: 0, wave: 1, combo: 1,
+    weaponLevel: 1,
+    secondaryWeapon: 'none' as 'none' | 'gravity' | 'chain' | 'temporal',
+    secondaryCooldown: 0,
+    dashCooldown: 0
+  });
 
   const handleStateChange = useCallback((state: string) => {
     setGameState(state as GameState);
   }, []);
+
+  // Game loop za posodabljanje UI state
+  useEffect(() => {
+    const updateUI = () => {
+      if (engineRef.current && gameState === 'playing') {
+        const player = engineRef.current.getPlayer();
+        if (player) {
+          setPlayerStats({
+            hp: player.hp,
+            maxHp: player.maxHp,
+            shield: player.shield,
+            maxShield: player.maxShield,
+            energy: player.energy,
+            maxEnergy: player.maxEnergy,
+            score: player.score,
+            wave: engineRef.current.getWave(),
+            combo: player.combo,
+            weaponLevel: player.weaponLevel,
+            secondaryWeapon: player.secondaryWeapon,
+            secondaryCooldown: player.secondaryCooldown,
+            dashCooldown: player.dashCooldown
+          });
+        }
+      }
+      requestAnimationFrame(updateUI);
+    };
+    const frameId = requestAnimationFrame(updateUI);
+    return () => cancelAnimationFrame(frameId);
+  }, [gameState]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -87,13 +150,16 @@ export default function App() {
     };
     const handleMouseMove = (e: MouseEvent) => {
       engine.handleMouseMove(e.clientX, e.clientY);
+      setMousePos({ x: e.clientX, y: e.clientY });
     };
     const handleMouseDown = (e: MouseEvent) => {
       engine.handleMouseDown(e.button);
       engine.handleClick(e.clientX, e.clientY);
+      if (e.button === 0) setIsShooting(true);
     };
     const handleMouseUp = (e: MouseEvent) => {
       engine.handleMouseUp(e.button);
+      if (e.button === 0) setIsShooting(false);
     };
     const handleContextMenu = (e: Event) => {
       e.preventDefault();
@@ -150,8 +216,8 @@ export default function App() {
       {/* Canvas */}
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 w-full h-full cursor-crosshair"
-        style={{ touchAction: 'none' }}
+        className="absolute inset-0 w-full h-full"
+        style={{ touchAction: 'none', cursor: gameState === 'playing' ? 'none' : 'default' }}
       />
 
       {/* Loading Screen */}
@@ -170,6 +236,84 @@ export default function App() {
         />
       )}
 
+      {/* In-Game UI */}
+      {gameState === 'playing' && (
+        <>
+          {/* Health Bar */}
+          <HealthBar
+            hp={playerStats.hp}
+            maxHp={playerStats.maxHp}
+            shield={playerStats.shield}
+            maxShield={playerStats.maxShield}
+            energy={playerStats.energy}
+            maxEnergy={playerStats.maxEnergy}
+          />
+
+          {/* Score Display */}
+          <ScoreDisplay
+            score={playerStats.score}
+            wave={playerStats.wave}
+            combo={playerStats.combo}
+            fps={60}
+            seed="DEMO123"
+            webgpuSupported={webgpuSupported}
+          />
+
+          {/* Weapon Indicator */}
+          <WeaponIndicator
+            weaponLevel={playerStats.weaponLevel}
+            secondaryWeapon={playerStats.secondaryWeapon}
+            secondaryCooldown={playerStats.secondaryCooldown}
+            dashCooldown={playerStats.dashCooldown}
+          />
+
+          {/* Mini Map */}
+          <MiniMap
+            playerX={400}
+            playerY={300}
+            enemies={[]}
+            worldWidth={800}
+            worldHeight={600}
+          />
+
+          {/* Crosshair */}
+          <Crosshair
+            x={mousePos.x}
+            y={mousePos.y}
+            isActive={isShooting}
+          />
+
+          {/* Keyboard Hints */}
+          <KeyboardHints />
+
+          {/* Damage Flash */}
+          <DamageFlash
+            isActive={damageFlash}
+            intensity={0.5}
+          />
+
+          {/* Wave Info */}
+          <WaveInfo
+            wave={playerStats.wave}
+            enemiesRemaining={10}
+            totalEnemies={10}
+            isBossWave={playerStats.wave % 5 === 0}
+          />
+
+          {/* Combo Display */}
+          <ComboDisplay
+            combo={playerStats.combo}
+            multiplier={1 + playerStats.combo * 0.1}
+          />
+
+          {/* Game Timer */}
+          <GameTimer
+            startTime={Date.now()}
+            isPaused={false}
+          />
+        </>
+      )}
+
       {/* Pause Menu */}
       {gameState === 'paused' && (
         <PauseMenu
@@ -183,15 +327,15 @@ export default function App() {
       {/* Game Over Screen */}
       {gameState === 'gameover' && (
         <GameOverScreen
-          score={engineRef.current?.getPlayer().score || 0}
-          wave={engineRef.current?.getWave() || 1}
+          score={playerStats.score}
+          wave={playerStats.wave}
           enemiesKilled={0}
           totalDamage={0}
           survivalTime={0}
-          maxCombo={engineRef.current?.getPlayer().combo || 1}
+          maxCombo={playerStats.combo}
           seed="DEMO123"
           highScore={highScore}
-          isNewHighScore={(engineRef.current?.getPlayer().score || 0) > highScore}
+          isNewHighScore={playerStats.score > highScore}
           onRestart={handleRestart}
           onMainMenu={handleMainMenu}
         />
@@ -225,6 +369,36 @@ export default function App() {
         isOpen={showTutorial}
         onClose={() => setShowTutorial(false)}
       />
+
+      {/* Stats Panel */}
+      <StatsPanel
+        isOpen={showStats}
+        stats={{
+          totalDamage: 0,
+          enemiesKilled: 0,
+          shotsFired: 0,
+          accuracy: 0,
+          timePlayed: 0,
+          upgradesCollected: 0
+        }}
+        onClose={() => setShowStats(false)}
+      />
+
+      {/* Achievement Panel */}
+      <AchievementPanel
+        isOpen={showAchievements}
+        achievements={[]}
+        onClose={() => setShowAchievements(false)}
+      />
+
+      {/* Controls Overlay */}
+      <ControlsOverlay
+        isVisible={showControls}
+        onClose={() => setShowControls(false)}
+      />
+
+      {/* Performance Monitor */}
+      <PerformanceMonitor isVisible={showPerformance} />
 
       {/* Notifications */}
       {notifications.map((notification) => (
