@@ -1,11 +1,12 @@
 import { AudioEngine } from './audio';
+import { WebGPURenderer } from './webgpu-renderer';
 
 // ============= TYPES =============
 interface Vec2 { x: number; y: number; }
 interface Particle {
   x: number; y: number; vx: number; vy: number;
   life: number; maxLife: number; size: number;
-  color: string; type: 'spark' | 'trail' | 'debris' | 'energy';
+  color: string; type: 'spark' | 'trail' | 'debris' | 'energy' | 'orb';
 }
 interface Bullet {
   x: number; y: number; vx: number; vy: number;
@@ -19,6 +20,7 @@ interface Enemy {
   color: string; phase: number; pattern: number;
   shootTimer: number; moveTimer: number;
   targetX: number; targetY: number;
+  playerPattern?: { left: number; right: number; up: number; down: number };
 }
 interface Player {
   x: number; y: number; vx: number; vy: number;
@@ -28,10 +30,22 @@ interface Player {
   invincible: number; shootTimer: number;
   weaponLevel: number; critRate: number; critDmg: number;
   score: number; combo: number; comboTimer: number;
+  secondaryWeapon: 'none' | 'gravity' | 'chain' | 'temporal';
+  secondaryCooldown: number;
+  stasisActive: boolean; stasisTimer: number;
 }
 interface Upgrade {
   name: string; description: string; icon: string;
   apply: (player: Player) => void;
+}
+interface PowerOrb {
+  x: number; y: number; vx: number; vy: number;
+  type: 'hp' | 'energy' | 'shield' | 'score';
+  life: number; size: number;
+}
+interface Crystal {
+  x: number; y: number; size: number; hp: number;
+  rotation: number; rotSpeed: number; color: string;
 }
 type GameState = 'menu' | 'playing' | 'paused' | 'levelup' | 'gameover';
 
@@ -41,11 +55,16 @@ interface WaveAnnouncement {
   timer: number;
   color: string;
 }
+interface FloatingText {
+  x: number; y: number; text: string; color: string;
+  life: number; maxLife: number; vy: number;
+}
 
 // ============= GAME ENGINE =============
 export class GameEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
+  private webgpuRenderer: WebGPURenderer | null = null;
   private width = 0;
   private height = 0;
   private audio: AudioEngine;
@@ -54,9 +73,12 @@ export class GameEngine {
   private enemies: Enemy[] = [];
   private bullets: Bullet[] = [];
   private particles: Particle[] = [];
+  private powerOrbs: PowerOrb[] = [];
+  private crystals: Crystal[] = [];
   private keys: Set<string> = new Set();
   private mouse: Vec2 = { x: 0, y: 0 };
   private mouseDown = false;
+  private rightMouseDown = false;
   private time = 0;
   private deltaTime = 0;
   private lastTime = 0;
@@ -75,6 +97,11 @@ export class GameEngine {
   private webgpuSupported = false;
   private onStateChange: (state: GameState) => void;
   private waveAnnouncement: WaveAnnouncement | null = null;
+  private seed: string = '';
+  private gameTime = 0;
+  private totalDamageDealt = 0;
+  private enemiesKilled = 0;
+  private floatingTexts: FloatingText[] = [];
 
   constructor(canvas: HTMLCanvasElement, onStateChange: (state: GameState) => void) {
     this.canvas = canvas;
@@ -82,23 +109,29 @@ export class GameEngine {
     this.audio = new AudioEngine();
     this.onStateChange = onStateChange;
     this.player = this.createPlayer();
-    this.checkWebGPU();
+    this.initWebGPU();
     this.initStars();
     this.loadHighScore();
     this.generateUpgrades();
+    this.generateSeed();
   }
 
-  private async checkWebGPU() {
-    try {
-      const nav = navigator as any;
-      if (nav.gpu) {
-        const adapter = await nav.gpu.requestAdapter();
-        this.webgpuSupported = !!adapter;
-      }
-    } catch (e) {
-      this.webgpuSupported = false;
+  private async initWebGPU() {
+    this.webgpuRenderer = new WebGPURenderer(this.canvas);
+    this.webgpuSupported = await this.webgpuRenderer.initialize();
+    if (this.webgpuSupported) {
+      console.log('WebGPU rendering enabled');
+    } else {
+      console.log('Falling back to Canvas2D');
+      this.webgpuRenderer = null;
     }
   }
+
+  private generateSeed() {
+    this.seed = Math.random().toString(36).substring(2, 10).toUpperCase();
+  }
+
+  // checkWebGPU moved to initWebGPU
 
   private initStars() {
     for (let i = 0; i < 200; i++) {
@@ -134,7 +167,10 @@ export class GameEngine {
       speed: 5, dashCooldown: 0, dashTimer: 0,
       invincible: 0, shootTimer: 0,
       weaponLevel: 1, critRate: 0.05, critDmg: 2,
-      score: 0, combo: 1, comboTimer: 0
+      score: 0, combo: 1, comboTimer: 0,
+      secondaryWeapon: 'none',
+      secondaryCooldown: 0,
+      stasisActive: false, stasisTimer: 0
     };
   }
 
@@ -147,7 +183,9 @@ export class GameEngine {
       { name: 'Critical Matrix', description: '+10% crit rate, +50% crit damage', icon: '💀', apply: (p) => { p.critRate += 0.1; p.critDmg += 0.5; } },
       { name: 'Bio-Reconstruction', description: '+30 max HP, full heal', icon: '❤️', apply: (p) => { p.maxHp += 30; p.hp = p.maxHp; } },
       { name: 'Split Plasma', description: 'Projectiles split into 3', icon: '🔱', apply: (p) => { p.weaponLevel += 2; } },
-      { name: 'Entropy Field', description: 'Enemies move 20% slower', icon: '🌀', apply: () => {} },
+      { name: 'Gravity Well', description: 'Unlock Gravity secondary weapon', icon: '🌀', apply: (p) => { p.secondaryWeapon = 'gravity'; } },
+      { name: 'Chain Lightning', description: 'Unlock Chain secondary weapon', icon: '⚡', apply: (p) => { p.secondaryWeapon = 'chain'; } },
+      { name: 'Temporal Stasis', description: 'Unlock Time Stop ability', icon: '⏸️', apply: (p) => { p.secondaryWeapon = 'temporal'; } },
     ];
   }
 
@@ -174,6 +212,10 @@ export class GameEngine {
     if (key === ' ' && this.state === 'playing') {
       this.tryDash();
     }
+    // Temporal Stasis
+    if (key.toLowerCase() === 'q' && this.state === 'playing' && this.player.secondaryWeapon === 'temporal') {
+      this.activateStasis();
+    }
   }
 
   handleKeyUp(key: string) {
@@ -185,8 +227,22 @@ export class GameEngine {
     this.mouse.y = y;
   }
 
-  handleMouseDown() { this.mouseDown = true; }
-  handleMouseUp() { this.mouseDown = false; }
+  handleMouseDown(button: number = 0) {
+    if (button === 0) {
+      this.mouseDown = true;
+    } else if (button === 2) {
+      this.rightMouseDown = true;
+      this.useSecondaryWeapon();
+    }
+  }
+
+  handleMouseUp(button: number = 0) {
+    if (button === 0) {
+      this.mouseDown = false;
+    } else if (button === 2) {
+      this.rightMouseDown = false;
+    }
+  }
 
   handleClick(x: number, y: number) {
     if (this.state === 'menu') {
@@ -205,13 +261,34 @@ export class GameEngine {
     this.enemies = [];
     this.bullets = [];
     this.particles = [];
+    this.powerOrbs = [];
+    this.crystals = [];
     this.wave = 1;
     this.waveTimer = 0;
     this.bossActive = false;
     this.time = 0;
+    this.gameTime = 0;
+    this.totalDamageDealt = 0;
+    this.enemiesKilled = 0;
     this.state = 'playing';
     this.onStateChange(this.state);
     this.audio.startMusic();
+    this.generateSeed();
+    this.spawnCrystals();
+  }
+
+  private spawnCrystals() {
+    for (let i = 0; i < 15; i++) {
+      this.crystals.push({
+        x: Math.random() * this.width,
+        y: Math.random() * this.height,
+        size: 20 + Math.random() * 30,
+        hp: 30 + Math.random() * 20,
+        rotation: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.02,
+        color: Math.random() < 0.5 ? '#4400aa' : '#aa0044'
+      });
+    }
   }
 
   private tryDash() {
@@ -234,6 +311,72 @@ export class GameEngine {
           color: '#00ffff', type: 'energy'
         });
       }
+    }
+  }
+
+  private activateStasis() {
+    if (this.player.energy >= 30 && !this.player.stasisActive) {
+      this.player.stasisActive = true;
+      this.player.stasisTimer = 2;
+      this.player.energy -= 30;
+      this.audio.playStasis();
+    }
+  }
+
+  private useSecondaryWeapon() {
+    const p = this.player;
+    if (p.secondaryCooldown > 0 || p.energy < 25) return;
+
+    if (p.secondaryWeapon === 'gravity') {
+      p.secondaryCooldown = 3;
+      p.energy -= 25;
+      // Create gravity well
+      for (let i = 0; i < 30; i++) {
+        const angle = (Math.PI * 2 * i) / 30;
+        this.particles.push({
+          x: this.mouse.x + Math.cos(angle) * 50,
+          y: this.mouse.y + Math.sin(angle) * 50,
+          vx: -Math.cos(angle) * 3, vy: -Math.sin(angle) * 3,
+          life: 1.5, maxLife: 1.5, size: 4,
+          color: '#8800ff', type: 'energy'
+        });
+      }
+      // Pull enemies
+      for (const e of this.enemies) {
+        const dx = this.mouse.x - e.x;
+        const dy = this.mouse.y - e.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 200) {
+          e.vx += (dx / dist) * 10;
+          e.vy += (dy / dist) * 10;
+        }
+      }
+      this.audio.playExplosion();
+    } else if (p.secondaryWeapon === 'chain') {
+      p.secondaryCooldown = 2;
+      p.energy -= 25;
+      // Chain lightning to nearest enemies
+      const targets = this.enemies
+        .map(e => ({ e, dist: Math.sqrt((e.x - p.x) ** 2 + (e.y - p.y) ** 2) }))
+        .sort((a, b) => a.dist - b.dist)
+        .slice(0, 5);
+      
+      for (const { e } of targets) {
+        e.hp -= 30;
+        this.totalDamageDealt += 30;
+        // Lightning effect
+        for (let i = 0; i < 10; i++) {
+          const t = i / 10;
+          this.particles.push({
+            x: p.x + (e.x - p.x) * t + (Math.random() - 0.5) * 20,
+            y: p.y + (e.y - p.y) * t + (Math.random() - 0.5) * 20,
+            vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
+            life: 0.3, maxLife: 0.3, size: 3,
+            color: '#ffff00', type: 'spark'
+          });
+        }
+      }
+      this.audio.playShoot();
     }
   }
 
@@ -292,7 +435,8 @@ export class GameEngine {
         pattern: Math.floor(Math.random() * 3),
         shootTimer: Math.random() * 2,
         moveTimer: 0,
-        targetX: this.player.x, targetY: this.player.y
+        targetX: this.player.x, targetY: this.player.y,
+        playerPattern: { left: 0, right: 0, up: 0, down: 0 }
       });
     }
 
@@ -337,10 +481,14 @@ export class GameEngine {
       return;
     }
 
+    this.gameTime += this.deltaTime;
     this.updatePlayer();
     this.updateEnemies();
     this.updateBullets();
     this.updateParticles();
+    this.updatePowerOrbs();
+    this.updateCrystals();
+    this.updateFloatingTexts();
     this.updateWave();
     this.render();
     this.animFrame = requestAnimationFrame((t) => this.update(t));
@@ -350,6 +498,18 @@ export class GameEngine {
     const p = this.player;
     const friction = 0.88;
     const accel = 0.8;
+
+    // Track player movement patterns for adaptive AI
+    if (this.keys.has('a') || this.keys.has('arrowleft')) {
+      for (const e of this.enemies) {
+        if (e.playerPattern) e.playerPattern.left++;
+      }
+    }
+    if (this.keys.has('d') || this.keys.has('arrowright')) {
+      for (const e of this.enemies) {
+        if (e.playerPattern) e.playerPattern.right++;
+      }
+    }
 
     // Movement
     if (this.keys.has('w') || this.keys.has('arrowup')) p.vy -= accel;
@@ -370,9 +530,19 @@ export class GameEngine {
     if (p.dashCooldown > 0) p.dashCooldown -= this.deltaTime;
     if (p.dashTimer > 0) p.dashTimer -= this.deltaTime;
     if (p.invincible > 0) p.invincible -= this.deltaTime;
+    if (p.secondaryCooldown > 0) p.secondaryCooldown -= this.deltaTime;
     if (p.comboTimer > 0) {
       p.comboTimer -= this.deltaTime;
       if (p.comboTimer <= 0) p.combo = 1;
+    }
+
+    // Stasis
+    if (p.stasisActive) {
+      p.stasisTimer -= this.deltaTime;
+      p.energy -= 15 * this.deltaTime;
+      if (p.stasisTimer <= 0 || p.energy <= 0) {
+        p.stasisActive = false;
+      }
     }
 
     // Energy regen
@@ -426,18 +596,35 @@ export class GameEngine {
         life: 2, type: 'player'
       });
     }
+    
+    // Muzzle flash effect
+    const muzzleX = p.x + dirX * 20;
+    const muzzleY = p.y + dirY * 20;
+    for (let i = 0; i < 5; i++) {
+      const angle = Math.atan2(dirY, dirX) + (Math.random() - 0.5) * 0.5;
+      const speed = Math.random() * 3 + 2;
+      this.particles.push({
+        x: muzzleX, y: muzzleY,
+        vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        life: 0.2, maxLife: 0.2, size: 3,
+        color: isCrit ? '#ffff00' : '#00ffff', type: 'spark'
+      });
+    }
+    
     this.audio.playShoot();
   }
 
   private updateEnemies() {
+    const timeScale = this.player.stasisActive ? 0.1 : 1;
+    
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
-      e.phase += this.deltaTime * 2;
-      e.shootTimer -= this.deltaTime;
-      e.moveTimer -= this.deltaTime;
+      e.phase += this.deltaTime * 2 * timeScale;
+      e.shootTimer -= this.deltaTime * timeScale;
+      e.moveTimer -= this.deltaTime * timeScale;
 
       if (e.type === 'boss') {
-        this.updateBoss(e);
+        this.updateBoss(e, timeScale);
       } else {
         // Move toward player
         const dx = this.player.x - e.x;
@@ -446,27 +633,27 @@ export class GameEngine {
         const speed = e.type === 'swarmer' ? 2.5 : e.type === 'sniper' ? 1 : 0.8;
         
         if (e.type === 'swarmer') {
-          e.vx += (dx / dist) * speed * 0.1;
-          e.vy += (dy / dist) * speed * 0.1;
-          e.vx += Math.sin(e.phase * 3) * 0.3;
-          e.vy += Math.cos(e.phase * 3) * 0.3;
+          e.vx += (dx / dist) * speed * 0.1 * timeScale;
+          e.vy += (dy / dist) * speed * 0.1 * timeScale;
+          e.vx += Math.sin(e.phase * 3) * 0.3 * timeScale;
+          e.vy += Math.cos(e.phase * 3) * 0.3 * timeScale;
         } else if (e.type === 'sniper') {
           if (dist > 250) {
-            e.vx += (dx / dist) * speed * 0.05;
-            e.vy += (dy / dist) * speed * 0.05;
+            e.vx += (dx / dist) * speed * 0.05 * timeScale;
+            e.vy += (dy / dist) * speed * 0.05 * timeScale;
           } else if (dist < 180) {
-            e.vx -= (dx / dist) * speed * 0.05;
-            e.vy -= (dy / dist) * speed * 0.05;
+            e.vx -= (dx / dist) * speed * 0.05 * timeScale;
+            e.vy -= (dy / dist) * speed * 0.05 * timeScale;
           }
         } else {
-          e.vx += (dx / dist) * speed * 0.03;
-          e.vy += (dy / dist) * speed * 0.03;
+          e.vx += (dx / dist) * speed * 0.03 * timeScale;
+          e.vy += (dy / dist) * speed * 0.03 * timeScale;
         }
 
         e.vx *= 0.95;
         e.vy *= 0.95;
-        e.x += e.vx;
-        e.y += e.vy;
+        e.x += e.vx * timeScale;
+        e.y += e.vy * timeScale;
 
         // Shooting
         if (e.shootTimer <= 0) {
@@ -484,17 +671,29 @@ export class GameEngine {
     }
   }
 
-  private updateBoss(boss: Enemy) {
+  private updateBoss(boss: Enemy, timeScale: number) {
     const dx = this.player.x - boss.x;
     const dy = this.player.y - boss.y;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
     
     // Boss movement - orbit and approach
-    boss.x += Math.sin(boss.phase * 0.5) * 2;
-    boss.y += Math.cos(boss.phase * 0.3) * 1;
+    boss.x += Math.sin(boss.phase * 0.5) * 2 * timeScale;
+    boss.y += Math.cos(boss.phase * 0.3) * 1 * timeScale;
     if (dist > 300) {
-      boss.x += (dx / dist) * 1.5;
-      boss.y += (dy / dist) * 1.5;
+      boss.x += (dx / dist) * 1.5 * timeScale;
+      boss.y += (dy / dist) * 1.5 * timeScale;
+    }
+
+    // Adaptive pattern based on player movement
+    if (boss.playerPattern) {
+      const total = boss.playerPattern.left + boss.playerPattern.right + boss.playerPattern.up + boss.playerPattern.down;
+      if (total > 50) {
+        // Adjust attack angles based on player tendencies
+        const leftRatio = boss.playerPattern.left / total;
+        const rightRatio = boss.playerPattern.right / total;
+        // Bias attacks toward player's preferred dodge direction
+        boss.pattern = leftRatio > rightRatio ? 1 : 0;
+      }
     }
 
     // Boss attack patterns
@@ -515,28 +714,29 @@ export class GameEngine {
           });
         }
       } else if (pattern === 1) {
-        // Aimed burst
-        const baseAngle = Math.atan2(dy, dx);
-        for (let i = -2; i <= 2; i++) {
-          const a = baseAngle + i * 0.2;
-          this.bullets.push({
-            x: boss.x, y: boss.y,
-            vx: Math.cos(a) * 6, vy: Math.sin(a) * 6,
-            size: 6, color: '#ff44ff', damage: 20,
-            life: 3, type: 'enemy'
-          });
-        }
-      } else if (pattern === 2) {
-        // Lissajous pattern
+        // Lissajous curve pattern
         const t = boss.phase;
         for (let i = 0; i < 12; i++) {
           const a = (Math.PI * 2 * i) / 12;
-          const r = 3 + Math.sin(t * 2 + i) * 2;
+          const r = 3 + Math.sin(t * 2 + i * 0.5) * 2;
+          this.bullets.push({
+            x: boss.x, y: boss.y,
+            vx: Math.cos(a) * r, vy: Math.sin(a * 2 + t) * r,
+            size: 4, color: '#ff88ff', damage: 12,
+            life: 4, type: 'enemy'
+          });
+        }
+      } else if (pattern === 2) {
+        // Logarithmic spiral
+        const baseAngle = boss.phase;
+        for (let i = 0; i < 20; i++) {
+          const a = baseAngle + i * 0.3;
+          const r = 2 + i * 0.2;
           this.bullets.push({
             x: boss.x, y: boss.y,
             vx: Math.cos(a) * r, vy: Math.sin(a) * r,
-            size: 4, color: '#ff88ff', damage: 12,
-            life: 4, type: 'enemy'
+            size: 3, color: '#cc00ff', damage: 10,
+            life: 3.5, type: 'enemy'
           });
         }
       } else {
@@ -561,6 +761,16 @@ export class GameEngine {
     const dy = this.player.y - e.y;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
+    // Adaptive aiming based on player patterns
+    let aimOffset = 0;
+    if (e.playerPattern) {
+      const total = e.playerPattern.left + e.playerPattern.right;
+      if (total > 20) {
+        const leftRatio = e.playerPattern.left / total;
+        aimOffset = (leftRatio - 0.5) * 0.3; // Bias toward player's dodge direction
+      }
+    }
+
     if (e.type === 'swarmer') {
       this.bullets.push({
         x: e.x, y: e.y,
@@ -568,9 +778,16 @@ export class GameEngine {
         size: 3, color: '#ff6644', damage: 8,
         life: 3, type: 'enemy'
       });
+      // Muzzle flash
+      this.particles.push({
+        x: e.x, y: e.y,
+        vx: 0, vy: 0,
+        life: 0.15, maxLife: 0.15, size: 6,
+        color: '#ff6644', type: 'spark'
+      });
     } else if (e.type === 'sniper') {
       for (let i = -1; i <= 1; i++) {
-        const angle = Math.atan2(dy, dx) + i * 0.1;
+        const angle = Math.atan2(dy, dx) + i * 0.1 + aimOffset;
         this.bullets.push({
           x: e.x, y: e.y,
           vx: Math.cos(angle) * 7, vy: Math.sin(angle) * 7,
@@ -580,7 +797,7 @@ export class GameEngine {
       }
     } else {
       for (let i = 0; i < 6; i++) {
-        const angle = (Math.PI * 2 * i) / 6 + e.phase;
+        const angle = (Math.PI * 2 * i) / 6 + e.phase + aimOffset;
         this.bullets.push({
           x: e.x, y: e.y,
           vx: Math.cos(angle) * 3, vy: Math.sin(angle) * 3,
@@ -597,9 +814,11 @@ export class GameEngine {
     this.player.comboTimer = 5;
     this.screenShake = e.type === 'boss' ? 20 : 5;
     this.audio.playExplosion();
+    this.enemiesKilled++;
 
-    // Death particles
-    for (let i = 0; i < (e.type === 'boss' ? 80 : 20); i++) {
+    // Death particles - more when WebGPU is active
+    const particleCount = this.webgpuSupported ? (e.type === 'boss' ? 200 : 50) : (e.type === 'boss' ? 80 : 20);
+    for (let i = 0; i < particleCount; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = Math.random() * 8 + 2;
       this.particles.push({
@@ -610,8 +829,49 @@ export class GameEngine {
       });
     }
 
+    // Drop power orbs
+    if (Math.random() < 0.3 || e.type === 'boss') {
+      const orbCount = e.type === 'boss' ? 5 : 1;
+      for (let i = 0; i < orbCount; i++) {
+        const types: PowerOrb['type'][] = ['hp', 'energy', 'shield', 'score'];
+        this.powerOrbs.push({
+          x: e.x + (Math.random() - 0.5) * 30,
+          y: e.y + (Math.random() - 0.5) * 30,
+          vx: (Math.random() - 0.5) * 2,
+          vy: (Math.random() - 0.5) * 2,
+          type: types[Math.floor(Math.random() * types.length)],
+          life: 10,
+          size: 8
+        });
+      }
+    }
+
     if (e.type === 'boss') {
       this.bossActive = false;
+      // Boss death shockwave
+      for (let i = 0; i < 50; i++) {
+        const angle = (Math.PI * 2 * i) / 50;
+        const speed = 8 + Math.random() * 4;
+        this.particles.push({
+          x: e.x, y: e.y,
+          vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+          life: 1.5, maxLife: 1.5, size: 5 + Math.random() * 3,
+          color: '#ff00ff', type: 'debris'
+        });
+      }
+      // Extra explosion particles
+      for (let i = 0; i < 40; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 6 + 3;
+        this.particles.push({
+          x: e.x + (Math.random() - 0.5) * 40,
+          y: e.y + (Math.random() - 0.5) * 40,
+          vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+          life: 2, maxLife: 2, size: 4 + Math.random() * 4,
+          color: Math.random() < 0.5 ? '#ff00ff' : '#ffffff',
+          type: 'energy'
+        });
+      }
     }
   }
 
@@ -634,7 +894,15 @@ export class GameEngine {
           const dy = b.y - e.y;
           if (dx * dx + dy * dy < (e.size + b.size) * (e.size + b.size)) {
             e.hp -= b.damage;
+            this.totalDamageDealt += b.damage;
             this.bullets.splice(i, 1);
+            // Floating damage number
+            this.floatingTexts.push({
+              x: b.x, y: b.y,
+              text: Math.floor(b.damage).toString(),
+              color: b.color === '#ffff00' ? '#ffff00' : '#ffffff',
+              life: 0.8, maxLife: 0.8, vy: -2
+            });
             // Hit particles
             for (let j = 0; j < 5; j++) {
               this.particles.push({
@@ -643,6 +911,45 @@ export class GameEngine {
                 life: 0.3, maxLife: 0.3, size: 2,
                 color: b.color, type: 'spark'
               });
+            }
+            break;
+          }
+        }
+
+        // Check crystal hits
+        for (let c = this.crystals.length - 1; c >= 0; c--) {
+          const crystal = this.crystals[c];
+          const dx = b.x - crystal.x;
+          const dy = b.y - crystal.y;
+          if (dx * dx + dy * dy < (crystal.size + b.size) * (crystal.size + b.size)) {
+            crystal.hp -= b.damage;
+            this.bullets.splice(i, 1);
+            if (crystal.hp <= 0) {
+              // Crystal destruction with shards
+              for (let j = 0; j < 25; j++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 7 + 3;
+                this.particles.push({
+                  x: crystal.x + (Math.random() - 0.5) * crystal.size,
+                  y: crystal.y + (Math.random() - 0.5) * crystal.size,
+                  vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+                  life: 1.2, maxLife: 1.2, size: 2 + Math.random() * 3,
+                  color: crystal.color, type: 'debris'
+                });
+              }
+              // Energy burst
+              for (let j = 0; j < 10; j++) {
+                const angle = (Math.PI * 2 * j) / 10;
+                this.particles.push({
+                  x: crystal.x, y: crystal.y,
+                  vx: Math.cos(angle) * 4, vy: Math.sin(angle) * 4,
+                  life: 0.8, maxLife: 0.8, size: 4,
+                  color: '#ffffff', type: 'energy'
+                });
+              }
+              this.crystals.splice(c, 1);
+              this.audio.playExplosion();
+              this.screenShake = 5;
             }
             break;
           }
@@ -697,20 +1004,83 @@ export class GameEngine {
   }
 
   private updateParticles() {
-    for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vx *= 0.96;
-      p.vy *= 0.96;
-      p.life -= this.deltaTime;
-      if (p.life <= 0) {
-        this.particles.splice(i, 1);
+    // WebGPU handles physics via compute shaders
+    if (this.webgpuSupported && this.webgpuRenderer) {
+      // Just update life on CPU side
+      for (let i = this.particles.length - 1; i >= 0; i--) {
+        const p = this.particles[i];
+        p.life -= this.deltaTime;
+        if (p.life <= 0) {
+          this.particles.splice(i, 1);
+        }
+      }
+    } else {
+      // Canvas2D fallback - full physics on CPU
+      for (let i = this.particles.length - 1; i >= 0; i--) {
+        const p = this.particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= 0.96;
+        p.vy *= 0.96;
+        p.life -= this.deltaTime;
+        if (p.life <= 0) {
+          this.particles.splice(i, 1);
+        }
       }
     }
+    
     // Limit particles
-    if (this.particles.length > 2000) {
-      this.particles.splice(0, this.particles.length - 2000);
+    const maxParticles = this.webgpuSupported ? 10000 : 2000;
+    if (this.particles.length > maxParticles) {
+      this.particles.splice(0, this.particles.length - maxParticles);
+    }
+  }
+
+  private updatePowerOrbs() {
+    for (let i = this.powerOrbs.length - 1; i >= 0; i--) {
+      const orb = this.powerOrbs[i];
+      orb.x += orb.vx;
+      orb.y += orb.vy;
+      orb.vx *= 0.95;
+      orb.vy *= 0.95;
+      orb.life -= this.deltaTime;
+
+      // Check player pickup
+      const dx = orb.x - this.player.x;
+      const dy = orb.y - this.player.y;
+      if (dx * dx + dy * dy < 400) {
+        // Pickup
+        switch (orb.type) {
+          case 'hp': this.player.hp = Math.min(this.player.maxHp, this.player.hp + 10); break;
+          case 'energy': this.player.energy = Math.min(this.player.maxEnergy, this.player.energy + 15); break;
+          case 'shield': this.player.shield = Math.min(this.player.maxShield, this.player.shield + 10); break;
+          case 'score': this.player.score += 50; break;
+        }
+        this.audio.playPowerUp();
+        this.powerOrbs.splice(i, 1);
+        continue;
+      }
+
+      if (orb.life <= 0) {
+        this.powerOrbs.splice(i, 1);
+      }
+    }
+  }
+
+  private updateCrystals() {
+    for (const crystal of this.crystals) {
+      crystal.rotation += crystal.rotSpeed;
+    }
+  }
+
+  private updateFloatingTexts() {
+    for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+      const ft = this.floatingTexts[i];
+      ft.y += ft.vy;
+      ft.life -= this.deltaTime;
+      if (ft.life <= 0) {
+        this.floatingTexts.splice(i, 1);
+      }
     }
   }
 
@@ -753,7 +1123,6 @@ export class GameEngine {
 
     // Post-processing: edge glow effect
     if (this.state === 'playing' || this.state === 'levelup') {
-      // Subtle vignette pulse on damage
       if (this.player.invincible > 0) {
         ctx.globalCompositeOperation = 'multiply';
         ctx.fillStyle = `rgba(255, 100, 100, ${0.8 + this.player.invincible * 0.5})`;
@@ -813,7 +1182,7 @@ export class GameEngine {
     }
     ctx.globalAlpha = 1;
 
-    // Animated cosmic grid with perspective
+    // Animated cosmic grid
     ctx.strokeStyle = 'rgba(0, 255, 255, 0.025)';
     ctx.lineWidth = 1;
     const gridSize = 80;
@@ -831,36 +1200,213 @@ export class GameEngine {
       ctx.lineTo(w, y);
       ctx.stroke();
     }
+  }
 
-    // Floating cosmic debris (large dim circles)
-    ctx.globalAlpha = 0.015;
-    for (let i = 0; i < 8; i++) {
-      const dx = (w * 0.3 + Math.sin(this.time * 0.05 + i * 0.8) * w * 0.4);
-      const dy = (h * 0.3 + Math.cos(this.time * 0.04 + i * 1.1) * h * 0.4);
-      const dr = 40 + Math.sin(this.time * 0.2 + i) * 20;
-      const dGrad = ctx.createRadialGradient(dx, dy, 0, dx, dy, dr);
-      dGrad.addColorStop(0, '#ff00ff');
-      dGrad.addColorStop(1, 'transparent');
-      ctx.fillStyle = dGrad;
-      ctx.beginPath();
-      ctx.arc(dx, dy, dr, 0, Math.PI * 2);
-      ctx.fill();
+  private renderGame(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    this.renderCrystals(ctx);
+    this.renderPowerOrbs(ctx);
+    
+    // Use WebGPU for particles if available
+    if (this.webgpuSupported && this.webgpuRenderer) {
+      this.webgpuRenderer.render(this.particles, this.time);
+    } else {
+      this.renderParticles(ctx);
+    }
+    
+    this.renderBullets(ctx);
+    this.renderEnemies(ctx);
+    this.renderPlayer(ctx);
+    this.renderFloatingTexts(ctx);
+    this.renderHUD(ctx, w, h);
+    this.renderMinimap(ctx, w, h);
+  }
+
+  private renderFloatingTexts(ctx: CanvasRenderingContext2D) {
+    for (const ft of this.floatingTexts) {
+      const alpha = ft.life / ft.maxLife;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = ft.color;
+      ctx.font = 'bold 14px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(ft.text, ft.x, ft.y);
     }
     ctx.globalAlpha = 1;
   }
 
-  private renderGame(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    this.renderParticles(ctx);
-    this.renderBullets(ctx);
-    this.renderEnemies(ctx);
-    this.renderPlayer(ctx);
-    this.renderHUD(ctx, w, h);
+  private renderMinimap(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    const mapSize = 100;
+    const mapX = w - mapSize - 15;
+    const mapY = h - mapSize - 15;
+    const scale = mapSize / Math.max(w, h);
+
+    // Background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(mapX, mapY, mapSize, mapSize);
+    ctx.strokeStyle = 'rgba(0, 255, 255, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(mapX, mapY, mapSize, mapSize);
+
+    // Player dot
+    ctx.fillStyle = '#00ffff';
+    ctx.beginPath();
+    ctx.arc(mapX + this.player.x * scale, mapY + this.player.y * scale, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Enemy dots
+    for (const e of this.enemies) {
+      ctx.fillStyle = e.type === 'boss' ? '#ff00ff' : e.color;
+      const size = e.type === 'boss' ? 4 : 2;
+      ctx.beginPath();
+      ctx.arc(mapX + e.x * scale, mapY + e.y * scale, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Crystal dots
+    for (const c of this.crystals) {
+      ctx.fillStyle = c.color + '88';
+      ctx.beginPath();
+      ctx.arc(mapX + c.x * scale, mapY + c.y * scale, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Power orb dots
+    for (const orb of this.powerOrbs) {
+      ctx.fillStyle = '#ffff00';
+      ctx.beginPath();
+      ctx.arc(mapX + orb.x * scale, mapY + orb.y * scale, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  private renderCrystals(ctx: CanvasRenderingContext2D) {
+    for (const crystal of this.crystals) {
+      ctx.save();
+      ctx.translate(crystal.x, crystal.y);
+      ctx.rotate(crystal.rotation);
+
+      // Crystal glow
+      const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, crystal.size * 1.5);
+      glow.addColorStop(0, crystal.color + '44');
+      glow.addColorStop(1, 'transparent');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(0, 0, crystal.size * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Crystal body
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI * 2 * i) / 6;
+        const r = crystal.size * (i % 2 === 0 ? 1 : 0.7);
+        if (i === 0) ctx.moveTo(Math.cos(angle) * r, Math.sin(angle) * r);
+        else ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+      }
+      ctx.closePath();
+      ctx.fillStyle = crystal.color;
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff44';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.restore();
+    }
+  }
+
+  private renderPowerOrbs(ctx: CanvasRenderingContext2D) {
+    for (const orb of this.powerOrbs) {
+      const colors = {
+        hp: '#00ff44',
+        energy: '#ffaa00',
+        shield: '#0088ff',
+        score: '#ffff00'
+      };
+      const color = colors[orb.type];
+      const pulse = 1 + Math.sin(this.time * 6 + orb.x) * 0.3;
+
+      // Magnetic pull visual when near player
+      const dx = this.player.x - orb.x;
+      const dy = this.player.y - orb.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 100) {
+        ctx.strokeStyle = color + '44';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(orb.x, orb.y);
+        ctx.lineTo(this.player.x, this.player.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Accelerate toward player
+        orb.vx += (dx / dist) * 0.5;
+        orb.vy += (dy / dist) * 0.5;
+      }
+
+      // Outer glow with pulse
+      const glowSize = orb.size * 2.5 * pulse;
+      const glow = ctx.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, glowSize);
+      glow.addColorStop(0, color + 'aa');
+      glow.addColorStop(0.5, color + '44');
+      glow.addColorStop(1, 'transparent');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(orb.x, orb.y, glowSize, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Core
+      ctx.beginPath();
+      ctx.arc(orb.x, orb.y, orb.size * pulse, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+
+      // Rotating ring
+      ctx.strokeStyle = color + '88';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(orb.x, orb.y, orb.size * 1.5, this.time * 3, this.time * 3 + Math.PI);
+      ctx.stroke();
+
+      // Inner highlight
+      ctx.beginPath();
+      ctx.arc(orb.x - 2, orb.y - 2, orb.size * 0.4, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+
+      // Type icon
+      ctx.fillStyle = '#fff';
+      ctx.font = '8px monospace';
+      ctx.textAlign = 'center';
+      const icons = { hp: '+', energy: 'E', shield: 'S', score: '$' };
+      ctx.fillText(icons[orb.type], orb.x, orb.y + 3);
+    }
   }
 
   private renderPlayer(ctx: CanvasRenderingContext2D) {
     const p = this.player;
     ctx.save();
     ctx.translate(p.x, p.y);
+
+    // Stasis effect - temporal distortion rings
+    if (p.stasisActive) {
+      for (let i = 0; i < 5; i++) {
+        const radius = 25 + i * 12 + Math.sin(this.time * 4 + i) * 5;
+        const alpha = 0.4 - i * 0.07;
+        ctx.strokeStyle = `rgba(100, 200, 255, ${alpha})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, this.time * 2 + i, this.time * 2 + i + Math.PI * 1.5);
+        ctx.stroke();
+      }
+      // Clock-like ticks
+      for (let i = 0; i < 12; i++) {
+        const a = (Math.PI * 2 * i) / 12 + this.time;
+        ctx.strokeStyle = 'rgba(150, 220, 255, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * 35, Math.sin(a) * 35);
+        ctx.lineTo(Math.cos(a) * 45, Math.sin(a) * 45);
+        ctx.stroke();
+      }
+    }
 
     // Outer glow
     const glowSize = 30 + Math.sin(this.time * 5) * 8;
@@ -878,7 +1424,7 @@ export class GameEngine {
       ctx.globalAlpha = 0.5;
     }
 
-    // Ship body - angular design
+    // Ship body
     const angle = Math.atan2(this.mouse.y - p.y, this.mouse.x - p.x);
     ctx.rotate(angle);
 
@@ -910,7 +1456,7 @@ export class GameEngine {
     ctx.fillStyle = '#88eeff';
     ctx.fill();
 
-    // Engine glow - multiple thrusters
+    // Engine glow
     const engineFlicker = Math.random() * 8;
     ctx.beginPath();
     ctx.moveTo(-6, -3);
@@ -920,19 +1466,10 @@ export class GameEngine {
     ctx.closePath();
     ctx.fillStyle = `rgba(0, 150, 255, ${0.6 + Math.random() * 0.4})`;
     ctx.fill();
-    
-    // Secondary engine glow
-    ctx.beginPath();
-    ctx.moveTo(-6, -2);
-    ctx.lineTo(-12 - engineFlicker * 0.5, 0);
-    ctx.lineTo(-6, 2);
-    ctx.closePath();
-    ctx.fillStyle = `rgba(200, 240, 255, ${0.7 + Math.random() * 0.3})`;
-    ctx.fill();
 
     ctx.restore();
 
-    // Shield visual - animated arc
+    // Shield visual
     if (p.shield > 0) {
       const shieldAngle = Math.PI * 2 * (p.shield / p.maxShield);
       ctx.beginPath();
@@ -940,19 +1477,6 @@ export class GameEngine {
       ctx.strokeStyle = `rgba(0, 200, 255, ${0.4 + Math.sin(this.time * 3) * 0.2})`;
       ctx.lineWidth = 2.5;
       ctx.stroke();
-      
-      // Shield sparkles
-      if (Math.random() < 0.1) {
-        const sparkAngle = this.time * 2 + Math.random() * shieldAngle;
-        this.particles.push({
-          x: p.x + Math.cos(sparkAngle) * 22,
-          y: p.y + Math.sin(sparkAngle) * 22,
-          vx: (Math.random() - 0.5) * 2,
-          vy: (Math.random() - 0.5) * 2,
-          life: 0.3, maxLife: 0.3, size: 1.5,
-          color: '#00ccff', type: 'spark'
-        });
-      }
     }
   }
 
@@ -969,9 +1493,10 @@ export class GameEngine {
       ctx.fillRect(-e.size * 2, -e.size * 2, e.size * 4, e.size * 4);
 
       if (e.type === 'boss') {
-        // Boss - cosmic horror entity
-        // Outer tendrils
+        // Cosmic horror boss with tendrils
         ctx.rotate(e.phase * 0.3);
+        
+        // Outer tendrils
         for (let i = 0; i < 8; i++) {
           const a = (Math.PI * 2 * i) / 8 + e.phase * 0.2;
           const len = e.size * 1.3 + Math.sin(e.phase * 2 + i) * 15;
@@ -987,15 +1512,12 @@ export class GameEngine {
 
         // Main body - morphing polygon
         ctx.rotate(e.phase * 0.2);
-        const sides = 8;
         ctx.beginPath();
-        for (let i = 0; i <= sides; i++) {
-          const a = (Math.PI * 2 * i) / sides;
+        for (let i = 0; i < 8; i++) {
+          const a = (Math.PI * 2 * i) / 8;
           const r = e.size + Math.sin(a * 3 + e.phase * 2) * 12 + Math.cos(a * 5 + e.phase) * 6;
-          const px = Math.cos(a) * r;
-          const py = Math.sin(a) * r;
-          if (i === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
+          if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+          else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
         }
         ctx.closePath();
         
@@ -1007,13 +1529,6 @@ export class GameEngine {
         ctx.fill();
         ctx.strokeStyle = '#ff44ff';
         ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // Inner rings
-        ctx.beginPath();
-        ctx.arc(0, 0, e.size * 0.6, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(255, 100, 255, 0.5)';
-        ctx.lineWidth = 1;
         ctx.stroke();
 
         // Central eye
@@ -1030,7 +1545,7 @@ export class GameEngine {
         ctx.fillStyle = eyeGrad;
         ctx.fill();
 
-        // Pupil that tracks player
+        // Pupil tracking player
         const toPlayerX = this.player.x - e.x;
         const toPlayerY = this.player.y - e.y;
         const toPlayerDist = Math.sqrt(toPlayerX * toPlayerX + toPlayerY * toPlayerY) || 1;
@@ -1038,39 +1553,7 @@ export class GameEngine {
         ctx.arc((toPlayerX / toPlayerDist) * 4, (toPlayerY / toPlayerDist) * 4, 5, 0, Math.PI * 2);
         ctx.fillStyle = '#000';
         ctx.fill();
-      } else if (e.type === 'titan') {
-        // Titan - heavy armored
-        ctx.rotate(e.phase * 0.2);
-        ctx.beginPath();
-        for (let i = 0; i < 8; i++) {
-          const a = (Math.PI * 2 * i) / 8;
-          const r = e.size * (i % 2 === 0 ? 1 : 0.7);
-          if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
-          else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-        }
-        ctx.closePath();
-        ctx.fillStyle = e.color;
-        ctx.fill();
-        ctx.strokeStyle = '#ff88ff';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      } else if (e.type === 'sniper') {
-        // Sniper - elongated
-        const angle = Math.atan2(this.player.y - e.y, this.player.x - e.x);
-        ctx.rotate(angle);
-        ctx.beginPath();
-        ctx.moveTo(e.size, 0);
-        ctx.lineTo(-e.size * 0.5, -e.size * 0.4);
-        ctx.lineTo(-e.size * 0.3, 0);
-        ctx.lineTo(-e.size * 0.5, e.size * 0.4);
-        ctx.closePath();
-        ctx.fillStyle = e.color;
-        ctx.fill();
-        ctx.strokeStyle = '#ffcc00';
-        ctx.lineWidth = 1;
-        ctx.stroke();
       } else {
-        // Swarmer - small triangle
         ctx.rotate(e.phase);
         ctx.beginPath();
         ctx.moveTo(e.size, 0);
@@ -1083,8 +1566,8 @@ export class GameEngine {
 
       ctx.restore();
 
-      // HP bar for non-boss (drawn outside rotation)
-      if (e.type !== 'boss' && e.hp < e.maxHp) {
+      // HP bar
+      if (e.hp < e.maxHp) {
         ctx.fillStyle = '#333';
         ctx.fillRect(e.x - e.size, e.y - e.size - 10, e.size * 2, 4);
         ctx.fillStyle = e.color;
@@ -1183,9 +1666,6 @@ export class GameEngine {
     ctx.fillRect(padding, h - 40, 200 * (p.shield / p.maxShield), 12);
     ctx.strokeStyle = '#0088ff';
     ctx.strokeRect(padding, h - 40, 200, 12);
-    ctx.fillStyle = '#fff';
-    ctx.font = '9px monospace';
-    ctx.fillText(`SHIELD ${Math.ceil(p.shield)}`, padding + 4, h - 31);
 
     // Energy Bar
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -1211,18 +1691,56 @@ export class GameEngine {
       ctx.fillText(`${p.combo}x COMBO`, w / 2, 30);
     }
 
-    // FPS
+    // FPS & Stats
     ctx.fillStyle = this.fps >= 50 ? '#00ff00' : this.fps >= 30 ? '#ffff00' : '#ff0000';
     ctx.font = '10px monospace';
     ctx.textAlign = 'left';
     ctx.fillText(`FPS: ${this.fps}`, padding, 20);
-    ctx.fillText(`ENTITIES: ${this.enemies.length + this.bullets.length + this.particles.length}`, padding, 32);
+    ctx.fillText(`SEED: ${this.seed}`, padding, 32);
+    ctx.fillText(`ENTITIES: ${this.enemies.length + this.bullets.length + this.particles.length}`, padding, 44);
+    
+    // WebGPU indicator
     if (this.webgpuSupported) {
-      ctx.fillStyle = '#00ffaa';
-      ctx.fillText('WebGPU ✓', padding, 44);
+      ctx.fillStyle = '#00ff88';
+      ctx.fillText('WebGPU ACTIVE', padding, 56);
+      ctx.fillText(`Particles: ${this.particles.length}`, padding, 68);
+    } else {
+      ctx.fillStyle = '#ffaa00';
+      ctx.fillText('Canvas2D Fallback', padding, 56);
     }
 
-    // Dash cooldown indicator
+    // Secondary weapon indicator
+    if (p.secondaryWeapon !== 'none') {
+      ctx.fillStyle = p.secondaryCooldown > 0 ? '#666' : '#00ffff';
+      ctx.font = '12px monospace';
+      ctx.textAlign = 'right';
+      const weaponName = p.secondaryWeapon === 'gravity' ? '🌀 GRAVITY' : p.secondaryWeapon === 'chain' ? '⚡ CHAIN' : '⏸️ STASIS [Q]';
+      ctx.fillText(weaponName, w - padding, h - 40);
+      if (p.secondaryCooldown > 0) {
+        ctx.fillText(`${p.secondaryCooldown.toFixed(1)}s`, w - padding, h - 25);
+      }
+    }
+
+    // Speed gauge
+    const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+    const maxSpeed = 15;
+    const speedRatio = Math.min(speed / maxSpeed, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(w - 150, h - 60, 120, 8);
+    const speedGrad = ctx.createLinearGradient(w - 150, 0, w - 30, 0);
+    speedGrad.addColorStop(0, '#00ff88');
+    speedGrad.addColorStop(0.5, '#ffff00');
+    speedGrad.addColorStop(1, '#ff4400');
+    ctx.fillStyle = speedGrad;
+    ctx.fillRect(w - 150, h - 60, 120 * speedRatio, 8);
+    ctx.strokeStyle = '#00ff88';
+    ctx.strokeRect(w - 150, h - 60, 120, 8);
+    ctx.fillStyle = '#fff';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('SPEED', w - 35, h - 50);
+
+    // Dash cooldown
     if (p.dashCooldown > 0) {
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
       ctx.font = '10px monospace';
@@ -1242,39 +1760,30 @@ export class GameEngine {
         this.waveAnnouncement = null;
       } else {
         const alpha = Math.min(1, this.waveAnnouncement.timer);
-        const scale = 1 + (1 - alpha) * 0.3;
         ctx.save();
         ctx.globalAlpha = alpha;
         ctx.textAlign = 'center';
-        ctx.translate(w / 2, h * 0.2);
-        ctx.scale(scale, scale);
-        
-        // Glow
         ctx.shadowColor = this.waveAnnouncement.color;
         ctx.shadowBlur = 20;
         ctx.fillStyle = this.waveAnnouncement.color;
         ctx.font = 'bold 32px monospace';
-        ctx.fillText(this.waveAnnouncement.text, 0, 0);
+        ctx.fillText(this.waveAnnouncement.text, w / 2, h * 0.2);
         ctx.shadowBlur = 0;
-        
         ctx.fillStyle = 'rgba(255,255,255,0.7)';
         ctx.font = '14px monospace';
-        ctx.fillText(this.waveAnnouncement.subtext, 0, 30);
-        
+        ctx.fillText(this.waveAnnouncement.subtext, w / 2, h * 0.2 + 30);
         ctx.restore();
       }
     }
   }
 
   private renderMenu(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    // Vortex particles in background
     this.renderParticles(ctx);
 
-    // Title
     ctx.save();
     ctx.textAlign = 'center';
 
-    // Title glow
+    // Title
     const titleY = h * 0.3;
     ctx.shadowColor = '#00ffff';
     ctx.shadowBlur = 30;
@@ -1287,7 +1796,6 @@ export class GameEngine {
     ctx.fillText('VOID BREAKER', w / 2, titleY + 40);
     ctx.shadowBlur = 0;
 
-    // Subtitle
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.font = '14px monospace';
     ctx.fillText('A WebGPU Cosmic-Horror Rogue-Lite', w / 2, titleY + 70);
@@ -1305,7 +1813,8 @@ export class GameEngine {
     ctx.fillText('WASD / Arrows - Move', w / 2, h * 0.7);
     ctx.fillText('Mouse - Aim & Shoot', w / 2, h * 0.7 + 20);
     ctx.fillText('Space - Dash (i-frames)', w / 2, h * 0.7 + 40);
-    ctx.fillText('ESC - Pause', w / 2, h * 0.7 + 60);
+    ctx.fillText('Right Click - Secondary Weapon', w / 2, h * 0.7 + 60);
+    ctx.fillText('Q - Temporal Stasis', w / 2, h * 0.7 + 80);
 
     // High score
     if (this.highScore > 0) {
@@ -1316,20 +1825,33 @@ export class GameEngine {
 
     // WebGPU status
     ctx.fillStyle = this.webgpuSupported ? '#00ff88' : '#ff8800';
-    ctx.font = '10px monospace';
-    ctx.fillText(this.webgpuSupported ? '● WebGPU Available' : '● Canvas2D Fallback Mode', w / 2, h * 0.95);
+    ctx.font = '12px monospace';
+    ctx.fillText(this.webgpuSupported ? '● WebGPU ACTIVE - GPU Accelerated' : '● Canvas2D Mode', w / 2, h * 0.95);
 
     ctx.restore();
 
-    // Spawn menu particles
-    if (Math.random() < 0.3) {
+    // Animated vortex in background
+    ctx.globalAlpha = 0.1;
+    for (let i = 0; i < 5; i++) {
+      const radius = 100 + i * 40 + Math.sin(this.time + i) * 20;
+      const startAngle = this.time * 0.5 + i * 0.5;
+      ctx.strokeStyle = i % 2 === 0 ? '#00ffff' : '#ff00ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(w / 2, h / 2, radius, startAngle, startAngle + Math.PI * 1.5);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // Menu particles - vortex effect
+    if (Math.random() < 0.5) {
       const angle = Math.random() * Math.PI * 2;
-      const dist = 200 + Math.random() * 100;
+      const dist = 200 + Math.random() * 150;
       this.particles.push({
         x: w / 2 + Math.cos(angle) * dist,
         y: h / 2 + Math.sin(angle) * dist,
-        vx: -Math.cos(angle) * 2, vy: -Math.sin(angle) * 2,
-        life: 2, maxLife: 2, size: 2,
+        vx: -Math.cos(angle) * 3, vy: -Math.sin(angle) * 3,
+        life: 2.5, maxLife: 2.5, size: 2 + Math.random() * 2,
         color: Math.random() < 0.5 ? '#00ffff' : '#ff00ff',
         type: 'energy'
       });
@@ -1337,17 +1859,35 @@ export class GameEngine {
   }
 
   private renderLevelUp(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    // Overlay
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    // Animated background overlay
+    const overlay = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w * 0.6);
+    overlay.addColorStop(0, 'rgba(0, 20, 40, 0.85)');
+    overlay.addColorStop(1, 'rgba(0, 0, 0, 0.95)');
+    ctx.fillStyle = overlay;
     ctx.fillRect(0, 0, w, h);
+
+    // Animated rings
+    ctx.globalAlpha = 0.15;
+    for (let i = 0; i < 3; i++) {
+      const radius = 150 + i * 50 + Math.sin(this.time * 2 + i) * 20;
+      ctx.strokeStyle = '#00ffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(w / 2, h / 2, radius, this.time + i, this.time + i + Math.PI * 1.5);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#00ffff';
-    ctx.font = 'bold 28px monospace';
-    ctx.fillText('CHOOSE AN UPGRADE', w / 2, h * 0.25);
+    ctx.font = 'bold 32px monospace';
+    ctx.shadowColor = '#00ffff';
+    ctx.shadowBlur = 15;
+    ctx.fillText('CHOOSE AN UPGRADE', w / 2, h * 0.2);
+    ctx.shadowBlur = 0;
 
     const cardWidth = 180;
-    const cardHeight = 220;
+    const cardHeight = 240;
     const startX = w / 2 - (cardWidth * 1.5 + 20);
     const startY = h / 2 - cardHeight / 2;
 
@@ -1357,73 +1897,152 @@ export class GameEngine {
       const cx = startX + i * (cardWidth + 20);
       const cy = startY;
 
-      // Card background
       const isHover = this.mouse.x >= cx && this.mouse.x <= cx + cardWidth &&
                       this.mouse.y >= cy && this.mouse.y <= cy + cardHeight;
       
-      ctx.fillStyle = isHover ? 'rgba(0, 255, 255, 0.2)' : 'rgba(20, 20, 40, 0.9)';
+      // Card background with gradient
+      const cardGrad = ctx.createLinearGradient(cx, cy, cx, cy + cardHeight);
+      if (isHover) {
+        cardGrad.addColorStop(0, 'rgba(0, 255, 255, 0.3)');
+        cardGrad.addColorStop(1, 'rgba(0, 100, 150, 0.2)');
+      } else {
+        cardGrad.addColorStop(0, 'rgba(20, 20, 40, 0.9)');
+        cardGrad.addColorStop(1, 'rgba(10, 10, 30, 0.9)');
+      }
+      ctx.fillStyle = cardGrad;
       ctx.fillRect(cx, cy, cardWidth, cardHeight);
+      
+      // Card border with glow
       ctx.strokeStyle = isHover ? '#00ffff' : '#444488';
       ctx.lineWidth = isHover ? 3 : 1;
+      if (isHover) {
+        ctx.shadowColor = '#00ffff';
+        ctx.shadowBlur = 10;
+      }
       ctx.strokeRect(cx, cy, cardWidth, cardHeight);
+      ctx.shadowBlur = 0;
 
-      // Icon
-      ctx.font = '36px serif';
-      ctx.fillText(upgrade.icon, cx + cardWidth / 2, cy + 50);
+      // Icon with animation
+      const iconScale = isHover ? 1.2 : 1;
+      ctx.save();
+      ctx.translate(cx + cardWidth / 2, cy + 55);
+      ctx.scale(iconScale, iconScale);
+      ctx.font = '40px serif';
+      ctx.fillText(upgrade.icon, 0, 0);
+      ctx.restore();
 
       // Name
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 13px monospace';
-      ctx.fillText(upgrade.name, cx + cardWidth / 2, cy + 90);
+      ctx.fillStyle = isHover ? '#00ffff' : '#ffffff';
+      ctx.font = 'bold 14px monospace';
+      ctx.fillText(upgrade.name, cx + cardWidth / 2, cy + 100);
 
-      // Description
+      // Description with word wrap
       ctx.fillStyle = 'rgba(255,255,255,0.7)';
       ctx.font = '11px monospace';
       const words = upgrade.description.split(' ');
       let line = '';
-      let lineY = cy + 115;
+      let lineY = cy + 125;
       for (const word of words) {
         const test = line + word + ' ';
         if (ctx.measureText(test).width > cardWidth - 20) {
           ctx.fillText(line.trim(), cx + cardWidth / 2, lineY);
           line = word + ' ';
-          lineY += 15;
+          lineY += 16;
         } else {
           line = test;
         }
       }
       ctx.fillText(line.trim(), cx + cardWidth / 2, lineY);
+
+      // Hover indicator
+      if (isHover) {
+        ctx.fillStyle = '#00ffff';
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText('▼ SELECT ▼', cx + cardWidth / 2, cy + cardHeight - 15);
+      }
     }
   }
 
   private renderGameOver(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    // Dark overlay with gradient
+    const overlay = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w * 0.6);
+    overlay.addColorStop(0, 'rgba(20, 0, 0, 0.85)');
+    overlay.addColorStop(1, 'rgba(0, 0, 0, 0.95)');
+    ctx.fillStyle = overlay;
     ctx.fillRect(0, 0, w, h);
 
     ctx.textAlign = 'center';
+    
+    // Title with glitch effect
     ctx.fillStyle = '#ff0044';
     ctx.font = 'bold 42px monospace';
     ctx.shadowColor = '#ff0044';
     ctx.shadowBlur = 20;
-    ctx.fillText('VOID CONSUMED', w / 2, h * 0.3);
+    ctx.fillText('VOID CONSUMED', w / 2, h * 0.25);
     ctx.shadowBlur = 0;
 
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '18px monospace';
-    ctx.fillText(`Final Score: ${this.player.score.toLocaleString()}`, w / 2, h * 0.45);
-    ctx.fillText(`Wave Reached: ${this.wave}`, w / 2, h * 0.5);
-    ctx.fillText(`Max Combo: ${this.player.combo}x`, w / 2, h * 0.55);
+    // Stats box
+    const boxWidth = 300;
+    const boxHeight = 200;
+    const boxX = (w - boxWidth) / 2;
+    const boxY = h * 0.32;
+    
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+    ctx.strokeStyle = '#ff004488';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
 
-    if (this.player.score >= this.highScore && this.player.score > 0) {
-      ctx.fillStyle = '#ffaa00';
-      ctx.font = 'bold 16px monospace';
-      ctx.fillText('★ NEW HIGH SCORE ★', w / 2, h * 0.62);
+    // Stats
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '16px monospace';
+    const stats = [
+      { label: 'Final Score', value: this.player.score.toLocaleString(), color: '#00ffff' },
+      { label: 'Wave Reached', value: this.wave.toString(), color: '#ff8800' },
+      { label: 'Enemies Killed', value: this.enemiesKilled.toString(), color: '#ff4444' },
+      { label: 'Total Damage', value: Math.floor(this.totalDamageDealt).toLocaleString(), color: '#ffff00' },
+      { label: 'Survival Time', value: `${Math.floor(this.gameTime)}s`, color: '#00ff88' },
+      { label: 'Max Combo', value: `${this.player.combo}x`, color: '#ff00ff' }
+    ];
+
+    let statY = boxY + 30;
+    for (const stat of stats) {
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.font = '12px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(stat.label + ':', boxX + 20, statY);
+      ctx.fillStyle = stat.color;
+      ctx.font = 'bold 14px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(stat.value, boxX + boxWidth - 20, statY);
+      statY += 28;
     }
 
+    // High score notification
+    if (this.player.score >= this.highScore && this.player.score > 0) {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffaa00';
+      ctx.font = 'bold 18px monospace';
+      ctx.shadowColor = '#ffaa00';
+      ctx.shadowBlur = 10;
+      ctx.fillText('★ NEW HIGH SCORE ★', w / 2, boxY + boxHeight + 30);
+      ctx.shadowBlur = 0;
+    }
+
+    // Share seed
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '12px monospace';
+    ctx.fillText(`SEED: ${this.seed}`, w / 2, h * 0.82);
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.font = '10px monospace';
+    ctx.fillText('Share this seed to challenge friends!', w / 2, h * 0.85);
+
+    // Retry button
     const pulse = Math.sin(this.time * 3) * 0.3 + 0.7;
     ctx.fillStyle = `rgba(0, 255, 255, ${pulse})`;
-    ctx.font = 'bold 18px monospace';
-    ctx.fillText('[ CLICK TO RETRY ]', w / 2, h * 0.75);
+    ctx.font = 'bold 20px monospace';
+    ctx.fillText('[ CLICK TO RETRY ]', w / 2, h * 0.92);
   }
 
   startLoop() {
@@ -1443,5 +2062,8 @@ export class GameEngine {
   destroy() {
     this.stopLoop();
     this.audio.dispose();
+    if (this.webgpuRenderer) {
+      this.webgpuRenderer.dispose();
+    }
   }
 }
