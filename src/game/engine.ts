@@ -50,8 +50,9 @@ interface Upgrade {
 }
 interface PowerOrb {
   x: number; y: number; vx: number; vy: number;
-  type: 'hp' | 'energy' | 'shield' | 'score';
+  type: 'hp' | 'energy' | 'shield' | 'score' | 'advanced_powerup';
   life: number; size: number;
+  powerUpId?: string;
 }
 interface Crystal {
   x: number; y: number; size: number; hp: number;
@@ -451,13 +452,27 @@ export class GameEngine {
       };
     }
 
+    // Choose formation based on wave
+    const formationTypes: Array<'line' | 'circle' | 'vshape' | 'random' | 'spiral'> = 
+      ['line', 'circle', 'vshape', 'random', 'spiral'];
+    const formationType = formationTypes[this.wave % formationTypes.length];
+    
+    // Create formation
+    this.formationSystem = new FormationSystem(formationType);
+    const centerX = this.player.x;
+    const centerY = this.player.y - 400; // Start above player
+    this.formationSystem.setCenter(centerX, centerY);
+    this.formationSystem.setRotation(Math.random() * Math.PI * 2);
+    this.formationSystem.setScale(1 + this.wave * 0.1);
+
     for (let i = 0; i < count; i++) {
-      const angle = (Math.PI * 2 * i) / count;
-      const dist = 400 + Math.random() * 200;
+      // Get position from formation
+      const pos = this.formationSystem.getPosition(i, count);
       const type = Math.random() < 0.6 ? 'swarmer' : (Math.random() < 0.7 ? 'sniper' : 'titan');
+      
       this.enemies.push({
-        x: this.player.x + Math.cos(angle) * dist,
-        y: this.player.y + Math.sin(angle) * dist,
+        x: pos.x,
+        y: pos.y,
         vx: 0, vy: 0,
         hp: type === 'swarmer' ? 20 : type === 'sniper' ? 40 : 100,
         maxHp: type === 'swarmer' ? 20 : type === 'sniper' ? 40 : 100,
@@ -486,6 +501,115 @@ export class GameEngine {
     if (this.wave >= 5 && this.wave % 4 === 0) {
       this.changeWeatherForWave();
     }
+    
+    // Spawn power-ups occasionally
+    if (Math.random() < 0.3) {
+      this.spawnAdvancedPowerUp();
+    }
+  }
+  
+  private spawnAdvancedPowerUp() {
+    // Choose random power-up based on rarity
+    const roll = Math.random();
+    let powerUp;
+    
+    if (roll < 0.6) {
+      // Common
+      const commons = ADVANCED_POWERUPS.filter(p => p.rarity === 'common');
+      powerUp = commons[Math.floor(Math.random() * commons.length)];
+    } else if (roll < 0.85) {
+      // Rare
+      const rares = ADVANCED_POWERUPS.filter(p => p.rarity === 'rare');
+      powerUp = rares[Math.floor(Math.random() * rares.length)];
+    } else if (roll < 0.95) {
+      // Epic
+      const epics = ADVANCED_POWERUPS.filter(p => p.rarity === 'epic');
+      powerUp = epics[Math.floor(Math.random() * epics.length)];
+    } else {
+      // Legendary
+      const legendaries = ADVANCED_POWERUPS.filter(p => p.rarity === 'legendary');
+      powerUp = legendaries[Math.floor(Math.random() * legendaries.length)];
+    }
+    
+    if (powerUp) {
+      // Spawn power-up orb
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 200 + Math.random() * 200;
+      const x = this.player.x + Math.cos(angle) * dist;
+      const y = this.player.y + Math.sin(angle) * dist;
+      
+      this.powerOrbs.push({
+        x, y,
+        vx: 0, vy: 0,
+        type: 'advanced_powerup',
+        powerUpId: powerUp.id,
+        life: 15,
+        size: 12
+      });
+      
+      // Show notification
+      this.floatingTexts.push({
+        x, y: y - 20,
+        text: `${powerUp.icon} ${powerUp.name}`,
+        color: powerUp.color,
+        life: 2,
+        maxLife: 2,
+        vy: -1
+      });
+    }
+  }
+  
+  private dropAdvancedPowerUp(x: number, y: number, isBoss: boolean) {
+    // Choose random power-up based on rarity (bosses drop better loot)
+    const roll = Math.random();
+    let powerUp;
+    
+    if (isBoss) {
+      // Bosses drop epic or legendary
+      if (roll < 0.7) {
+        const epics = ADVANCED_POWERUPS.filter(p => p.rarity === 'epic');
+        powerUp = epics[Math.floor(Math.random() * epics.length)];
+      } else {
+        const legendaries = ADVANCED_POWERUPS.filter(p => p.rarity === 'legendary');
+        powerUp = legendaries[Math.floor(Math.random() * legendaries.length)];
+      }
+    } else {
+      // Regular enemies drop common or rare
+      if (roll < 0.7) {
+        const commons = ADVANCED_POWERUPS.filter(p => p.rarity === 'common');
+        powerUp = commons[Math.floor(Math.random() * commons.length)];
+      } else {
+        const rares = ADVANCED_POWERUPS.filter(p => p.rarity === 'rare');
+        powerUp = rares[Math.floor(Math.random() * rares.length)];
+      }
+    }
+    
+    if (powerUp) {
+      // Spawn power-up orb at enemy location
+      this.powerOrbs.push({
+        x: x + (Math.random() - 0.5) * 20,
+        y: y + (Math.random() - 0.5) * 20,
+        vx: (Math.random() - 0.5) * 3,
+        vy: (Math.random() - 0.5) * 3,
+        type: 'advanced_powerup',
+        powerUpId: powerUp.id,
+        life: 15,
+        size: isBoss ? 15 : 10
+      });
+      
+      // Show notification
+      this.floatingTexts.push({
+        x: x, y: y - 30,
+        text: `${powerUp.icon} ${powerUp.name}`,
+        color: powerUp.color,
+        life: 2,
+        maxLife: 2,
+        vy: -1
+      });
+      
+      // Play sound effect
+      this.proceduralAudio.playPowerUp();
+    }
   }
   
   private spawnEnvironmentalHazards() {
@@ -505,6 +629,7 @@ export class GameEngine {
       const duration = 15 + Math.random() * 10;
       
       this.hazardsSystem.addHazard(type, x, y, radius, damage, duration);
+      this.proceduralAudio.playHazardSpawn(type);
     }
   }
   
@@ -517,10 +642,16 @@ export class GameEngine {
     const duration = 20 + Math.random() * 20;
     
     this.weatherSystem.setWeather(weather, intensity, duration);
+    this.proceduralAudio.playWeatherChange(weather);
   }
 
   private spawnBoss() {
     this.bossActive = true;
+    
+    // Create Boss AI based on wave
+    const maxPhases = Math.min(5, Math.floor(this.wave / 5) + 2);
+    this.bossAI = new BossAI(maxPhases);
+    
     this.enemies.push({
       x: this.player.x, y: this.player.y - 350,
       vx: 0, vy: 0,
@@ -704,28 +835,33 @@ export class GameEngine {
       if (e.type === 'boss') {
         this.updateBoss(e, timeScale);
       } else {
-        // Move toward player
-        const dx = this.player.x - e.x;
-        const dy = this.player.y - e.y;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const speed = e.type === 'swarmer' ? 2.5 : e.type === 'sniper' ? 1 : 0.8;
+        // Get or create AI for this enemy
+        const enemyId = `enemy_${i}`;
+        if (!this.enemyAIs.has(enemyId)) {
+          // Create AI with personality based on enemy type
+          const personality = this.getEnemyPersonality(e.type);
+          this.enemyAIs.set(enemyId, new AdvancedEnemyAI(personality));
+        }
         
+        const ai = this.enemyAIs.get(enemyId)!;
+        
+        // Update AI with current state
+        const aiResult = ai.update(
+          e.x, e.y,
+          this.player.x, this.player.y,
+          this.player.vx, this.player.vy,
+          this.deltaTime * timeScale
+        );
+        
+        // Apply AI movement
+        const speed = e.type === 'swarmer' ? 2.5 : e.type === 'sniper' ? 1 : 0.8;
+        e.vx += aiResult.moveX * speed * 0.1 * timeScale;
+        e.vy += aiResult.moveY * speed * 0.1 * timeScale;
+        
+        // Add some randomness to movement
         if (e.type === 'swarmer') {
-          e.vx += (dx / dist) * speed * 0.1 * timeScale;
-          e.vy += (dy / dist) * speed * 0.1 * timeScale;
           e.vx += Math.sin(e.phase * 3) * 0.3 * timeScale;
           e.vy += Math.cos(e.phase * 3) * 0.3 * timeScale;
-        } else if (e.type === 'sniper') {
-          if (dist > 250) {
-            e.vx += (dx / dist) * speed * 0.05 * timeScale;
-            e.vy += (dy / dist) * speed * 0.05 * timeScale;
-          } else if (dist < 180) {
-            e.vx -= (dx / dist) * speed * 0.05 * timeScale;
-            e.vy -= (dy / dist) * speed * 0.05 * timeScale;
-          }
-        } else {
-          e.vx += (dx / dist) * speed * 0.03 * timeScale;
-          e.vy += (dy / dist) * speed * 0.03 * timeScale;
         }
 
         e.vx *= 0.95;
@@ -733,19 +869,44 @@ export class GameEngine {
         e.x += e.vx * timeScale;
         e.y += e.vy * timeScale;
 
-        // Shooting
-        if (e.shootTimer <= 0) {
+        // Shooting based on AI decision
+        if (aiResult.shouldAttack && e.shootTimer <= 0) {
+          const shootInterval = e.type === 'swarmer' ? 1.5 : e.type === 'sniper' ? 2.5 : 3;
+          e.shootTimer = shootInterval;
+          this.enemyShoot(e, aiResult.attackAngle);
+        } else if (e.shootTimer <= 0) {
+          // Fallback to regular shooting if AI doesn't want to attack
           const shootInterval = e.type === 'swarmer' ? 1.5 : e.type === 'sniper' ? 2.5 : 3;
           e.shootTimer = shootInterval;
           this.enemyShoot(e);
         }
+        
+        // Update AI state based on health
+        const healthPercent = e.hp / e.maxHp;
+        ai.setLowHealth(healthPercent);
       }
 
       // Check death
       if (e.hp <= 0) {
         this.onEnemyDeath(e);
+        // Remove AI when enemy dies
+        const enemyId = `enemy_${i}`;
+        this.enemyAIs.delete(enemyId);
         this.enemies.splice(i, 1);
       }
+    }
+  }
+  
+  private getEnemyPersonality(type: string): { aggression: number; intelligence: number; reactionTime: number; accuracy: number } {
+    switch (type) {
+      case 'swarmer':
+        return { aggression: 0.8, intelligence: 0.3, reactionTime: 0.7, accuracy: 0.5 };
+      case 'sniper':
+        return { aggression: 0.4, intelligence: 0.8, reactionTime: 0.5, accuracy: 0.9 };
+      case 'titan':
+        return { aggression: 0.6, intelligence: 0.6, reactionTime: 0.3, accuracy: 0.7 };
+      default:
+        return { aggression: 0.5, intelligence: 0.5, reactionTime: 0.5, accuracy: 0.5 };
     }
   }
 
@@ -753,37 +914,69 @@ export class GameEngine {
     const dx = this.player.x - boss.x;
     const dy = this.player.y - boss.y;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const healthPercent = boss.hp / boss.maxHp;
     
-    // Boss movement - orbit and approach
-    boss.x += Math.sin(boss.phase * 0.5) * 2 * timeScale;
-    boss.y += Math.cos(boss.phase * 0.3) * 1 * timeScale;
-    if (dist > 300) {
-      boss.x += (dx / dist) * 1.5 * timeScale;
-      boss.y += (dy / dist) * 1.5 * timeScale;
-    }
+    // Use BossAI if available
+    if (this.bossAI) {
+      const aiResult = this.bossAI.update(
+        boss.x, boss.y,
+        this.player.x, this.player.y,
+        healthPercent,
+        this.deltaTime * timeScale
+      );
+      
+      // Apply AI movement
+      boss.x += aiResult.moveX * 2 * timeScale;
+      boss.y += aiResult.moveY * 2 * timeScale;
+      
+      // Apply AI attack pattern
+      if (aiResult.shouldAttack && aiResult.attackPattern) {
+        this.executeBossAttackPattern(boss, aiResult.attackPattern);
+      }
+    } else {
+      // Fallback to original behavior if no AI
+      // Boss movement - orbit and approach
+      boss.x += Math.sin(boss.phase * 0.5) * 2 * timeScale;
+      boss.y += Math.cos(boss.phase * 0.3) * 1 * timeScale;
+      if (dist > 300) {
+        boss.x += (dx / dist) * 1.5 * timeScale;
+        boss.y += (dy / dist) * 1.5 * timeScale;
+      }
 
-    // Adaptive pattern based on player movement
-    if (boss.playerPattern) {
-      const total = boss.playerPattern.left + boss.playerPattern.right + boss.playerPattern.up + boss.playerPattern.down;
-      if (total > 50) {
-        // Adjust attack angles based on player tendencies
-        const leftRatio = boss.playerPattern.left / total;
-        const rightRatio = boss.playerPattern.right / total;
-        // Bias attacks toward player's preferred dodge direction
-        boss.pattern = leftRatio > rightRatio ? 1 : 0;
+      // Adaptive pattern based on player movement
+      if (boss.playerPattern) {
+        const total = boss.playerPattern.left + boss.playerPattern.right + boss.playerPattern.up + boss.playerPattern.down;
+        if (total > 50) {
+          const leftRatio = boss.playerPattern.left / total;
+          const rightRatio = boss.playerPattern.right / total;
+          boss.pattern = leftRatio > rightRatio ? 1 : 0;
+        }
+      }
+
+      // Boss attack patterns
+      if (boss.shootTimer <= 0) {
+        boss.shootTimer = 0.3;
+        const pattern = boss.pattern;
+        
+        if (pattern === 0) {
+          this.executeBossAttackPattern(boss, 'spiral');
+        } else if (pattern === 1) {
+          this.executeBossAttackPattern(boss, 'burst');
+        } else if (pattern === 2) {
+          this.executeBossAttackPattern(boss, 'laser');
+        } else {
+          this.executeBossAttackPattern(boss, 'ring');
+        }
       }
     }
-
-    // Boss attack patterns
-    if (boss.shootTimer <= 0) {
-      boss.shootTimer = 0.3;
-      const pattern = boss.pattern;
-      
-      if (pattern === 0) {
-        // Spiral pattern
-        const angle = boss.phase * 3;
+  }
+  
+  private executeBossAttackPattern(boss: Enemy, pattern: string) {
+    switch (pattern) {
+      case 'spiral':
+        const spiralAngle = boss.phase * 3;
         for (let i = 0; i < 8; i++) {
-          const a = angle + (Math.PI * 2 * i) / 8;
+          const a = spiralAngle + (Math.PI * 2 * i) / 8;
           this.bullets.push({
             x: boss.x, y: boss.y,
             vx: Math.cos(a) * 4, vy: Math.sin(a) * 4,
@@ -791,7 +984,9 @@ export class GameEngine {
             life: 4, type: 'enemy'
           });
         }
-      } else if (pattern === 1) {
+        break;
+        
+      case 'burst':
         // Lissajous curve pattern
         const t = boss.phase;
         for (let i = 0; i < 12; i++) {
@@ -804,7 +999,9 @@ export class GameEngine {
             life: 4, type: 'enemy'
           });
         }
-      } else if (pattern === 2) {
+        break;
+        
+      case 'laser':
         // Logarithmic spiral
         const baseAngle = boss.phase;
         for (let i = 0; i < 20; i++) {
@@ -817,7 +1014,35 @@ export class GameEngine {
             life: 3.5, type: 'enemy'
           });
         }
-      } else {
+        break;
+        
+      case 'homing':
+        // Homing missiles
+        for (let i = 0; i < 3; i++) {
+          const angle = Math.atan2(this.player.y - boss.y, this.player.x - boss.x) + (i - 1) * 0.3;
+          this.bullets.push({
+            x: boss.x, y: boss.y,
+            vx: Math.cos(angle) * 3, vy: Math.sin(angle) * 3,
+            size: 6, color: '#ff4444', damage: 20,
+            life: 5, type: 'enemy'
+          });
+        }
+        break;
+        
+      case 'ring':
+        // Ring pattern
+        for (let i = 0; i < 16; i++) {
+          const a = (Math.PI * 2 * i) / 16 + boss.phase;
+          this.bullets.push({
+            x: boss.x, y: boss.y,
+            vx: Math.cos(a) * 3, vy: Math.sin(a) * 3,
+            size: 4, color: '#cc00ff', damage: 10,
+            life: 3.5, type: 'enemy'
+          });
+        }
+        break;
+        
+      default:
         // Cross pattern
         for (let i = 0; i < 4; i++) {
           const a = boss.phase + (Math.PI / 2) * i;
@@ -830,14 +1055,20 @@ export class GameEngine {
             });
           }
         }
-      }
+        break;
     }
   }
 
-  private enemyShoot(e: Enemy) {
+  private enemyShoot(e: Enemy, attackAngle?: number) {
     const dx = this.player.x - e.x;
     const dy = this.player.y - e.y;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+    // Use AI-provided attack angle if available
+    let baseAngle = Math.atan2(dy, dx);
+    if (attackAngle !== undefined) {
+      baseAngle = attackAngle;
+    }
 
     // Adaptive aiming based on player patterns
     let aimOffset = 0;
@@ -852,7 +1083,7 @@ export class GameEngine {
     if (e.type === 'swarmer') {
       this.bullets.push({
         x: e.x, y: e.y,
-        vx: (dx / dist) * 4, vy: (dy / dist) * 4,
+        vx: Math.cos(baseAngle + aimOffset) * 4, vy: Math.sin(baseAngle + aimOffset) * 4,
         size: 3, color: '#ff6644', damage: 8,
         life: 3, type: 'enemy'
       });
@@ -865,7 +1096,7 @@ export class GameEngine {
       });
     } else if (e.type === 'sniper') {
       for (let i = -1; i <= 1; i++) {
-        const angle = Math.atan2(dy, dx) + i * 0.1 + aimOffset;
+        const angle = baseAngle + i * 0.1 + aimOffset;
         this.bullets.push({
           x: e.x, y: e.y,
           vx: Math.cos(angle) * 7, vy: Math.sin(angle) * 7,
@@ -875,7 +1106,7 @@ export class GameEngine {
       }
     } else {
       for (let i = 0; i < 6; i++) {
-        const angle = (Math.PI * 2 * i) / 6 + e.phase + aimOffset;
+        const angle = baseAngle + (Math.PI * 2 * i) / 6 + e.phase + aimOffset;
         this.bullets.push({
           x: e.x, y: e.y,
           vx: Math.cos(angle) * 3, vy: Math.sin(angle) * 3,
@@ -928,6 +1159,12 @@ export class GameEngine {
           size: 8
         });
       }
+    }
+    
+    // Drop advanced power-ups (rare drop from regular enemies, guaranteed from bosses)
+    const powerUpDropChance = e.type === 'boss' ? 1.0 : e.type === 'titan' ? 0.3 : 0.05;
+    if (Math.random() < powerUpDropChance) {
+      this.dropAdvancedPowerUp(e.x, e.y, e.type === 'boss');
     }
 
     if (e.type === 'boss') {
@@ -1228,12 +1465,37 @@ export class GameEngine {
       if (dx * dx + dy * dy < 400) {
         // Pickup
         switch (orb.type) {
-          case 'hp': this.player.hp = Math.min(this.player.maxHp, this.player.hp + 10); break;
-          case 'energy': this.player.energy = Math.min(this.player.maxEnergy, this.player.energy + 15); break;
-          case 'shield': this.player.shield = Math.min(this.player.maxShield, this.player.shield + 10); break;
-          case 'score': this.player.score += 50; break;
+          case 'hp': 
+            this.player.hp = Math.min(this.player.maxHp, this.player.hp + 10); 
+            break;
+          case 'energy': 
+            this.player.energy = Math.min(this.player.maxEnergy, this.player.energy + 15); 
+            break;
+          case 'shield': 
+            this.player.shield = Math.min(this.player.maxShield, this.player.shield + 10); 
+            break;
+          case 'score': 
+            this.player.score += 50; 
+            break;
+          case 'advanced_powerup':
+            if (orb.powerUpId) {
+              this.powerUpManager.addPowerUp(orb.powerUpId);
+              const powerUp = ADVANCED_POWERUPS.find(p => p.id === orb.powerUpId);
+              if (powerUp) {
+                this.floatingTexts.push({
+                  x: orb.x, y: orb.y - 20,
+                  text: `${powerUp.icon} ${powerUp.name}`,
+                  color: powerUp.color,
+                  life: 2,
+                  maxLife: 2,
+                  vy: -1
+                });
+              }
+            }
+            break;
         }
         this.audio.playPowerUp();
+        this.proceduralAudio.playPowerUp();
         this.powerOrbs.splice(i, 1);
         continue;
       }
@@ -1270,8 +1532,67 @@ export class GameEngine {
   }
 
   private updatePowerUps() {
-    // Power-up effects are applied through the manager
-    // This method handles any per-frame updates needed
+    // Apply active power-up effects to player
+    const effects = this.powerUpManager.getTotalEffects();
+    
+    // Reset player stats to base values first
+    // (In a real implementation, you'd store base stats separately)
+    
+    // Apply effects
+    for (const effect of effects) {
+      switch (effect.type) {
+        case 'damage':
+          // Apply damage multiplier (would need to modify playerShoot method)
+          break;
+        case 'speed':
+          // Apply speed multiplier
+          const speedBonus = effect.isPercentage ? (effect.value / 100) : effect.value;
+          this.player.speed = 5 * (1 + speedBonus);
+          break;
+        case 'fireRate':
+          // Apply fire rate multiplier (would need to modify shootTimer)
+          break;
+        case 'shield':
+          // Apply shield bonus
+          const shieldBonus = effect.isPercentage ? (this.player.maxShield * effect.value / 100) : effect.value;
+          this.player.shield = Math.min(this.player.maxShield + shieldBonus, this.player.shield + shieldBonus * this.deltaTime);
+          break;
+        case 'health':
+          // Apply health regeneration
+          const healthBonus = effect.isPercentage ? (this.player.maxHp * effect.value / 100) : effect.value;
+          this.player.hp = Math.min(this.player.maxHp, this.player.hp + healthBonus * this.deltaTime);
+          break;
+        case 'energy':
+          // Apply energy regeneration
+          const energyBonus = effect.isPercentage ? (this.player.maxEnergy * effect.value / 100) : effect.value;
+          this.player.energy = Math.min(this.player.maxEnergy, this.player.energy + energyBonus * this.deltaTime);
+          break;
+        case 'critChance':
+          // Apply crit chance bonus
+          const critBonus = effect.isPercentage ? (effect.value / 100) : effect.value;
+          this.player.critRate = 0.05 + critBonus;
+          break;
+        case 'critDamage':
+          // Apply crit damage bonus
+          const critDmgBonus = effect.isPercentage ? (effect.value / 100) : effect.value;
+          this.player.critDmg = 2 + critDmgBonus;
+          break;
+      }
+    }
+    
+    // Check for combos
+    const combos = POWERUP_COMBOS.filter(combo => 
+      combo.requiredPowerUps.every(id => 
+        this.powerUpManager.getActivePowerUps().some(p => p.id === id)
+      )
+    );
+    
+    // Apply combo effects (simplified - in real implementation would track active combos)
+    for (const combo of combos) {
+      for (const effect of combo.bonusEffects) {
+        // Apply combo effects similar to regular power-up effects
+      }
+    }
   }
 
   private updateFloatingTexts() {
@@ -1478,13 +1799,14 @@ export class GameEngine {
 
   private renderPowerOrbs(ctx: CanvasRenderingContext2D) {
     for (const orb of this.powerOrbs) {
-      const colors = {
+      const colors: { [key: string]: string } = {
         hp: '#00ff44',
         energy: '#ffaa00',
         shield: '#0088ff',
-        score: '#ffff00'
+        score: '#ffff00',
+        advanced_powerup: '#ff00ff'
       };
-      const color = colors[orb.type];
+      const color = colors[orb.type] || '#ffffff';
       const pulse = 1 + Math.sin(this.time * 6 + orb.x) * 0.3;
 
       // Magnetic pull visual when near player
@@ -1539,8 +1861,14 @@ export class GameEngine {
       ctx.fillStyle = '#fff';
       ctx.font = '8px monospace';
       ctx.textAlign = 'center';
-      const icons = { hp: '+', energy: 'E', shield: 'S', score: '$' };
-      ctx.fillText(icons[orb.type], orb.x, orb.y + 3);
+      const icons: { [key: string]: string } = { 
+        hp: '+', 
+        energy: 'E', 
+        shield: 'S', 
+        score: '$',
+        advanced_powerup: '★'
+      };
+      ctx.fillText(icons[orb.type] || '?', orb.x, orb.y + 3);
     }
   }
 
