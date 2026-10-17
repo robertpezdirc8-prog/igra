@@ -44,6 +44,9 @@ interface Enemy {
   playerPattern?: { left: number; right: number; up: number; down: number };
   hitFlash?: number;    // white flash timer when damaged
   desperate?: boolean;  // titan one-shot desperation barrage flag
+  // Vertical-scroller fly-bys (Raiden/Strikers attacking waves): a diving
+  // enemy commits to a downward strafing run and re-enters from the top.
+  diving?: boolean; diveCd?: number;
 }
 interface Player {
   x: number; y: number; vx: number; vy: number;
@@ -80,6 +83,7 @@ interface PowerOrb {
 interface Crystal {
   x: number; y: number; size: number; hp: number;
   rotation: number; rotSpeed: number; color: string;
+  driftX: number; // personal horizontal drift (px/s)
 }
 type GameState = 'menu' | 'playing' | 'paused' | 'levelup' | 'levelchoice' | 'gameover';
 
@@ -151,6 +155,9 @@ export class GameEngine {
   private hitStop = 0;
   // Uniform spatial hash grid for enemy broadphase (rebuilt every frame).
   private enemyGrid: Map<number, Enemy[]> = new Map();
+  // Forward-flight world scroll (px/s): rocks, stars and enemies stream
+  // downward past the ship so the run feels like flying into the void.
+  private worldScroll = 0;
   // Classic arcade timers
   private bombCooldown = 0;
   private optionTimer = 0;
@@ -780,15 +787,18 @@ export class GameEngine {
   }
 
   private spawnCrystals() {
-    for (let i = 0; i < 15; i++) {
+    // Oncoming asteroid stream: rocks enter from the top edge and drift
+    // down past the ship (world scroll) instead of sitting on the screen.
+    for (let i = 0; i < 12; i++) {
       this.crystals.push({
         x: Math.random() * this.width,
-        y: Math.random() * this.height,
-        size: 20 + Math.random() * 30,
+        y: Math.random() * (this.height + 300) - 300,
+        size: 18 + Math.random() * 26,
         hp: 30 + Math.random() * 20,
         rotation: Math.random() * Math.PI * 2,
         rotSpeed: (Math.random() - 0.5) * 0.02,
-        color: Math.random() < 0.5 ? '#4400aa' : '#aa0044'
+        color: Math.random() < 0.5 ? '#4400aa' : '#aa0044',
+        driftX: (Math.random() - 0.5) * 30
       });
     }
   }
@@ -927,7 +937,9 @@ export class GameEngine {
     // Create formation
     this.formationSystem = new FormationSystem(formationType);
     const centerX = this.player.x;
-    const centerY = this.player.y - 400; // Start above player
+    // Spawn fully above the screen: the formation streams in from the top
+    // like a classic vertical-scroller attacking wave.
+    const centerY = Math.min(this.player.y - 400, -140);
     this.formationSystem.setCenter(centerX, centerY);
     this.formationSystem.setRotation(Math.random() * Math.PI * 2);
     this.formationSystem.setScale(1 + this.wave * 0.1);
@@ -1164,6 +1176,8 @@ export class GameEngine {
     }
 
     this.gameTime += this.deltaTime;
+    // Scroll speed ramps gently with the wave (70 → 160 px/s).
+    this.worldScroll = 70 + Math.min(90, (this.wave - 1) * 6);
     this.updateAutoAim();
     this.updatePlayer();
     this.updateEnemies();
@@ -1428,21 +1442,47 @@ export class GameEngine {
           this.deltaTime * timeScale
         );
         
-        // Apply AI movement (with difficulty speed multiplier from main)
+        // Apply AI movement (with difficulty speed multiplier from main).
+        // During a dive the ship ignores hover-steering and commits to the
+        // strafing run — but keeps shooting via the AI decision below.
         const speed = (e.type === 'swarmer' ? 2.5 : e.type === 'sniper' ? 1 : 0.8) * (this.difficulty?.enemySpeedMultiplier ?? 1);
-        e.vx += aiResult.moveX * speed * 0.1 * timeScale;
-        e.vy += aiResult.moveY * speed * 0.1 * timeScale;
-        
-        // Add some randomness to movement
-        if (e.type === 'swarmer') {
-          e.vx += Math.sin(e.phase * 3) * 0.3 * timeScale;
-          e.vy += Math.cos(e.phase * 3) * 0.3 * timeScale;
+        if (!e.diving) {
+          e.vx += aiResult.moveX * speed * 0.1 * timeScale;
+          e.vy += aiResult.moveY * speed * 0.1 * timeScale;
+
+          // Add some randomness to movement
+          if (e.type === 'swarmer') {
+            e.vx += Math.sin(e.phase * 3) * 0.3 * timeScale;
+            e.vy += Math.cos(e.phase * 3) * 0.3 * timeScale;
+          }
         }
 
         e.vx *= 0.95;
         e.vy *= 0.95;
+        // World scroll: everyone drifts down with the forward flight;
+        // diving ships get extra thrust so the strafing run stays fast.
+        e.vy += (e.diving ? 0.34 : 0.12) * timeScale;
         e.x += e.vx * timeScale;
         e.y += e.vy * timeScale;
+
+        // Fly-by attacks (Raiden/Strikers attacking waves): ships commit to
+        // downward strafing runs, and anyone pushed off the bottom re-enters
+        // from the top edge — the wave keeps attacking from above.
+        if (!e.diving) {
+          e.diveCd = (e.diveCd ?? 1.5 + Math.random() * 3.5) - this.deltaTime * timeScale;
+          if ((e.diveCd ?? 0) <= 0) {
+            e.diving = true;
+            e.vy = (e.type === 'swarmer' ? 5.5 : 4) * (this.difficulty?.enemySpeedMultiplier ?? 1);
+            e.vx = Math.max(-2.2, Math.min(2.2, (this.player.x - e.x) * 0.012));
+          }
+        } else if (e.y > this.height + 70) {
+          e.diving = false;
+          e.diveCd = 2.5 + Math.random() * 5;
+          e.y = -70 - Math.random() * 120;
+          e.x = 40 + Math.random() * Math.max(80, this.width - 80);
+          e.vx = 0;
+          e.vy = 1;
+        }
 
         // Anatomy of a Shmup rule: off-screen enemies must not shoot, so
         // every incoming volley is telegraphed by a visible attacker.
@@ -2165,6 +2205,20 @@ export class GameEngine {
           this.crystals.splice(c, 1);
           this.audio.playExplosion();
           this.screenShake = 5;
+          // Small reward for clearing the flight path + a fresh rock
+          // enters from the top so the asteroid stream keeps flowing.
+          this.player.score += 25;
+          this.player.energy = Math.min(this.player.maxEnergy, this.player.energy + 3);
+          this.crystals.push({
+            x: Math.random() * this.width,
+            y: -60 - Math.random() * 160,
+            size: 18 + Math.random() * 26,
+            hp: 30 + Math.random() * 20,
+            rotation: Math.random() * Math.PI * 2,
+            rotSpeed: (Math.random() - 0.5) * 0.02,
+            color: Math.random() < 0.5 ? '#4400aa' : '#aa0044',
+            driftX: (Math.random() - 0.5) * 30
+          });
         }
         return true;
       }
@@ -2457,7 +2511,7 @@ export class GameEngine {
     for (let i = this.powerOrbs.length - 1; i >= 0; i--) {
       const orb = this.powerOrbs[i];
       orb.x += orb.vx;
-      orb.y += orb.vy;
+      orb.y += orb.vy + this.worldScroll * this.deltaTime * 0.4;
       orb.vx *= 0.95;
       orb.vy *= 0.95;
       orb.life -= this.deltaTime;
@@ -2575,8 +2629,18 @@ export class GameEngine {
   }
 
   private updateCrystals() {
+    // Rocks ride the world scroll: they stream in from the top, tumble
+    // past the ship and wrap back above the screen. No more static clutter.
     for (const crystal of this.crystals) {
       crystal.rotation += crystal.rotSpeed;
+      crystal.y += this.worldScroll * this.deltaTime;
+      crystal.x += crystal.driftX * this.deltaTime;
+      if (crystal.y - crystal.size > this.height) {
+        crystal.y = -crystal.size - Math.random() * 140;
+        crystal.x = Math.random() * this.width;
+      }
+      if (crystal.x < -crystal.size - 20) crystal.x = this.width + crystal.size;
+      else if (crystal.x > this.width + crystal.size + 20) crystal.x = -crystal.size;
     }
   }
 
@@ -2757,6 +2821,19 @@ export class GameEngine {
     
     // Render environment using the new system
     renderEnvironment(ctx, w, h, envConfig, this.time);
+
+    // Parallax starfield streaming downward — the forward-flight sensation
+    // (near stars rush past, far ones crawl; slight vertical smear = speed).
+    ctx.fillStyle = '#ffffff';
+    const range = h + 60;
+    for (const s of this.stars) {
+      const y = (((s.y + this.time * 60 * s.z) % range) + range) % range - 30;
+      const x = ((s.x % w) + w) % w;
+      ctx.globalAlpha = 0.2 + s.brightness * 0.5;
+      const r = 0.8 + s.z * 0.6;
+      ctx.fillRect(x, y, r, r * (1 + s.z * 0.5));
+    }
+    ctx.globalAlpha = 1;
   }
 
   private renderGame(ctx: CanvasRenderingContext2D) {
