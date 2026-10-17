@@ -300,6 +300,7 @@ export class GameEngine {
 
   setMobileShooting(active: boolean) {
     this.mouseDown = active;
+    this.isMobile = true;
   }
 
   triggerMobileDash() {
@@ -311,6 +312,31 @@ export class GameEngine {
   triggerMobileSecondary() {
     if (this.player.secondaryCooldown <= 0 && this.player.energy >= 25) {
       this.useSecondaryWeapon();
+    }
+  }
+
+  private updateAutoAim() {
+    if (!this.isMobile || !this.autoAimEnabled || !this.mouseDown) return;
+
+    // Find nearest enemy
+    let nearestEnemy: Enemy | null = null;
+    let nearestDist = Infinity;
+
+    for (const enemy of this.enemies) {
+      const dx = enemy.x - this.player.x;
+      const dy = enemy.y - this.player.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestEnemy = enemy;
+      }
+    }
+
+    // Aim at nearest enemy
+    if (nearestEnemy) {
+      this.mouse.x = nearestEnemy.x;
+      this.mouse.y = nearestEnemy.y;
     }
   }
 
@@ -724,6 +750,7 @@ export class GameEngine {
     }
 
     this.gameTime += this.deltaTime;
+    this.updateAutoAim();
     this.updatePlayer();
     this.updateEnemies();
     this.updateBullets();
@@ -2006,6 +2033,36 @@ export class GameEngine {
       ctx.strokeStyle = `rgba(0, 200, 255, ${0.4 + Math.sin(this.time * 3) * 0.2})`;
       ctx.lineWidth = 2.5;
       ctx.stroke();
+    }
+
+    // Auto-aim indicator for mobile
+    if (this.isMobile && this.autoAimEnabled && this.mouseDown) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 100, 100, 0.5)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(this.mouse.x, this.mouse.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      
+      // Target circle
+      ctx.strokeStyle = 'rgba(255, 100, 100, 0.7)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(this.mouse.x, this.mouse.y, 15, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Crosshair
+      ctx.beginPath();
+      ctx.moveTo(this.mouse.x - 20, this.mouse.y);
+      ctx.lineTo(this.mouse.x + 20, this.mouse.y);
+      ctx.moveTo(this.mouse.x, this.mouse.y - 20);
+      ctx.lineTo(this.mouse.x, this.mouse.y + 20);
+      ctx.stroke();
+      
+      ctx.restore();
     }
   }
 

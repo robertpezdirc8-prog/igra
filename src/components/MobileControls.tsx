@@ -7,6 +7,7 @@ interface MobileControlsProps {
   onSecondary: () => void;
   isVisible: boolean;
   joystickPosition?: { x: number; y: number };
+  buttonSize?: 'small' | 'medium' | 'large';
 }
 
 export function MobileControls({ 
@@ -15,7 +16,8 @@ export function MobileControls({
   onDash, 
   onSecondary, 
   isVisible,
-  joystickPosition 
+  joystickPosition,
+  buttonSize = 'medium'
 }: MobileControlsProps) {
   const [joystickActive, setJoystickActive] = useState(false);
   const [joystickPos, setJoystickPos] = useState({ x: 0, y: 0 });
@@ -23,14 +25,47 @@ export function MobileControls({
   const [shootActive, setShootActive] = useState(false);
   const [dashCooldown, setDashCooldown] = useState(false);
   const [secondaryCooldown, setSecondaryCooldown] = useState(false);
+  const [touchRipples, setTouchRipples] = useState<Array<{ id: number; x: number; y: number }>>([]);
   const joystickRef = useRef<HTMLDivElement>(null);
   const shootIntervalRef = useRef<number | null>(null);
+  const rippleIdRef = useRef(0);
 
   // Haptic feedback
   const triggerHaptic = (pattern: number | number[] = 10) => {
     if ('vibrate' in navigator) {
       navigator.vibrate(pattern);
     }
+  };
+
+  // Detect if device is mobile
+  const isMobile = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  };
+
+  // Get button sizes based on buttonSize prop
+  const getButtonSizes = () => {
+    switch (buttonSize) {
+      case 'small':
+        return { shoot: 'w-20 h-20', action: 'w-16 h-16', icon: 'text-3xl', text: 'text-xs' };
+      case 'large':
+        return { shoot: 'w-36 h-36', action: 'w-28 h-28', icon: 'text-5xl', text: 'text-base' };
+      case 'medium':
+      default:
+        return { shoot: 'w-28 h-28', action: 'w-22 h-22', icon: 'text-4xl', text: 'text-sm' };
+    }
+  };
+
+  const buttonSizes = getButtonSizes();
+
+  // Add touch ripple effect
+  const addTouchRipple = (x: number, y: number) => {
+    const id = rippleIdRef.current++;
+    setTouchRipples(prev => [...prev, { id, x, y }]);
+    
+    // Remove ripple after animation
+    setTimeout(() => {
+      setTouchRipples(prev => prev.filter(r => r.id !== id));
+    }, 600);
   };
 
   // Dynamic joystick - appears where you touch on left side
@@ -47,6 +82,7 @@ export function MobileControls({
       setJoystickOrigin({ x: touch.clientX, y: touch.clientY });
       setJoystickPos({ x: 0, y: 0 });
       triggerHaptic(10);
+      addTouchRipple(touch.clientX, touch.clientY);
     }
   };
 
@@ -209,14 +245,14 @@ export function MobileControls({
         </div>
       )}
 
-      {/* Action Buttons - Right side */}
-      <div className="absolute bottom-8 right-8 flex flex-col gap-4 pointer-events-auto">
+      {/* Action Buttons - Right side - Responsive sizing */}
+      <div className="absolute bottom-4 right-4 sm:bottom-8 sm:right-8 flex flex-col gap-3 sm:gap-4 pointer-events-auto">
         {/* Shoot Button - Large and prominent */}
         <button
           onTouchStart={handleShootStart}
           onTouchEnd={handleShootEnd}
           onTouchCancel={handleShootEnd}
-          className={`w-28 h-28 rounded-full border-4 transition-all duration-100 shadow-2xl ${
+          className={`${buttonSizes.shoot} rounded-full border-4 transition-all duration-100 shadow-2xl ${
             shootActive
               ? 'bg-red-500/60 border-red-400 shadow-red-500/80 scale-95'
               : 'bg-red-500/30 border-red-400/70 shadow-red-500/40'
@@ -224,8 +260,8 @@ export function MobileControls({
           style={{ touchAction: 'none' }}
         >
           <div className="flex flex-col items-center justify-center h-full">
-            <span className="text-5xl">🎯</span>
-            <span className="text-xs text-white font-bold mt-1">STRELJAJ</span>
+            <span className={`${buttonSizes.icon}`}>🎯</span>
+            <span className={`${buttonSizes.text} text-white font-bold mt-1`}>STRELJAJ</span>
           </div>
           {shootActive && (
             <div className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
@@ -233,12 +269,12 @@ export function MobileControls({
         </button>
 
         {/* Dash and Secondary - Side by side */}
-        <div className="flex gap-3">
+        <div className="flex gap-3 sm:gap-4">
           {/* Dash Button */}
           <button
             onTouchStart={handleDash}
             disabled={dashCooldown}
-            className={`w-20 h-20 rounded-full border-4 transition-all duration-100 shadow-xl ${
+            className={`${buttonSizes.action} rounded-full border-4 transition-all duration-100 shadow-xl ${
               dashCooldown
                 ? 'bg-gray-600/30 border-gray-500/50 opacity-50'
                 : 'bg-cyan-500/30 border-cyan-400/70 shadow-cyan-500/40 active:bg-cyan-500/60 active:scale-95'
@@ -246,12 +282,12 @@ export function MobileControls({
             style={{ touchAction: 'none' }}
           >
             <div className="flex flex-col items-center justify-center h-full">
-              <span className="text-3xl">⚡</span>
-              <span className="text-xs text-white font-bold mt-1">DASH</span>
+              <span className={`${buttonSizes.icon}`}>⚡</span>
+              <span className={`${buttonSizes.text} text-white font-bold mt-1`}>DASH</span>
             </div>
             {dashCooldown && (
               <div className="absolute inset-0 rounded-full flex items-center justify-center">
-                <div className="w-16 h-16 rounded-full border-4 border-t-cyan-400 border-r-transparent border-b-transparent border-l-transparent animate-spin" />
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-t-cyan-400 border-r-transparent border-b-transparent border-l-transparent animate-spin" />
               </div>
             )}
           </button>
@@ -260,7 +296,7 @@ export function MobileControls({
           <button
             onTouchStart={handleSecondary}
             disabled={secondaryCooldown}
-            className={`w-20 h-20 rounded-full border-4 transition-all duration-100 shadow-xl ${
+            className={`${buttonSizes.action} rounded-full border-4 transition-all duration-100 shadow-xl ${
               secondaryCooldown
                 ? 'bg-gray-600/30 border-gray-500/50 opacity-50'
                 : 'bg-purple-500/30 border-purple-400/70 shadow-purple-500/40 active:bg-purple-500/60 active:scale-95'
@@ -268,17 +304,33 @@ export function MobileControls({
             style={{ touchAction: 'none' }}
           >
             <div className="flex flex-col items-center justify-center h-full">
-              <span className="text-3xl">🌀</span>
-              <span className="text-xs text-white font-bold mt-1">SPEC.</span>
+              <span className={`${buttonSizes.icon}`}>🌀</span>
+              <span className={`${buttonSizes.text} text-white font-bold mt-1`}>SPEC.</span>
             </div>
             {secondaryCooldown && (
               <div className="absolute inset-0 rounded-full flex items-center justify-center">
-                <div className="w-16 h-16 rounded-full border-4 border-t-purple-400 border-r-transparent border-b-transparent border-l-transparent animate-spin" />
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-t-purple-400 border-r-transparent border-b-transparent border-l-transparent animate-spin" />
               </div>
             )}
           </button>
         </div>
       </div>
+
+      {/* Touch ripple effects */}
+      {touchRipples.map(ripple => (
+        <div
+          key={ripple.id}
+          className="absolute pointer-events-none"
+          style={{
+            left: ripple.x - 30,
+            top: ripple.y - 30,
+            width: 60,
+            height: 60
+          }}
+        >
+          <div className="w-full h-full rounded-full border-2 border-cyan-400 animate-ping opacity-50" />
+        </div>
+      ))}
 
       {/* Touch zones visualization (debug - remove in production) */}
       {/* <div className="absolute top-0 left-0 w-1/2 h-full border-r-2 border-dashed border-yellow-500/30 pointer-events-none" /> */}
