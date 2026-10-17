@@ -41,3 +41,5 @@ export { SkillTreeUI } from './SkillTreeUI';
 export { DailyChallengesUI } from './DailyChallengesUI';
 export { SaveLoadUI } from './SaveLoadUI';
 export { StatsLeaderboardUI } from './StatsLeaderboardUI';
+export { ArcadeGame } from './ArcadeGame';
+export { DailyRewardsUI } from './DailyRewardsUI';

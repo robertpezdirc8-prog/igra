@@ -7,11 +7,13 @@ interface MainMenuProps {
   onShowSettings: () => void;
   onShowSaveLoad: () => void;
   onShowStats: () => void;
+  onShowArcade: () => void;
+  onShowDailyRewards: () => void;
   highScore: number;
   webgpuSupported: boolean;
 }
 
-export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, onShowSaveLoad, onShowStats, highScore, webgpuSupported }: MainMenuProps) {
+export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, onShowSaveLoad, onShowStats, onShowArcade, onShowDailyRewards, highScore, webgpuSupported }: MainMenuProps) {
   const [titleGlow, setTitleGlow] = useState(0);
   const [particles, setParticles] = useState<Array<{ x: number; y: number; vx: number; vy: number; life: number }>>([]);
 
@@ -127,8 +129,14 @@ export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, onShowSa
         <Button onClick={onShowSaveLoad} variant="secondary" size="medium" className="w-full">
           💾 SHRANI/NALOŽI
         </Button>
-        <Button onClick={() => {}} variant="secondary" size="medium" className="w-full">
+        <Button onClick={onShowStats} variant="secondary" size="medium" className="w-full">
           📊 STATISTIKA
+        </Button>
+        <Button onClick={onShowArcade} variant="secondary" size="medium" className="w-full">
+          🎯 ARKADNA IGRA
+        </Button>
+        <Button onClick={onShowDailyRewards} variant="secondary" size="medium" className="w-full">
+          🎁 DNEVNE NAGRADE
         </Button>
       </div>
 

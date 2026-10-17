@@ -34,7 +34,9 @@ import {
   SkillTreeUI,
   DailyChallengesUI,
   SaveLoadUI,
-  StatsLeaderboardUI
+  StatsLeaderboardUI,
+  ArcadeGame,
+  DailyRewardsUI
 } from './components';
 import { loadGame, saveGame, createDefaultSaveData, SaveData } from './game/saveSystem';
 import { getLevelForPlayer } from './game/levels';
@@ -66,6 +68,8 @@ export default function App() {
   const [showSaveLoad, setShowSaveLoad] = useState(false);
   const [saveData, setSaveData] = useState<SaveData | null>(null);
   const [showStatsLeaderboard, setShowStatsLeaderboard] = useState(false);
+  const [showArcadeGame, setShowArcadeGame] = useState(false);
+  const [showDailyRewards, setShowDailyRewards] = useState(false);
 
   // Load save data on mount
   useEffect(() => {
@@ -308,6 +312,9 @@ export default function App() {
           onShowTutorial={() => setShowTutorial(true)}
           onShowSettings={() => setShowSettings(true)}
           onShowSaveLoad={() => setShowSaveLoad(true)}
+          onShowStats={() => setShowStatsLeaderboard(true)}
+          onShowArcade={() => setShowArcadeGame(true)}
+          onShowDailyRewards={() => setShowDailyRewards(true)}
           highScore={highScore}
           webgpuSupported={webgpuSupported}
         />
@@ -545,6 +552,24 @@ export default function App() {
       <StatsLeaderboardUI
         isOpen={showStatsLeaderboard}
         onClose={() => setShowStatsLeaderboard(false)}
+      />
+
+      {/* Arcade Game */}
+      <ArcadeGame
+        isOpen={showArcadeGame}
+        onClose={() => setShowArcadeGame(false)}
+        onComplete={(score) => {
+          addNotification(`Arkadna igra končana! Točke: ${score}`, 'success');
+        }}
+      />
+
+      {/* Daily Rewards */}
+      <DailyRewardsUI
+        isOpen={showDailyRewards}
+        onClose={() => setShowDailyRewards(false)}
+        onClaim={(reward) => {
+          addNotification(`Prejel si ${reward.amount} ${reward.reward}!`, 'success');
+        }}
       />
 
       {/* Settings Menu */}
