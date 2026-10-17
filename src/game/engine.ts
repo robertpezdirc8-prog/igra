@@ -2391,13 +2391,13 @@ export class GameEngine {
       ctx.lineWidth = 1;
       ctx.strokeRect(w - 92, y, 72, 8);
     });
-    // Gradius power meter (Konami): top-left below the FPS block so the
-    // React overlay panels never cover it
+    // Gradius power meter (Konami): bottom-center — the only area that
+    // stays clear of the React overlay panels on desktop AND mobile
     const slotCols = ['#00ffcc', '#ff8844', '#ffff44', '#ff44cc', '#66ffff', '#66ffcc'];
     const slotLabels = ['H', 'R', 'D', 'L', 'O', '\u0160'];
     const meterW = 24, meterH = 8, gap = 3;
-    const mx = 20;
-    const my = 84;
+    const mx = w / 2 - (6 * (meterW + gap) - gap) / 2;
+    const my = h - 56;
     for (let i = 0; i < 6; i++) {
       const lit = i < p.gradiusMeter;
       const full = p.gradiusMeter >= 6;
