@@ -45,7 +45,7 @@ export function LevelUpChoiceScreen({ choices, onSelect, level }: LevelUpChoiceS
         ))}
       </div>
 
-      <div className="relative z-10 max-w-5xl w-full mx-4">
+      <div className="relative z-10 max-w-5xl w-[calc(100%-2rem)] mx-4 max-h-[92vh] overflow-y-auto">
         {/* Title */}
         <div className="text-center mb-8">
           <h1

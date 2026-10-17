@@ -111,7 +111,7 @@ export function DailyRewardsUI({ isOpen, onClose, onClaim }: DailyRewardsUIProps
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md">
-      <div className="relative w-[90vw] max-w-3xl bg-gradient-to-br from-yellow-900 to-black border-2 border-yellow-500 rounded-lg overflow-hidden">
+      <div className="relative w-[90vw] max-w-3xl max-h-[85vh] overflow-y-auto bg-gradient-to-br from-yellow-900 to-black border-2 border-yellow-500 rounded-lg">
         
         {/* Header */}
         <div className="relative bg-gradient-to-r from-yellow-600 to-orange-600 p-6">

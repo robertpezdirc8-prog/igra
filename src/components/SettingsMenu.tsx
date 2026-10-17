@@ -27,7 +27,7 @@ export function SettingsMenu({ isOpen, onClose, settings, onSettingsChange }: Se
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="bg-gray-900/95 border-2 border-cyan-400/50 rounded-lg p-8 max-w-md w-full mx-4">
+      <div className="bg-gray-900/95 border-2 border-cyan-400/50 rounded-lg p-4 sm:p-8 max-w-md w-[calc(100%-2rem)] mx-4 max-h-[85vh] overflow-y-auto">
         <h2 className="text-3xl font-bold text-cyan-400 font-mono mb-6 text-center"
             style={{ textShadow: '0 0 15px rgba(0, 255, 255, 0.5)' }}>
           NASTAVITVE

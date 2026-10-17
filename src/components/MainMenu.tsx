@@ -60,10 +60,24 @@ export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, onShowSa
     return () => clearInterval(interval);
   }, []);
 
+  const secondaryItems: Array<{ label: string; action: () => void }> = [
+    { label: '📖 VODNIK', action: onShowTutorial },
+    { label: '⚙️ NASTAVITVE', action: onShowSettings },
+    { label: '💾 SHRANI/NALOŽI', action: onShowSaveLoad },
+    { label: '📊 STATISTIKA', action: onShowStats },
+    { label: '🎯 ARKADNA IGRA', action: onShowArcade },
+    { label: '🎁 DNEVNE NAGRADE', action: onShowDailyRewards },
+    { label: '🛍️ TRGOVINA', action: onShowShop },
+    { label: '⚔️ TEŽAVNOST', action: onShowDifficulty },
+    { label: '🌳 META-PROGRESIJA', action: onShowMetaProgression },
+    { label: '📚 INTERAKTIVNI VODNIK', action: onShowInteractiveTutorial },
+    { label: '🕹️ KLASIČNI NAČIN', action: onShowClassicArcade }
+  ];
+
   return (
-    <div className="fixed inset-0 z-30 flex flex-col items-center justify-center bg-black/95">
-      {/* Animated particles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+    <div className="fixed inset-0 z-30 overflow-y-auto overscroll-contain bg-black/95">
+      {/* Animated particles + rings (pinned to viewport, never scroll) */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
         {particles.map((p, i) => (
           <div
             key={i}
@@ -77,121 +91,100 @@ export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, onShowSa
             }}
           />
         ))}
+        <div className="absolute inset-0 flex items-center justify-center">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="absolute border-2 rounded-full hidden sm:block"
+              style={{
+                width: `${200 + i * 80}px`,
+                height: `${200 + i * 80}px`,
+                borderColor: i % 2 === 0 ? 'rgba(0, 255, 255, 0.1)' : 'rgba(255, 0, 255, 0.1)',
+                animation: `spin ${10 + i * 2}s linear infinite ${i % 2 === 0 ? '' : 'reverse'}`
+              }}
+            />
+          ))}
+        </div>
       </div>
 
-      {/* Animated rings */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div
-            key={i}
-            className="absolute border-2 rounded-full"
+      {/* Scrollable content: centered when short, scrolls when taller than screen */}
+      <div className="relative z-10 min-h-full flex flex-col items-center justify-center px-4 py-8">
+        {/* Logo */}
+        <div className="mb-5 sm:mb-10 text-center">
+          <h1
+            className="text-4xl sm:text-6xl md:text-7xl font-bold font-mono mb-1 sm:mb-2"
             style={{
-              width: `${200 + i * 80}px`,
-              height: `${200 + i * 80}px`,
-              borderColor: i % 2 === 0 ? 'rgba(0, 255, 255, 0.1)' : 'rgba(255, 0, 255, 0.1)',
-              animation: `spin ${10 + i * 2}s linear infinite ${i % 2 === 0 ? '' : 'reverse'}`
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Logo */}
-      <div className="relative z-10 mb-12 text-center">
-        <h1
-          className="text-7xl font-bold font-mono mb-2"
-          style={{
-            color: '#00ffff',
-            textShadow: `0 0 ${20 + Math.sin(titleGlow * 0.05) * 10}px rgba(0, 255, 255, 0.8), 0 0 ${40 + Math.sin(titleGlow * 0.05) * 20}px rgba(0, 255, 255, 0.4)`
-          }}
-        >
-          ATHERIA
-        </h1>
-        <p
-          className="text-3xl font-mono"
-          style={{
-            color: '#ff00ff',
-            textShadow: `0 0 ${15 + Math.sin(titleGlow * 0.05 + 1) * 8}px rgba(255, 0, 255, 0.6)`
-          }}
-        >
-          VOID BREAKER
-        </p>
-        <p className="text-gray-500 font-mono text-sm mt-4">
-          WebGPU Cosmic-Horror Rogue-Lite
-        </p>
-      </div>
-
-      {/* Menu buttons */}
-      <div className="relative z-10 flex flex-col gap-4 w-64">
-        <Button onClick={onStartGame} variant="primary" size="large" className="w-full">
-          ZAČNI IGRO
-        </Button>
-        <Button onClick={onShowTutorial} variant="secondary" size="medium" className="w-full">
-          VODNIK
-        </Button>
-        <Button onClick={onShowSettings} variant="secondary" size="medium" className="w-full">
-          NASTAVITVE
-        </Button>
-        <Button onClick={onShowSaveLoad} variant="secondary" size="medium" className="w-full">
-          💾 SHRANI/NALOŽI
-        </Button>
-        <Button onClick={onShowStats} variant="secondary" size="medium" className="w-full">
-          📊 STATISTIKA
-        </Button>
-        <Button onClick={onShowArcade} variant="secondary" size="medium" className="w-full">
-          🎯 ARKADNA IGRA
-        </Button>
-        <Button onClick={onShowDailyRewards} variant="secondary" size="medium" className="w-full">
-          🎁 DNEVNE NAGRADE
-        </Button>
-        <Button onClick={onShowShop} variant="secondary" size="medium" className="w-full">
-          🛍️ TRGOVINA
-        </Button>
-        <Button onClick={onShowDifficulty} variant="secondary" size="medium" className="w-full">
-          ⚔️ TEŽAVNOST
-        </Button>
-        <Button onClick={onShowMetaProgression} variant="secondary" size="medium" className="w-full">
-          🌳 META-PROGRESIJA
-        </Button>
-        <Button onClick={onShowInteractiveTutorial} variant="secondary" size="medium" className="w-full">
-          📚 INTERAKTIVNI VODNIK
-        </Button>
-        <Button onClick={onShowClassicArcade} variant="secondary" size="medium" className="w-full">
-          🕹️ KLASIČNI ARKADNI NAČIN
-        </Button>
-      </div>
-
-      {/* High score */}
-      {highScore > 0 && (
-        <div className="relative z-10 mt-8 text-center">
-          <p className="text-yellow-400 font-mono text-sm">NAJBOLJŠI REZULTAT</p>
-          <p
-            className="text-2xl font-bold font-mono"
-            style={{
-              color: '#ffaa00',
-              textShadow: '0 0 10px rgba(255, 170, 0, 0.6)'
+              color: '#00ffff',
+              textShadow: `0 0 ${20 + Math.sin(titleGlow * 0.05) * 10}px rgba(0, 255, 255, 0.8), 0 0 ${40 + Math.sin(titleGlow * 0.05) * 20}px rgba(0, 255, 255, 0.4)`
             }}
           >
-            {highScore.toLocaleString()}
+            ATHERIA
+          </h1>
+          <p
+            className="text-xl sm:text-2xl md:text-3xl font-mono"
+            style={{
+              color: '#ff00ff',
+              textShadow: `0 0 ${15 + Math.sin(titleGlow * 0.05 + 1) * 8}px rgba(255, 0, 255, 0.6)`
+            }}
+          >
+            VOID BREAKER
+          </p>
+          <p className="text-gray-500 font-mono text-[10px] sm:text-sm mt-2 sm:mt-4">
+            WebGPU Cosmic-Horror Rogue-Lite
           </p>
         </div>
-      )}
 
-      {/* WebGPU status */}
-      <div className="relative z-10 mt-8">
-        <div
-          className={`px-4 py-2 rounded-full font-mono text-xs ${
-            webgpuSupported ? 'bg-green-500/20 border border-green-400 text-green-400' : 'bg-yellow-500/20 border border-yellow-400 text-yellow-400'
-          }`}
-        >
-          {webgpuSupported ? '● WebGPU AKTIVEN' : '● Canvas2D NAČIN'}
+        {/* Menu buttons */}
+        <div className="w-full max-w-xs sm:max-w-sm">
+          <Button onClick={onStartGame} variant="primary" size="large" className="w-full">
+            ZAČNI IGRO
+          </Button>
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            {secondaryItems.map((item) => (
+              <Button
+                key={item.label}
+                onClick={item.action}
+                variant="secondary"
+                size="small"
+                className="w-full min-h-[44px] text-[11px] sm:text-xs px-2"
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Controls hint */}
-      <div className="relative z-10 mt-8 text-center">
-        <p className="text-gray-600 font-mono text-xs">
-          WASD = Gibanje | Miška = Streljanje | SPACE = Dash | ESC = Pavza
-        </p>
+        {/* High score + renderer status */}
+        <div className="mt-5 sm:mt-8 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-center">
+          {highScore > 0 && (
+            <p className="text-yellow-400 font-mono text-xs sm:text-sm">
+              <span className="text-gray-500">NAJBOLJŠI:</span>{' '}
+              <span
+                className="text-base sm:text-lg font-bold"
+                style={{
+                  color: '#ffaa00',
+                  textShadow: '0 0 10px rgba(255, 170, 0, 0.6)'
+                }}
+              >
+                {highScore.toLocaleString()}
+              </span>
+            </p>
+          )}
+          <div
+            className={`px-3 py-1 rounded-full font-mono text-[10px] sm:text-xs ${
+              webgpuSupported ? 'bg-green-500/20 border border-green-400 text-green-400' : 'bg-yellow-500/20 border border-yellow-400 text-yellow-400'
+            }`}
+          >
+            {webgpuSupported ? '● WebGPU AKTIVEN' : '● Canvas2D NAČIN'}
+          </div>
+        </div>
+
+        {/* Controls hint (desktop only — mobile has touch controls) */}
+        <div className="hidden md:block mt-6 text-center">
+          <p className="text-gray-600 font-mono text-xs">
+            WASD = Gibanje | Miška = Streljanje | SPACE = Dash | ESC = Pavza
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -69,7 +69,7 @@ export function SaveLoadUI({ isOpen, onClose, saveData, onSave, onLoad }: SaveLo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md">
-      <div className="relative w-[90vw] max-w-2xl bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500 rounded-lg overflow-hidden">
+      <div className="relative w-[90vw] max-w-2xl max-h-[85vh] overflow-y-auto bg-gradient-to-br from-gray-900 to-black border-2 border-cyan-500 rounded-lg">
         
         {/* Header */}
         <div className="relative bg-gradient-to-r from-cyan-600 to-blue-600 p-6">

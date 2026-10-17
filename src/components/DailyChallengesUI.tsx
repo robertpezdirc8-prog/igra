@@ -53,7 +53,7 @@ export function DailyChallengesUI({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md">
-      <div className="relative w-[90vw] max-w-4xl bg-gradient-to-br from-gray-900 to-black border-2 border-purple-500 rounded-lg overflow-hidden">
+      <div className="relative w-[90vw] max-w-4xl max-h-[85vh] overflow-y-auto bg-gradient-to-br from-gray-900 to-black border-2 border-purple-500 rounded-lg">
         
         {/* Header */}
         <div className="relative bg-gradient-to-r from-purple-600 to-pink-600 p-6">

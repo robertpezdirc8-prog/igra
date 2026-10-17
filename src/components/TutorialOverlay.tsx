@@ -132,7 +132,7 @@ export function TutorialOverlay({ isOpen, onClose }: TutorialOverlayProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md">
-      <div className="bg-gray-900/95 border-2 border-cyan-400/50 rounded-lg p-8 max-w-lg w-full mx-4">
+      <div className="bg-gray-900/95 border-2 border-cyan-400/50 rounded-lg p-4 sm:p-8 max-w-lg w-[calc(100%-2rem)] mx-4 max-h-[85vh] overflow-y-auto">
         {/* Progress indicator */}
         <div className="flex justify-center gap-2 mb-6">
           {steps.map((_, i) => (

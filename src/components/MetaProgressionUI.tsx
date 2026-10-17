@@ -53,7 +53,7 @@ export function MetaProgressionUI({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md">
-      <div className="relative w-[95vw] max-w-7xl h-[90vh] bg-gradient-to-br from-purple-900 via-black to-blue-900 border-2 border-purple-500 rounded-lg overflow-hidden flex flex-col">
+      <div className="relative w-[95vw] max-w-7xl h-[85vh] bg-gradient-to-br from-purple-900 via-black to-blue-900 border-2 border-purple-500 rounded-lg overflow-hidden flex flex-col">
         
         {/* Header */}
         <div className="relative bg-gradient-to-r from-purple-600 to-blue-600 p-6 flex-shrink-0">

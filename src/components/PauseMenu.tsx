@@ -10,7 +10,7 @@ interface PauseMenuProps {
 export function PauseMenu({ onResume, onRestart, onMainMenu, onSettings }: PauseMenuProps) {
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-md">
-      <div className="bg-gray-900/95 border-2 border-cyan-400/50 rounded-lg p-8 max-w-md w-full mx-4">
+      <div className="bg-gray-900/95 border-2 border-cyan-400/50 rounded-lg p-4 sm:p-8 max-w-md w-[calc(100%-2rem)] mx-4 max-h-[85vh] overflow-y-auto">
         <h2
           className="text-4xl font-bold text-cyan-400 font-mono mb-8 text-center"
           style={{ textShadow: '0 0 20px rgba(0, 255, 255, 0.5)' }}
