@@ -21,6 +21,11 @@ interface Bullet {
   size: number; color: string; damage: number;
   life: number; type: 'player' | 'enemy';
   chainLeft?: number; chainDamage?: number;
+  grazed?: boolean;
+  // Danmaku sine-wave motion (optional): the bullet oscillates around its
+  // base trajectory, producing the flowing "wave wall" look.
+  waveAmp?: number; waveFreq?: number; wavePhase?: number;
+  baseVx?: number; baseVy?: number; baseSpeed?: number;
 }
 interface Enemy {
   x: number; y: number; vx: number; vy: number;
@@ -128,6 +133,11 @@ export class GameEngine {
   private waveTimer = 0;
   private bossActive = false;
   private screenShake = 0;
+  // Hit-stop freeze-frame timer (seconds of REAL time remaining; the world
+  // crawls at 12% speed while it counts down — classic impact juice).
+  private hitStop = 0;
+  // Uniform spatial hash grid for enemy broadphase (rebuilt every frame).
+  private enemyGrid: Map<number, Enemy[]> = new Map();
   private upgrades: Upgrade[] = [];
   private highScore = 0;
   private animFrame = 0;
@@ -357,6 +367,8 @@ export class GameEngine {
   applySettings(settings: { musicVolume: number; sfxVolume: number; particles: 'low' | 'medium' | 'high' }) {
     this.audio.setVolumes(settings.musicVolume, settings.sfxVolume);
     this.particleScale = settings.particles === 'low' ? 0.25 : settings.particles === 'medium' ? 0.6 : 1;
+    // Bloom is a full-screen post pass — skip it at low particle quality.
+    this.webgpuRenderer?.setBloomEnabled(settings.particles !== 'low');
   }
 
   // ============= MOBILE INPUT =============
@@ -843,8 +855,16 @@ export class GameEngine {
   }
 
   update(timestamp: number) {
-    this.deltaTime = Math.min((timestamp - this.lastTime) / 1000, 0.05);
+    const rawDt = Math.min((timestamp - this.lastTime) / 1000, 0.05);
     this.lastTime = timestamp;
+    // Hit-stop: brief dramatic slow-motion on big impacts. The raw clock
+    // keeps running, but every world update below uses a scaled dt.
+    if (this.hitStop > 0) {
+      this.hitStop -= rawDt;
+      this.deltaTime = rawDt * 0.12;
+    } else {
+      this.deltaTime = rawDt;
+    }
     this.time += this.deltaTime;
     this.frameCount++;
     this.fpsTimer += this.deltaTime;
@@ -1100,16 +1120,19 @@ export class GameEngine {
         e.x += e.vx * timeScale;
         e.y += e.vy * timeScale;
 
+        // Anatomy of a Shmup rule: off-screen enemies must not shoot, so
+        // every incoming volley is telegraphed by a visible attacker.
+        const onScreen = e.x > 10 && e.x < this.width - 10 && e.y > 20 && e.y < this.height - 10;
         // Shooting based on AI decision
         if (aiResult.shouldAttack && e.shootTimer <= 0) {
           const shootInterval = e.type === 'swarmer' ? 1.5 : e.type === 'sniper' ? 2.5 : 3;
           e.shootTimer = shootInterval;
-          this.enemyShoot(e, aiResult.attackAngle);
+          if (onScreen) this.enemyShoot(e, aiResult.attackAngle);
         } else if (e.shootTimer <= 0) {
           // Fallback to regular shooting if AI doesn't want to attack
           const shootInterval = e.type === 'swarmer' ? 1.5 : e.type === 'sniper' ? 2.5 : 3;
           e.shootTimer = shootInterval;
-          this.enemyShoot(e);
+          if (onScreen) this.enemyShoot(e);
         }
         
         // Update AI state based on health
@@ -1275,6 +1298,27 @@ export class GameEngine {
           });
         }
         break;
+
+      case 'wave': {
+        // Flowing curtain: a wall of sine-wave bullets that weaves as it
+        // descends (per danmaku pattern research — sine walls read as
+        // waves of light and reward rhythm-based dodging).
+        const waveDmg = 12 * (this.difficulty?.enemyDamageMultiplier ?? 1);
+        const n = 14;
+        const speed = 3.2;
+        for (let i = 0; i < n; i++) {
+          const angle = Math.PI / 2 + (i - (n - 1) / 2) * 0.12;
+          this.bullets.push({
+            x: boss.x + (i - (n - 1) / 2) * 24, y: boss.y,
+            vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+            size: 4.5, color: '#66ffff', damage: waveDmg,
+            life: 4, type: 'enemy',
+            waveAmp: 0.5, waveFreq: 4, wavePhase: i * 0.55,
+            baseVx: Math.cos(angle) * speed, baseVy: Math.sin(angle) * speed, baseSpeed: speed
+          });
+        }
+        break;
+      }
         
       default:
         // Cross pattern
@@ -1329,6 +1373,23 @@ export class GameEngine {
         color: '#ff6644', type: 'spark'
       });
     } else if (e.type === 'sniper') {
+      // 30% of sniper volleys: a flowing sine-wave fan (danmaku variety —
+      // three shots weave sideways instead of flying straight).
+      if (Math.random() < 0.3) {
+        const speed = 5.5;
+        for (let i = -1; i <= 1; i++) {
+          const angle = baseAngle + i * 0.22 + aimOffset;
+          this.bullets.push({
+            x: e.x, y: e.y,
+            vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+            size: 4, color: '#ffcc44', damage: 11 * dmgMul,
+            life: 3, type: 'enemy',
+            waveAmp: 0.35, waveFreq: 6, wavePhase: e.phase + i * 0.8,
+            baseVx: Math.cos(angle) * speed, baseVy: Math.sin(angle) * speed, baseSpeed: speed
+          });
+        }
+        return;
+      }
       for (let i = -1; i <= 1; i++) {
         const angle = baseAngle + i * 0.1 + aimOffset;
         this.bullets.push({
@@ -1392,6 +1453,9 @@ export class GameEngine {
     this.player.comboTimer = 5;
     this.maxCombo = Math.max(this.maxCombo, this.player.combo);
     this.screenShake = e.type === 'boss' ? 20 : 5;
+    // Kill juice: bosses get a long freeze-frame, titans a short one.
+    if (e.type === 'boss') this.hitStop = Math.max(this.hitStop, 0.14);
+    else if (e.type === 'titan') this.hitStop = Math.max(this.hitStop, 0.06);
     this.audio.playExplosion();
     this.proceduralAudio.playExplosion();
     this.enemiesKilled++;
@@ -1585,20 +1649,69 @@ export class GameEngine {
   }
 
   private updateBullets() {
+    // Broadphase: rebuild the uniform spatial hash grid of enemies every
+    // frame so player-bullet collision only tests enemies in the 3x3 cell
+    // neighborhood (per collision research — spatial hashing beats the
+    // O(n*m) brute-force scan as bullet/enemy counts grow).
+    const cell = 80;
+    const grid = this.enemyGrid;
+    grid.clear();
+    for (const e of this.enemies) {
+      const key = (Math.floor(e.x / cell) + 512) * 4096 + (Math.floor(e.y / cell) + 512);
+      const bucket = grid.get(key);
+      if (bucket) bucket.push(e);
+      else grid.set(key, [e]);
+    }
+
     for (let i = this.bullets.length - 1; i >= 0; i--) {
       const b = this.bullets[i];
+
+      // Danmaku sine-wave bullets steer around their base trajectory.
+      if (b.waveAmp !== undefined && b.baseVx !== undefined && b.baseVy !== undefined) {
+        const baseAngle = Math.atan2(b.baseVy, b.baseVx);
+        const speed = b.baseSpeed ?? Math.sqrt(b.baseVx * b.baseVx + b.baseVy * b.baseVy);
+        const a = baseAngle + Math.sin(this.time * (b.waveFreq ?? 4) + (b.wavePhase ?? 0)) * b.waveAmp;
+        b.vx = Math.cos(a) * speed;
+        b.vy = Math.sin(a) * speed;
+      }
+
       b.x += b.vx;
       b.y += b.vy;
       b.life -= this.deltaTime;
 
+      let removeBullet: boolean;
+
       if (b.life <= 0 || b.x < -50 || b.x > this.width + 50 || b.y < -50 || b.y > this.height + 50) {
-        this.bullets.splice(i, 1);
-        continue;
+        removeBullet = true;
+      } else if (b.type === 'player') {
+        removeBullet = this.checkPlayerBulletHit(b, cell, grid);
+      } else {
+        removeBullet = this.checkEnemyBulletHit(b);
       }
 
-      if (b.type === 'player') {
-        // Check enemy hits
-        for (const e of this.enemies) {
+      if (removeBullet) {
+        // Swap-pop removal: O(1) instead of splice's O(n) shift. The
+        // element moved into slot i comes from the tail (already processed
+        // this frame), so nothing is skipped or handled twice. This also
+        // fixes a latent bug where the crystal check ran on the WRONG
+        // bullet after an enemy hit removed the current one via splice.
+        this.bullets[i] = this.bullets[this.bullets.length - 1];
+        this.bullets.pop();
+      }
+    }
+  }
+
+  /** Player-bullet collisions: spatial-hash enemy query, then crystals. */
+  private checkPlayerBulletHit(b: Bullet, cell: number, grid: Map<number, Enemy[]>): boolean {
+    // Check enemy hits via the 3x3 grid neighborhood
+    const cx = Math.floor(b.x / cell);
+    const cy = Math.floor(b.y / cell);
+    for (let gx = cx - 1; gx <= cx + 1; gx++) {
+      for (let gy = cy - 1; gy <= cy + 1; gy++) {
+        const bucket = grid.get((gx + 512) * 4096 + (gy + 512));
+        if (!bucket) continue;
+        for (const e of bucket) {
+          if (e.hp <= 0) continue;
           const dx = b.x - e.x;
           const dy = b.y - e.y;
           if (dx * dx + dy * dy < (e.size + b.size) * (e.size + b.size)) {
@@ -1606,7 +1719,6 @@ export class GameEngine {
             e.hitFlash = 0.09; // white hit flash for instant damage feedback
             this.totalDamageDealt += b.damage;
             this.hitsLanded++;
-            this.bullets.splice(i, 1);
             // Chain Reaction skill: bullet arcs to the nearest other enemy
             if (b.chainLeft && b.chainLeft > 0 && b.chainDamage) {
               this.applyChain(b, e.x, e.y);
@@ -1627,60 +1739,84 @@ export class GameEngine {
                 color: b.color, type: 'spark'
               });
             }
-            break;
-          }
-        }
-
-        // Check crystal hits
-        for (let c = this.crystals.length - 1; c >= 0; c--) {
-          const crystal = this.crystals[c];
-          const dx = b.x - crystal.x;
-          const dy = b.y - crystal.y;
-          if (dx * dx + dy * dy < (crystal.size + b.size) * (crystal.size + b.size)) {
-            crystal.hp -= b.damage;
-            this.bullets.splice(i, 1);
-            if (crystal.hp <= 0) {
-              // Crystal destruction with shards
-              for (let j = 0; j < 25; j++) {
-                const angle = Math.random() * Math.PI * 2;
-                const speed = Math.random() * 7 + 3;
-                this.particles.push({
-                  x: crystal.x + (Math.random() - 0.5) * crystal.size,
-                  y: crystal.y + (Math.random() - 0.5) * crystal.size,
-                  vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-                  life: 1.2, maxLife: 1.2, size: 2 + Math.random() * 3,
-                  color: crystal.color, type: 'debris'
-                });
-              }
-              // Energy burst
-              for (let j = 0; j < 10; j++) {
-                const angle = (Math.PI * 2 * j) / 10;
-                this.particles.push({
-                  x: crystal.x, y: crystal.y,
-                  vx: Math.cos(angle) * 4, vy: Math.sin(angle) * 4,
-                  life: 0.8, maxLife: 0.8, size: 4,
-                  color: '#ffffff', type: 'energy'
-                });
-              }
-              this.crystals.splice(c, 1);
-              this.audio.playExplosion();
-              this.screenShake = 5;
-            }
-            break;
-          }
-        }
-      } else {
-        // Check player hit
-        if (this.player.invincible <= 0) {
-          const dx = b.x - this.player.x;
-          const dy = b.y - this.player.y;
-          if (dx * dx + dy * dy < (12 + b.size) * (12 + b.size)) {
-            this.damagePlayer(b.damage);
-            this.bullets.splice(i, 1);
+            return true;
           }
         }
       }
     }
+
+    // Check crystal hits (few crystals on screen — linear scan is fine)
+    for (let c = this.crystals.length - 1; c >= 0; c--) {
+      const crystal = this.crystals[c];
+      const dx = b.x - crystal.x;
+      const dy = b.y - crystal.y;
+      if (dx * dx + dy * dy < (crystal.size + b.size) * (crystal.size + b.size)) {
+        crystal.hp -= b.damage;
+        if (crystal.hp <= 0) {
+          // Crystal destruction with shards
+          for (let j = 0; j < 25; j++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 7 + 3;
+            this.particles.push({
+              x: crystal.x + (Math.random() - 0.5) * crystal.size,
+              y: crystal.y + (Math.random() - 0.5) * crystal.size,
+              vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+              life: 1.2, maxLife: 1.2, size: 2 + Math.random() * 3,
+              color: crystal.color, type: 'debris'
+            });
+          }
+          // Energy burst
+          for (let j = 0; j < 10; j++) {
+            const angle = (Math.PI * 2 * j) / 10;
+            this.particles.push({
+              x: crystal.x, y: crystal.y,
+              vx: Math.cos(angle) * 4, vy: Math.sin(angle) * 4,
+              life: 0.8, maxLife: 0.8, size: 4,
+              color: '#ffffff', type: 'energy'
+            });
+          }
+          this.crystals.splice(c, 1);
+          this.audio.playExplosion();
+          this.screenShake = 5;
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Enemy-bullet vs player: hit damage, or a graze reward for near-misses. */
+  private checkEnemyBulletHit(b: Bullet): boolean {
+    const p = this.player;
+    const dx = b.x - p.x;
+    const dy = b.y - p.y;
+    const d2 = dx * dx + dy * dy;
+    const hitR = 12 + b.size;
+
+    if (p.invincible <= 0 && d2 < hitR * hitR) {
+      this.damagePlayer(b.damage);
+      return true;
+    }
+
+    // Graze: classic shmup risk/reward — threading past a bullet pays a
+    // small score + energy bonus (one graze per bullet, i-frames excluded).
+    if (!b.grazed && p.invincible <= 0) {
+      const grazeR = hitR + 16;
+      if (d2 < grazeR * grazeR) {
+        b.grazed = true;
+        p.score += Math.round(20 * (this.difficulty?.scoreMultiplier ?? 1));
+        p.energy = Math.min(p.maxEnergy, p.energy + 2);
+        for (let j = 0; j < 2; j++) {
+          this.particles.push({
+            x: b.x, y: b.y,
+            vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3,
+            life: 0.25, maxLife: 0.25, size: 1.8,
+            color: '#ffffff', type: 'spark'
+          });
+        }
+      }
+    }
+    return false;
   }
 
   private damagePlayer(amount: number) {
@@ -1696,6 +1832,7 @@ export class GameEngine {
     p.hp -= amount;
     p.invincible = 0.5;
     this.screenShake = 8;
+    this.hitStop = Math.max(this.hitStop, 0.05); // brief impact freeze
     this.audio.playHit();
 
     if (p.hp <= 0) {
@@ -1735,7 +1872,9 @@ export class GameEngine {
       p.vy *= 0.96;
       p.life -= this.deltaTime;
       if (p.life <= 0) {
-        this.particles.splice(i, 1);
+        // Swap-pop removal (O(1)) — particles churn every frame.
+        this.particles[i] = this.particles[this.particles.length - 1];
+        this.particles.pop();
       }
     }
     
@@ -2466,6 +2605,18 @@ export class GameEngine {
     for (const b of this.bullets) {
       ctx.save();
       ctx.translate(b.x, b.y);
+
+      // Enemy bullets must ALWAYS stay visible (Anatomy of a Shmup rule):
+      // a pulsing white outline keeps colored shots readable against any
+      // background, explosion or nebula.
+      if (b.type === 'enemy') {
+        const pulse = 0.45 + 0.3 * Math.sin(this.time * 9 + b.x * 0.08 + b.y * 0.05);
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = `rgba(255, 255, 255, ${pulse.toFixed(2)})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, b.size + 2.2, 0, Math.PI * 2);
+        ctx.stroke();
+      }
 
       // Glow
       const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, b.size * 3);

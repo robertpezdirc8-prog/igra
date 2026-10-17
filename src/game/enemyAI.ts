@@ -267,11 +267,12 @@ export class BossAI {
     );
 
     this.attackPatterns = [
-      { name: 'spiral', probability: 0.3, cooldown: 3, currentCooldown: 0 },
-      { name: 'burst', probability: 0.25, cooldown: 4, currentCooldown: 0 },
-      { name: 'laser', probability: 0.2, cooldown: 5, currentCooldown: 0 },
+      { name: 'spiral', probability: 0.25, cooldown: 3, currentCooldown: 0 },
+      { name: 'burst', probability: 0.2, cooldown: 4, currentCooldown: 0 },
+      { name: 'laser', probability: 0.15, cooldown: 5, currentCooldown: 0 },
       { name: 'homing', probability: 0.15, cooldown: 6, currentCooldown: 0 },
-      { name: 'ring', probability: 0.1, cooldown: 4, currentCooldown: 0 }
+      { name: 'ring', probability: 0.1, cooldown: 4, currentCooldown: 0 },
+      { name: 'wave', probability: 0.15, cooldown: 5, currentCooldown: 0 }
     ];
 
     this.movementPattern = 'hover';
