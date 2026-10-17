@@ -29,6 +29,15 @@ export class AudioEngine {
     }
   }
 
+  /** Unlock after a user gesture (iOS/Safari create the context suspended
+   *  at page load and silently ignore resumes that happen outside a
+   *  gesture — this is called from the first pointerdown instead). */
+  resume() {
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+  }
+
   playShoot() {
     if (!this.ctx || !this.sfxGain) return;
     const osc = this.ctx.createOscillator();

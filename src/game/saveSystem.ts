@@ -30,6 +30,7 @@ export interface SaveData {
     musicVolume: number;
     sfxVolume: number;
     showFPS: boolean;
+    muted: boolean;
     particles: 'low' | 'medium' | 'high';
     touchSensitivity: number;
     leftHanded: boolean;
@@ -81,6 +82,7 @@ export function createDefaultSaveData(): SaveData {
       musicVolume: 0.5,
       sfxVolume: 0.6,
       showFPS: true,
+      muted: false,
       particles: 'high',
       touchSensitivity: 1.2,
       leftHanded: false,

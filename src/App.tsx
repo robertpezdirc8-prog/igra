@@ -71,6 +71,7 @@ interface Settings {
   musicVolume: number;
   sfxVolume: number;
   showFPS: boolean;
+  muted?: boolean;
   particles: 'low' | 'medium' | 'high';
   touchSensitivity: number;
   leftHanded: boolean;
@@ -136,6 +137,9 @@ export default function App() {
   const webgpuCanvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const saveDataRef = useRef<SaveData | null>(null);
+  // Latest-callback ref so the engine's keydown listener (registered once
+  // below) can always reach the current mute toggle.
+  const toggleMuteRef = useRef<() => void>(() => {});
 
   const [gameState, setGameState] = useState<GameState>('loading');
   // Mobile detection: coarse pointer or narrow viewport → clean HUD mode
@@ -349,6 +353,16 @@ export default function App() {
     // Apply persisted control/audio settings to the fresh engine (the
     // change-handler only fires on the NEXT settings edit).
     if (saveDataRef.current) engine.applySettings(saveDataRef.current.settings);
+    // Restore persisted mute AFTER settings so it wins over applySettings.
+    if (saveDataRef.current?.settings.muted) engine.setMuted(true);
+
+    // AUDIO UNLOCK — iOS/Safari create suspended AudioContexts at page
+    // load and silently ignore resumes that happen outside a user gesture.
+    // The first pointerdown/touchend (START button, joystick, anything)
+    // unlocks all three audio systems. { once: true } auto-cleans.
+    const unlockAudio = () => engine.resumeAudio();
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
+    window.addEventListener('touchend', unlockAudio, { once: true });
     // Expose the advanced-system manager via state for render-time use
     setPowerUpManager(engine.getPowerUpManager());
 
@@ -365,6 +379,11 @@ export default function App() {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isGameKey(e.key)) e.preventDefault();
+      // M = instant master mute (desktop twin of the mobile 🔊 button)
+      if (e.key === 'm' || e.key === 'M') {
+        toggleMuteRef.current();
+        return;
+      }
       engine.handleKeyDown(e.key);
     };
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -637,10 +656,27 @@ export default function App() {
 
   // ============= SETTINGS (persistent + applied to engine) =============
   const handleSettingsChange = useCallback((newSettings: Settings) => {
-    setSettings(newSettings);
+    // merge (not replace): newSettings may not carry every key
+    // (e.g. muted) — dropping the rest would desync the mute UI.
+    setSettings(s => ({ ...s, ...newSettings }));
     engineRef.current?.applySettings(newSettings);
     persistSave(d => ({ ...d, settings: { ...d.settings, ...newSettings } }));
   }, [persistSave]);
+
+  // Quick mute: silences music + SFX + procedural SFX in one tap, keeps
+  // the volume sliders intact, persists in the save file. Wired to the
+  // mobile 🔊/🔇 button and the desktop M key (via toggleMuteRef, because
+  // the engine effect registers its keydown listener before this exists).
+  const handleToggleMute = useCallback(() => {
+    const nextMuted = !(settings.muted ?? false);
+    setSettings(s => ({ ...s, muted: nextMuted }));
+    engineRef.current?.setMuted(nextMuted);
+    persistSave(d => ({ ...d, settings: { ...d.settings, muted: nextMuted } }));
+  }, [settings.muted, persistSave]);
+
+  useEffect(() => {
+    toggleMuteRef.current = handleToggleMute;
+  }, [handleToggleMute]);
 
   const handleSaveGame = useCallback(() => {
     if (saveDataRef.current) {
@@ -830,6 +866,13 @@ export default function App() {
           {isMobile ? (
             <div className="fixed top-4 right-4 z-40 flex flex-col items-end gap-2">
               <div className="flex gap-2">
+                <button
+                  onClick={handleToggleMute}
+                  aria-label={settings.muted ? 'Vklopi zvok' : 'Utišaj zvok'}
+                  className="w-11 h-11 flex items-center justify-center bg-black/60 border border-white/25 text-white font-mono text-lg rounded-lg backdrop-blur-sm active:scale-95"
+                >
+                  {(settings.muted ?? false) ? '🔇' : '🔊'}
+                </button>
                 <button
                   onClick={() => engineRef.current?.togglePause()}
                   aria-label="Pavza"

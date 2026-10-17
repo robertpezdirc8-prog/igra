@@ -308,6 +308,9 @@ export class GameEngine {
   // Damaged-ship FX throttle (smoke/fire trail cadence)
   private damageFxT = 0;
   private isMobile = false;
+  // Master mute + the last applied user volumes (so unmute restores them).
+  private muted = false;
+  private lastAudio = { music: 0.5, sfx: 0.6 };
   private autoAimEnabled = true;
   // Particle budget scale from settings (0..1)
   private particleScale = 1;
@@ -562,14 +565,50 @@ export class GameEngine {
 
   /** Apply user settings (audio volumes, particle budget). */
   applySettings(settings: { musicVolume: number; sfxVolume: number; particles: 'low' | 'medium' | 'high'; touchSensitivity?: number }) {
-    this.audio.setVolumes(settings.musicVolume, settings.sfxVolume);
-    this.music.setVolume(settings.musicVolume);
+    this.lastAudio = { music: settings.musicVolume, sfx: settings.sfxVolume };
+    if (!this.muted) {
+      this.audio.setVolumes(settings.musicVolume, settings.sfxVolume);
+      this.music.setVolume(settings.musicVolume);
+      // Procedural SFX carry most game sounds (shots, explosions, pickups)
+      // but were never wired to the SFX slider — fixed: map 0..1 → 0..0.3.
+      this.proceduralAudio.setVolume(settings.sfxVolume * 0.3);
+    }
     this.particleScale = settings.particles === 'low' ? 0.25 : settings.particles === 'medium' ? 0.6 : 1;
     // Bloom is a full-screen post pass — skip it at low particle quality.
     this.webgpuRenderer?.setBloomEnabled(settings.particles !== 'low');
     if (typeof settings.touchSensitivity === 'number') {
       this.setMobileDragSensitivity(settings.touchSensitivity);
     }
+  }
+
+  /** Unlock all three audio systems after the first user gesture.
+   *  iOS/Safari create suspended contexts at page load and ignore
+   *  resumes outside gestures, so this must be called from one. */
+  resumeAudio() {
+    this.audio.resume();
+    this.proceduralAudio.resume();
+    // MusicEngine.start() is idempotent: re-kicks the scheduler AND
+    // resumes a suspended context (menu music started before the gesture).
+    this.music.start();
+  }
+
+  /** Master mute — silences all three audio systems while keeping the
+   *  user's volume sliders intact for unmute. */
+  setMuted(m: boolean) {
+    this.muted = m;
+    if (m) {
+      this.audio.setVolumes(0, 0);
+      this.music.setVolume(0);
+      this.proceduralAudio.setVolume(0);
+    } else {
+      this.audio.setVolumes(this.lastAudio.music, this.lastAudio.sfx);
+      this.music.setVolume(this.lastAudio.music);
+      this.proceduralAudio.setVolume(this.lastAudio.sfx * 0.3);
+    }
+  }
+
+  getMuted(): boolean {
+    return this.muted;
   }
 
   // ============= MOBILE INPUT =============
