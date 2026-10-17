@@ -37,7 +37,9 @@ import {
   BloomEffect,
   ParticleOverlay,
   ChromaticAberration,
-  InteractiveTutorial
+  InteractiveTutorial,
+  WeatherDisplay,
+  ActivePowerUpsDisplay
 } from './components';
 import {
   loadGame,
@@ -57,6 +59,7 @@ import {
   SkillTree
 } from './game/skillTree';
 import { DIFFICULTY_MODES, DifficultyMode } from './game/difficulty';
+import type { WeatherType } from './game/weatherSystem';
 import { ALL_ACHIEVEMENTS, checkAchievements, Achievement } from './game/achievements';
 import { CosmeticItem, canAffordCosmetic } from './game/cosmetics';
 import { updateGameStats, addToLeaderboard } from './game/statsSystem';
@@ -150,6 +153,14 @@ export default function App() {
   const [showAchievements, setShowAchievements] = useState(false);
   const [showMetaProgression, setShowMetaProgression] = useState(false);
   const [showInteractiveTutorial, setShowInteractiveTutorial] = useState(false);
+  // Weather state (synced from engine at ~1 Hz via the throttled UI loop)
+  const [currentWeather, setCurrentWeather] = useState<{ type: WeatherType; intensity: number; timeRemaining: number }>({
+    type: 'clear',
+    intensity: 1.0,
+    timeRemaining: -1
+  });
+  // Power-up manager snapshot in state (refs must not be read during render)
+  const [powerUpManager, setPowerUpManager] = useState<ReturnType<GameEngine['getPowerUpManager']> | null>(null);
 
   // Persistent meta derived from saveData (initialized lazily from the save)
   const [skillPoints, setSkillPoints] = useState(() => saveData.skillPoints);
@@ -287,6 +298,8 @@ export default function App() {
 
     const engine = new GameEngine(canvas, overlay, handleStateChange);
     engineRef.current = engine;
+    // Expose the advanced-system manager via state for render-time use
+    setPowerUpManager(engine.getPowerUpManager());
 
     const resize = () => {
       engine.resize(window.innerWidth, window.innerHeight);
@@ -368,6 +381,14 @@ export default function App() {
       const gs = engine.getGameStats();
       const p = engine.getPlayer();
 
+      // Weather snapshot (engine is the source of truth)
+      const weatherSys = engine.getWeatherSystem();
+      const weatherInfo = {
+        type: weatherSys.getCurrentWeather(),
+        intensity: weatherSys.getWeatherIntensity(),
+        timeRemaining: weatherSys.getWeatherTimeRemaining()
+      };
+
       // Damage flash detection (real HP drops only)
       if (p.hp < lastHpRef.current - 0.5) {
         setDamageFlash(true);
@@ -382,12 +403,15 @@ export default function App() {
         p.energy.toFixed(0), p.combo, p.weaponLevel, p.secondaryWeapon,
         p.secondaryCooldown.toFixed(1), p.dashCooldown.toFixed(1),
         p.x.toFixed(0), p.y.toFixed(0), p.maxHp, p.maxShield, p.maxEnergy,
-        engine.isWebGPUSupported(), gs.gameStartTime
+        engine.isWebGPUSupported(), gs.gameStartTime,
+        // Weather rarely changes - included so the UI updates only on change
+        weatherInfo.type, weatherInfo.intensity.toFixed(1), Math.ceil(weatherInfo.timeRemaining)
       ].join('|');
 
       if (fingerprint === prevFingerprint) return;
       prevFingerprint = fingerprint;
 
+      setCurrentWeather(weatherInfo);
       setStats(gs);
       setPlayer({
         hp: p.hp, maxHp: p.maxHp,
@@ -702,16 +726,6 @@ export default function App() {
             isBossWave={stats.isBossWave}
           />
 
-          <ComboDisplay
-            combo={player.combo}
-            multiplier={1 + player.combo * 0.1}
-          />
-
-          <GameTimer
-            startTime={stats.gameStartTime}
-            isPaused={false}
-          />
-
           {/* Meta buttons */}
           <div className="fixed top-4 right-4 z-40 flex gap-2">
             <button
@@ -735,7 +749,49 @@ export default function App() {
             >
               🏆
             </button>
+            {/* Weather cycler (debug/demo control from webgpu branch) */}
+            <button
+              onClick={() => {
+                if (engineRef.current) {
+                  const weathers: WeatherType[] =
+                    ['clear', 'rain', 'snow', 'storm', 'fog', 'sandstorm', 'meteor'];
+                  const current = engineRef.current.getWeatherSystem().getCurrentWeather();
+                  const currentIndex = weathers.indexOf(current);
+                  const nextWeather = weathers[(currentIndex + 1) % weathers.length];
+                  engineRef.current.setWeather(nextWeather, 1.0, 30);
+                }
+              }}
+              className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white font-mono text-sm rounded transition-all hover:scale-110"
+              style={{ boxShadow: '0 0 15px rgba(20, 184, 166, 0.5)' }}
+            >
+              🌦️
+            </button>
           </div>
+
+          <ComboDisplay
+            combo={player.combo}
+            multiplier={1 + player.combo * 0.1}
+          />
+
+          <GameTimer
+            startTime={stats.gameStartTime}
+            isPaused={false}
+          />
+
+          {/* Weather Display (engine-synced) */}
+          <WeatherDisplay
+            currentWeather={currentWeather.type}
+            intensity={currentWeather.intensity}
+            timeRemaining={currentWeather.timeRemaining}
+          />
+
+          {/* Active Power-ups (self-polling from the engine manager) */}
+          {powerUpManager && (
+            <ActivePowerUpsDisplay
+              powerUpManager={powerUpManager}
+              updateInterval={100}
+            />
+          )}
         </>
       )}
 
