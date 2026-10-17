@@ -23,10 +23,11 @@
 ATHERIA: VOID BREAKER je **vertikalni scroller shoot 'em up** v duhu arcade klasik
 (Gradius, Raiden, Truxton, DoDonPachi), zgrajen z modernim tehnološkim kupom.
 Ladja vedno leti naprej — svet se premika pod njo, asteroidni pasovi plavajo proti njej,
-sovražniki izvajajo strafe-run lete od zgoraj, vsak peti val pa prinese
-**WARNING klakson** in bossa z lastno vektorsko podobo in imenovano HP litico.
+sovražniki izvajajo strafe-run lete od zgoraj, vsak tretji val vsakega sektorja blokira
+**MID BOSS predstraža**, vsak peti val pa prinese **WARNING klakson** in bossa z lastno
+vektorsko podobo in imenovano HP litico.
 
-- **Igralna zanka:** leti → izogibaj se kamnom → jasi valove → pobiraj medalje in črke → WARNING → boss → SEKTOR JASEN tally → ponovi, težje
+- **Igralna zanka:** leti → izogibaj se kamnom → jasi valove → **predstraža** → pobiraj medalje in črke → WARNING → boss → SEKTOR JASEN tally → ponovi, težje
 - **Permadeath s progresijo:** smrt konča tek, zlato, veščine, dosežki in dvorana slavnih ostanejo
 - **Prilagodljiva plastna glasba:** soundtrack je sintetiziran v realnem času (WebAudio) in *raste z akcijo* — bobni se prižgejo v boju, boss dobi lasten disonantni sloj
 - **GPU pospešeno:** delci prek WebGPU (do 10 000 instanc, 1 draw call) + **bloom post-processing**, samodejni fallback na Canvas2D
@@ -64,12 +65,21 @@ Igra je razdeljena na **poimenovane sektorje** po 5 valovih, vsak z lastno barvn
 | 5 | **VOID CITADEL** | sovražna trdnjava, magenta |
 
 - Vsak sektor se začne s **stage-card** uvodnim napisom in konča z bossom
+- **3. val vsakega sektorja: MID BOSS predstraža** — nosilka razreda *carrier*
+  (PREDSTRAŽA-ALFA/BETA/GAMA) se spusti z vrha, lebdi po sinusni krivulji in
+  strelja namerjane vršaje; pod 40 % HP zagori v berserk (hitrejši vršaji +
+  vmesni prstani). Ubij jo hitro za bounty (+300×sektor, medalja + kapsula) —
+  ali jo izteguj: po 15 s se umakne brez nagrad, val se ne more zablokirati
 - Ozadje dobi sektorsko barvno pranji (klasični arcade premik palete)
 
-## 👹 Bossi (rotirajoča zaseda)
+## 👹 Bossi in predstraže (rotirajoča zaseda)
 
-Vsak 5. val: **3,5 s WARNING faza** — utripajoč rdeč napis, animirani nevarnostni
-trakovi, zračna klakson sirena. Šele nato vstopi boss:
+**MID BOSS predstraže** (3. val vsakega sektorja): oklepna nosilka z vrtčečima
+topovskima gnezdoma in žarečim jedrom, ki gpredi zadiha pod udarci — imenovana
+jantarna HP litica, koreografirana smrt v ognjenem obroču.
+
+**Glavni bossi** (vsak 5. val): **3,5 s WARNING faza** — utripajoč rdeč napis,
+animirani nevarnostni trakovi, zračna klakson sirena. Šele nato vstopi boss:
 
 - 🌌 **Cosmic Horror** — magenta grozota, spiralni in krožni vzorci
 - 💀 **Mehanska lobanja** (Truxton poklon) — oranžna, laserski in homing vzorci
@@ -289,8 +299,9 @@ Repo: **Settings → Pages → Source = GitHub Actions**. Stran: `/igra/` (base 
 - [x] Rotirajoča boss zaseda z WARNING fazo in koreografirano smrtjo
 - [x] Prilagodljiva plastna glasba (boss sloj, duck)
 - [x] Sektorska struktura + pošten težavnostni proračun + nagradne zanke
-- [ ] Weapon evolution (kombiniranje nadgradenj)
-- [ ] Elitne različice sovražnikov (afiksi)
+- [x] Elitne različice sovražnikov (afiksi OKLEPEN/HITRI/NEVAREN/ZLATEN/STAREŠINA)
+- [x] Weapon evolution (VOID RIFT pri 8. nivoju)
+- [x] MID BOSS predstraže (carrier vanguard na 3. valu vsakega sektorja)
 - [ ] Online leaderboard (Supabase) — dvorana slavnih je pripravljena na zamenjavo
 - [ ] Lokalizacija EN/SI preklopnik
 

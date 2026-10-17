@@ -48,8 +48,8 @@ interface Enemy {
   // Vertical-scroller fly-bys (Raiden/Strikers attacking waves): a diving
   // enemy commits to a downward strafing run and re-enters from the top.
   diving?: boolean; diveCd?: number;
-  // Boss visual identity (cycles horror → skull → station)
-  variant?: 'horror' | 'skull' | 'station';
+  // Boss visual identity (cycles horror → skull → station; mid-boss = carrier)
+  variant?: 'horror' | 'skull' | 'station' | 'carrier';
   // Core-breach death choreography: while dying is defined the boss stops
   // fighting and burns through a chain of explosions before the final blast.
   dying?: number;
@@ -57,6 +57,10 @@ interface Enemy {
   // Elite affix (Vampire Survivors style): a few non-boss enemies spawn
   // modified — bigger, meaner and far more rewarding.
   elite?: EliteAffix;
+  // Mid-boss (sector vanguard): a carrier-class mini-boss guarding the
+  // middle of each sector; withdraws after 15 s if not destroyed.
+  midBoss?: boolean;
+  retreat?: boolean;
 }
 
 type EliteAffix = 'armored' | 'swift' | 'menace' | 'gilded' | 'elder';
@@ -229,6 +233,8 @@ export class GameEngine {
   ];
   // Elite affix table (Vampire Survivors / 10 Minutes Till Dawn lesson:
   // rare modified enemies create spike moments and jackpot rewards).
+  private static readonly MID_BOSS_LETTERS = ['ALFA', 'BETA', 'GAMA'] as const;
+
   private static readonly ELITE_AFFIXES: Readonly<Record<EliteAffix, EliteAffixDef>> = {
     armored: { tag: '🛡 OKLEPEN',  color: '#d8e8ff', hpMul: 1.8, speedMul: 0.85, fireMul: 1.0, goldMul: 3, minSector: 1 },
     swift:   { tag: '⚡ HITRI',    color: '#66ffff', hpMul: 1.2, speedMul: 1.35, fireMul: 1.0, goldMul: 2.5, minSector: 1 },
@@ -282,6 +288,8 @@ export class GameEngine {
   private gamepadMove: Vec2 = { x: 0, y: 0 };
   // Boss identity: horror → skull → station cycle
   private bossVariant: 'horror' | 'skull' | 'station' = 'horror';
+  // Greek suffix of the sector's mid-boss (PREDSTRAŽA-ALFA/BETA/GAMA)
+  private midBossLetter = 'ALFA';
   private isMobile = false;
   private autoAimEnabled = true;
   // Particle budget scale from settings (0..1)
@@ -1198,6 +1206,17 @@ export class GameEngine {
         timer: 2.8,
         color: '#66ffe0'
       };
+    } else if ((this.wave - 1) % 5 === 2) {
+      // Mid-boss wave: a carrier vanguard guards the middle of every
+      // sector — classic shmup pacing between the stage card and WARNING.
+      const letter = GameEngine.MID_BOSS_LETTERS[(this.sector() - 1) % 3] ?? 'ALFA';
+      this.waveAnnouncement = {
+        text: `\u26A0 MID BOSS — PREDSTRAŽA-${letter}`,
+        subtext: 'predstraža blokira pot',
+        timer: 2.4,
+        color: '#ffaa33'
+      };
+      this.spawnMidBoss();
     } else {
       this.waveAnnouncement = {
         text: `WAVE ${this.wave}`,
@@ -1207,7 +1226,9 @@ export class GameEngine {
       };
     }
 
-    this.waveTotalEnemies = count + (this.wave % 5 === 0 ? 1 : 0);
+    // Boss and mid-boss waves have one extra roster entry for the HUD.
+    const extraBoss = this.wave % 5 === 0 ? 1 : (this.wave - 1) % 5 === 2 ? 1 : 0;
+    this.waveTotalEnemies = count + extraBoss;
     // Fair per-sector HP ramp on top of the chosen difficulty mode.
     const hpMul = (this.difficulty?.enemyHpMultiplier ?? 1) * this.sectorHpMul();
 
@@ -1433,6 +1454,31 @@ export class GameEngine {
     this.proceduralAudio.playWeatherChange(weather);
   }
 
+  /** Spawns the sector's mid-boss: a carrier-class vanguard that sinks in
+   *  from the top of the screen and guards the middle of the sector. */
+  private spawnMidBoss() {
+    const hpMul = (this.difficulty?.enemyHpMultiplier ?? 1) * this.sectorHpMul();
+    const hp = (160 + this.wave * 55) * hpMul;
+    this.midBossLetter = GameEngine.MID_BOSS_LETTERS[(this.sector() - 1) % 3] ?? 'ALFA';
+    this.enemies.push({
+      x: this.width / 2, y: -100,
+      vx: 0, vy: 0,
+      hp, maxHp: hp,
+      size: 42, type: 'boss',
+      color: '#ffbb22',
+      phase: Math.random() * Math.PI * 2,
+      pattern: 0,
+      shootTimer: 1.4,
+      moveTimer: 0,
+      targetX: this.width / 2, targetY: 150,
+      playerPattern: { left: 0, right: 0, up: 0, down: 0 },
+      variant: 'carrier',
+      midBoss: true
+    });
+    // One short horn — smaller ceremony than the full WARNING klaxon.
+    this.audio.playKlaxon();
+  }
+
   private spawnBoss() {
     this.bossActive = true;
     const hpMul = this.difficulty?.enemyHpMultiplier ?? 1;
@@ -1498,10 +1544,11 @@ export class GameEngine {
     // layered intensity tracks danger (boss, low hull, late sectors).
     this.music.setBossMode(this.bossActive || this.bossPending);
     const hpFrac = this.player.maxHp > 0 ? this.player.hp / this.player.maxHp : 1;
+    // A mid-boss fight bumps the intensity layer too — it's boss-class music.
+    const midBossFight = this.enemies.some((e) => e.midBoss && !e.retreat);
     this.music.setIntensity(
-      this.bossActive || this.bossPending || hpFrac < 0.4 || this.wave >= 5 ? 2 : 1
+      this.bossActive || this.bossPending || midBossFight || hpFrac < 0.4 || this.wave >= 5 ? 2 : 1
     );
-    this.updateBossWarning();
     this.updateSectorTally();
     // Adaptive assist: hits in the last 15 s of game time ease the bullet
     // pressure off (invisible rubber band — the player just feels "fair").
@@ -1739,6 +1786,8 @@ export class GameEngine {
       if (e.type === 'boss') {
         if (e.dying !== undefined) {
           this.updateBossDeath(e);
+        } else if (e.midBoss) {
+          this.updateMidBoss(e, timeScale);
         } else {
           this.updateBoss(e, timeScale);
         }
@@ -1858,7 +1907,8 @@ export class GameEngine {
         if (e.type === 'boss' && e.dying === undefined) {
           // Bosses don't die instantly — they burn through a core-breach
           // chain first (startBossDeath), THEN grant the kill rewards.
-          this.startBossDeath(e);
+          if (e.midBoss) this.startMidBossDeath(e);
+          else this.startBossDeath(e);
           continue;
         }
         if (e.type !== 'boss') {
@@ -1870,8 +1920,13 @@ export class GameEngine {
         }
       }
     }
+    // Retreating mid-bosses leave the field silently once off-screen —
+    // the wave can never soft-lock behind an unkilled vanguard.
+    if (this.enemies.some((e) => e.midBoss && e.retreat && e.y < -110)) {
+      this.enemies = this.enemies.filter((e) => !(e.midBoss && e.retreat && e.y < -110));
+    }
   }
-  
+
   private getEnemyPersonality(type: string): { aggression: number; intelligence: number; reactionTime: number; accuracy: number } {
     switch (type) {
       case 'swarmer':
@@ -2244,32 +2299,124 @@ export class GameEngine {
     }
   }
 
+  /** Mid-boss breach: a shorter, tighter burn than a full boss death —
+   *  same dramatic language, half the ceremony. */
+  private startMidBossDeath(boss: Enemy) {
+    boss.dying = 0.9;
+    boss.deathTick = 0;
+    boss.vx = 0;
+    boss.vy = 0;
+    this.hitStop = Math.max(this.hitStop, 0.2);
+    this.screenShake = Math.max(this.screenShake, 9);
+    this.music.duck(0.9);
+    this.floatingTexts.push({
+      x: boss.x, y: boss.y - boss.size - 20,
+      text: '\u26A0 PREBITA PREDSTRAŽA', color: '#ffcc44',
+      life: 1.1, maxLife: 1.1, vy: -1.1
+    });
+    this.audio.playExplosion();
+  }
+
+  /** Mid-boss (sector vanguard): sinks in from the top, hovers on a sine
+   *  band and fires aimed fans. Classic shmup behavior — kill it fast for
+   *  the bounty, or stall it out and it withdraws without rewards. */
+  private updateMidBoss(m: Enemy, timeScale: number) {
+    const dt = this.deltaTime * timeScale;
+    const hpFrac = m.maxHp > 0 ? m.hp / m.maxHp : 0;
+
+    // Berserk telegraph: below 40% the carrier overheats and fires faster.
+    if (!m.desperate && hpFrac < 0.4) {
+      m.desperate = true;
+      this.floatingTexts.push({
+        x: m.x, y: m.y - m.size,
+        text: '\u26A0 RAGE', color: '#ff8844',
+        life: 1, maxLife: 1, vy: -1.5
+      });
+      this.screenShake = Math.max(this.screenShake, 5);
+    }
+
+    // Withdrawal: after 15 s of fight time the vanguard disengages —
+    // the wave can never soft-lock behind an unkilled mini-boss.
+    m.moveTimer += dt;
+    if (!m.retreat && m.moveTimer > 15) {
+      m.retreat = true;
+      this.floatingTexts.push({
+        x: m.x, y: m.y - m.size - 16,
+        text: 'PREDSTRAŽA ODHAJA', color: '#ffaa33',
+        life: 1.4, maxLife: 1.4, vy: -0.8
+      });
+    }
+    if (m.retreat) {
+      m.y -= 150 * dt;
+      return;
+    }
+
+    // Entry: sink down to the hover band first — no shooting mid-descent.
+    if (m.y < 150) {
+      m.y += 60 * dt;
+      return;
+    }
+
+    // Hover: horizontal sine sweep across the upper band.
+    m.x = m.targetX + Math.sin(this.time * 0.85 + m.phase) * this.width * 0.3;
+    m.x = Math.max(60, Math.min(this.width - 60, m.x));
+
+    // Aimed fan attack (+ interleaved ring once berserk).
+    m.shootTimer -= dt;
+    if (m.shootTimer <= 0) {
+      const dmgMul = this.difficulty?.enemyDamageMultiplier ?? 1;
+      m.shootTimer = (m.desperate ? 1.25 : 2.1) / this.fireRateMul();
+      const base = Math.atan2(this.player.y - m.y, this.player.x - m.x);
+      for (let k = -2; k <= 2; k++) {
+        const a = base + k * 0.16;
+        this.bullets.push({
+          x: m.x, y: m.y + m.size * 0.6,
+          vx: Math.cos(a) * 4.2, vy: Math.sin(a) * 4.2,
+          size: 5, color: '#ffcc44', damage: 12 * dmgMul,
+          life: 4, type: 'enemy'
+        });
+      }
+      if (m.desperate && Math.random() < 0.5) {
+        const ringBase = this.time * 2;
+        for (let k = 0; k < 10; k++) {
+          const a = ringBase + (Math.PI * 2 * k) / 10;
+          this.bullets.push({
+            x: m.x, y: m.y,
+            vx: Math.cos(a) * 3, vy: Math.sin(a) * 3,
+            size: 4, color: '#ff8844', damage: 10 * dmgMul,
+            life: 3.5, type: 'enemy'
+          });
+        }
+      }
+    }
+  }
+
   private onEnemyDeath(e: Enemy) {
     const scoreMul = this.difficulty?.scoreMultiplier ?? 1;
-    const baseScore = (e.type === 'boss' ? 1000 : e.type === 'titan' ? 100 : 25) * scoreMul;
+    const baseScore = (e.type === 'boss' ? (e.midBoss ? 500 : 1000) : e.type === 'titan' ? 100 : 25) * scoreMul;
     this.player.score += baseScore * this.player.combo;
     this.player.combo = Math.min(10, this.player.combo + 1);
     this.player.comboTimer = 5;
     this.maxCombo = Math.max(this.maxCombo, this.player.combo);
-    this.screenShake = e.type === 'boss' ? 20 : 5;
+    this.screenShake = e.type === 'boss' ? (e.midBoss ? 12 : 20) : 5;
     // Kill juice: bosses get a long freeze-frame, titans a short one.
-    if (e.type === 'boss') this.hitStop = Math.max(this.hitStop, 0.14);
+    if (e.type === 'boss') this.hitStop = Math.max(this.hitStop, e.midBoss ? 0.09 : 0.14);
     else if (e.type === 'titan') this.hitStop = Math.max(this.hitStop, 0.06);
     this.audio.playExplosion();
     this.proceduralAudio.playExplosion();
     this.enemiesKilled++;
-    if (e.type === 'boss') this.bossKills++;
+    if (e.type === 'boss' && !e.midBoss) this.bossKills++;
 
     // Gold reward (scaled by difficulty; elites pay a jackpot multiplier)
     const goldMul = this.difficulty?.goldMultiplier ?? 1;
     this.gold += Math.round(
-      (e.type === 'boss' ? 250 : e.type === 'titan' ? 25 : 10)
+      (e.type === 'boss' ? (e.midBoss ? 120 : 250) : e.type === 'titan' ? 25 : 10)
       * goldMul * (e.elite ? GameEngine.ELITE_AFFIXES[e.elite].goldMul : 1)
     );
 
     // Award XP based on enemy type (elites are worth double XP)
     const xpGained = Math.round(
-      (e.type === 'boss' ? 500 : e.type === 'titan' ? 50 : 15)
+      (e.type === 'boss' ? (e.midBoss ? 200 : 500) : e.type === 'titan' ? 50 : 15)
       * (e.elite ? 2 : 1)
       * (this.difficulty?.xpMultiplier ?? 1)
     );
@@ -2279,13 +2426,13 @@ export class GameEngine {
     this.particles.push({
       x: e.x, y: e.y, vx: 0, vy: 0,
       life: 0.55, maxLife: 0.55,
-      size: e.type === 'boss' ? 220 : e.type === 'titan' ? 90 : 55,
-      color: e.type === 'boss' ? '#ff66ff' : '#ffffff',
+      size: e.type === 'boss' ? (e.midBoss ? 150 : 220) : e.type === 'titan' ? 90 : 55,
+      color: e.type === 'boss' ? (e.midBoss ? '#ffcc44' : '#ff66ff') : '#ffffff',
       type: 'ring'
     });
 
     // Death particles - more when WebGPU is active
-    const particleCount = Math.floor((this.webgpuSupported ? (e.type === 'boss' ? 200 : 50) : (e.type === 'boss' ? 80 : 20)) * this.particleScale);
+    const particleCount = Math.floor((this.webgpuSupported ? (e.type === 'boss' ? (e.midBoss ? 120 : 200) : 50) : (e.type === 'boss' ? (e.midBoss ? 50 : 80) : 20)) * this.particleScale);
     for (let i = 0; i < particleCount; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = Math.random() * 8 + 2;
@@ -2299,7 +2446,7 @@ export class GameEngine {
 
     // Drop power orbs
     if (Math.random() < 0.3 || e.type === 'boss') {
-      const orbCount = e.type === 'boss' ? 5 : 1;
+      const orbCount = e.type === 'boss' ? (e.midBoss ? 3 : 5) : 1;
       for (let i = 0; i < orbCount; i++) {
         const types: PowerOrb['type'][] = ['hp', 'energy', 'shield', 'score'];
         this.powerOrbs.push({
@@ -2315,9 +2462,9 @@ export class GameEngine {
     }
     
     // Drop advanced power-ups (rare drop from regular enemies, guaranteed from bosses)
-    const powerUpDropChance = e.type === 'boss' ? 1.0 : e.type === 'titan' ? 0.3 : 0.05;
+    const powerUpDropChance = e.type === 'boss' ? (e.midBoss ? 0.5 : 1.0) : e.type === 'titan' ? 0.3 : 0.05;
     if (Math.random() < powerUpDropChance) {
-      this.dropAdvancedPowerUp(e.x, e.y, e.type === 'boss');
+      this.dropAdvancedPowerUp(e.x, e.y, e.type === 'boss' && !e.midBoss);
     }
 
     // Classic letter drops (Raiden/Truxton style): P = power, S = speed,
@@ -2331,7 +2478,12 @@ export class GameEngine {
         type, life: 14, size: 10
       });
     };
-    if (e.type === 'boss') {
+    if (e.midBoss) {
+      // Mid-boss payoff: guaranteed medal + capsule — juicy, but not a
+      // full boss spread (options stay tied to the WARNING bosses).
+      letterDrop('medal', e.x, e.y);
+      letterDrop('capsule', e.x - 24, e.y);
+    } else if (e.type === 'boss') {
       letterDrop(this.player.options < 3 ? 'option' : 'bomb', e.x, e.y);
       letterDrop('capsule', e.x - 26, e.y);
       letterDrop('medal', e.x + 26, e.y);
@@ -2355,7 +2507,7 @@ export class GameEngine {
       else if (roll < 0.18) letterDrop('medal', e.x, e.y);
     }
 
-    if (e.type === 'boss') {
+    if (e.type === 'boss' && !e.midBoss) {
       this.bossActive = false;
       // Raiden DX style sector tally: base + no-miss + medal bonus, paid
       // out line by line on the result panel (updateSectorTally).
@@ -2407,6 +2559,23 @@ export class GameEngine {
           type: 'energy'
         });
       }
+    }
+
+    if (e.midBoss) {
+      // Vanguard bounty: sector-scaled score bonus + one warm ring.
+      const s = this.sector();
+      const bonus = Math.round(300 * s * scoreMul);
+      this.player.score += bonus;
+      this.floatingTexts.push({
+        x: e.x, y: e.y - e.size - 12,
+        text: `PREDSTRAŽA JASEN +${bonus}`,
+        color: '#ffcc44', life: 1.6, maxLife: 1.6, vy: -1.2
+      });
+      this.particles.push({
+        x: e.x, y: e.y, vx: 0, vy: 0,
+        life: 0.7, maxLife: 0.7,
+        size: 260, color: '#ffcc44', type: 'ring'
+      });
     }
   }
 
@@ -3912,6 +4081,11 @@ export class GameEngine {
         ctx.restore();
         continue;
       }
+      if (e.type === 'boss' && e.midBoss) {
+        this.renderCarrierBoss(ctx, e);
+        ctx.restore();
+        continue;
+      }
 
       if (e.type === 'boss') {
         // Cosmic horror boss with tendrils
@@ -4077,31 +4251,135 @@ export class GameEngine {
       }
     }
 
-    // Boss HP bar
+    // Boss / mid-boss HP bar
     const boss = this.enemies.find(e => e.type === 'boss');
     if (boss) {
-      const barWidth = this.width * 0.4;
+      const mid = boss.midBoss === true;
+      const barWidth = this.width * (mid ? 0.3 : 0.4);
       const barX = (this.width - barWidth) / 2;
       const barY = 60;
+      const barH = mid ? 8 : 12;
       ctx.fillStyle = '#222';
-      ctx.fillRect(barX, barY, barWidth, 12);
-      const hpRatio = boss.hp / boss.maxHp;
+      ctx.fillRect(barX, barY, barWidth, barH);
+      const hpRatio = Math.max(0, boss.hp / boss.maxHp);
       const isSkull = boss.variant === 'skull';
       const isStation = boss.variant === 'station';
       const hpGrad = ctx.createLinearGradient(barX, 0, barX + barWidth, 0);
-      if (isSkull) { hpGrad.addColorStop(0, '#ffaa33'); hpGrad.addColorStop(1, '#ff4400'); }
+      if (mid) { hpGrad.addColorStop(0, '#ffdd55'); hpGrad.addColorStop(1, '#ff6600'); }
+      else if (isSkull) { hpGrad.addColorStop(0, '#ffaa33'); hpGrad.addColorStop(1, '#ff4400'); }
       else if (isStation) { hpGrad.addColorStop(0, '#66ffcc'); hpGrad.addColorStop(1, '#00aa88'); }
       else { hpGrad.addColorStop(0, '#ff00ff'); hpGrad.addColorStop(1, '#ff0066'); }
       ctx.fillStyle = hpGrad;
-      ctx.fillRect(barX, barY, barWidth * hpRatio, 12);
-      ctx.strokeStyle = isSkull ? '#ffaa33' : isStation ? '#66ffcc' : '#ff00ff';
+      ctx.fillRect(barX, barY, barWidth * hpRatio, barH);
+      ctx.strokeStyle = mid ? '#ffaa33' : isSkull ? '#ffaa33' : isStation ? '#66ffcc' : '#ff00ff';
       ctx.lineWidth = 1;
-      ctx.strokeRect(barX, barY, barWidth, 12);
+      ctx.strokeRect(barX, barY, barWidth, barH);
       ctx.fillStyle = '#fff';
-      ctx.font = '10px monospace';
+      ctx.font = mid ? '9px monospace' : '10px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(isSkull ? 'LOBANJA-NIČELA' : isStation ? 'POSTAJA NIČ' : 'VOID TITAN', this.width / 2, barY - 4);
+      ctx.fillText(
+        mid ? `PREDSTRAŽA-${this.midBossLetter}` : isSkull ? 'LOBANJA-NIČELA' : isStation ? 'POSTAJA NIČ' : 'VOID TITAN',
+        this.width / 2, barY - 4
+      );
     }
+  }
+
+  /** Mid-boss carrier: hexagonal armored outpost sentinel with orbiting
+   *  gun pods and a core eye that burns hotter as it takes damage. */
+  private renderCarrierBoss(ctx: CanvasRenderingContext2D, e: Enemy) {
+    const s = e.size;
+    const t = this.time;
+    const hpFrac = e.maxHp > 0 ? e.hp / e.maxHp : 0;
+    const bob = Math.sin(t * 2.2) * 3;
+
+    // Pulsing warning aura — boss-class target from the moment it spawns
+    const aura = ctx.createRadialGradient(0, bob, 0, 0, bob, s * 2.1);
+    aura.addColorStop(0, 'rgba(255,180,60,0.20)');
+    aura.addColorStop(0.7, 'rgba(255,120,20,0.08)');
+    aura.addColorStop(1, 'transparent');
+    ctx.fillStyle = aura;
+    ctx.fillRect(-s * 2.1, bob - s * 2.1, s * 4.2, s * 4.2);
+
+    // Orbiting gun pods — the carrier's signature silhouette
+    for (const side of [-1, 1]) {
+      const pa = t * 1.6 * side;
+      const px = Math.cos(pa) * s * 1.05;
+      const py = Math.sin(pa) * s * 0.45 + bob;
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(pa);
+      ctx.fillStyle = '#6a5528';
+      ctx.beginPath();
+      ctx.arc(0, 0, s * 0.24, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffbb22';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#3d2a10';
+      ctx.fillRect(-s * 0.06, s * 0.2, s * 0.12, s * 0.3);
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.translate(0, bob);
+
+    // Hexagonal armored hull
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI / 3) * i - Math.PI / 2;
+      const r = s * (i % 2 === 0 ? 1 : 0.92);
+      const x = Math.cos(a) * r;
+      const y = Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    const hull = ctx.createLinearGradient(0, -s, 0, s);
+    hull.addColorStop(0, '#8a6a34');
+    hull.addColorStop(0.5, '#5a431e');
+    hull.addColorStop(1, '#2e2010');
+    ctx.fillStyle = hull;
+    ctx.fill();
+    ctx.strokeStyle = '#ffbb22';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Hull plate seams
+    ctx.strokeStyle = 'rgba(255,187,34,0.35)';
+    ctx.lineWidth = 1;
+    for (const k of [-0.45, 0, 0.45]) {
+      ctx.beginPath();
+      ctx.moveTo(k * s, -s * 0.75);
+      ctx.lineTo(k * s * 0.4, s * 0.75);
+      ctx.stroke();
+    }
+
+    // Launcher prongs (bottom — where the fans come from)
+    ctx.fillStyle = '#8a6a34';
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(side * s * 0.3, s * 0.55);
+      ctx.lineTo(side * s * 0.5, s * 1.05);
+      ctx.lineTo(side * s * 0.16, s * 0.9);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Core eye — glows hotter the closer it gets to breach
+    const corePulse = 0.55 + Math.sin(t * 5) * 0.2 + (1 - hpFrac) * 0.25;
+    const core = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 0.42);
+    core.addColorStop(0, `rgba(255,240,180,${Math.min(1, corePulse)})`);
+    core.addColorStop(0.5, `rgba(255,150,30,${Math.min(1, corePulse * 0.8)})`);
+    core.addColorStop(1, 'rgba(120,60,0,0.1)');
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.42, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffbb22';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.restore();
   }
 
   /** Mechanical skull boss (Truxton homage): cranium, tracking sockets, jaw. */
