@@ -156,18 +156,25 @@ intenzivnost 0        1                 2                 BOSS
 ```
 
 - **Bloom v3:** prag 0,45, ločljivi Gaussian v polovični resoluciji — sijaj brez mehčanja
-- **Realistični izstrelki:** rakete z kovinskim truplom, bojevo glavo, repnimi krilci in
-  utripajočim plamenom + **dimni sled** (razširjajoči se oblaki); nasprotnikovi plazma-orbi
-  s pulzirajočim halojem in gobo gibanja; tracer-steaki za vulkanski strel
+- **Realistični izstrelki:** rakete s trdim pogonom (pospešujejo do izgorevanja), kovinskim
+  truplom, bojevo glavo, repnimi krilci, **udarnimi diamanti** v curku, dimno sledjo in
+  **RCS pufi** ob ostrih homing zavojih; izstrelitveni blisk z iskrami; nasprotnikovi
+  plazma-orbi s pulzirajočim halojem in gobo gibanja; tracer-steaki za vulkanski strel
+- **Naravnost-gor baterija:** vsi igralčevi streli potujejo vzporedno navzgor (vzporedni
+  stolpci namesto kotne pahljače) — klasična vertikalna namerilna logika
 - CPU pakuje delce v 48 B/delec → staging buffer → instancirani izris
-- **Parallax zvezdnato nebo:** 3 sloji, vertikalni smear = občutek hitrosti
+- **Parallax zvezdnato nebo:** 260 zvezd v 3 globinskih slojih, realistična zvezdna paleta
+  (belo / toplo / hladno), utripanje po lastni fazi, hitrostni streaki, ki se podaljšujejo
+  s pospeškom leta, štirizvezdni blisk najsvetlejših bližnjih zvezd
 - Brez WebGPU → samodejni Canvas2D fallback (isti vizualni rezultat)
 
 ## ⛰️ Svet, ki leti naprej
 
 - **Vertikalni svetovni scroll** (70 → 160 px/s z valovi) — nič več stojanja na mestu
-- **Pravi asteroidi:** nepravilne silhuete (9–12 točk), radialska sencenje s kraterji,
-  5 sivkino-rjavih palet; vsak kamen ima lastno hitrost (0,55–1,45× × stopnja)
+- **Pravi asteroidi:** nepravilne silhuete (9–12 točk), radialno sencenje + **spekularni
+  svetlobni odsvev** proti ključni svetlobi, kraterji z osvetljenim robom,
+  5 sivkino-rjavih palet; vsak kamen ima lastno hitrost (0,55–1,45× × stopnja) in
+  odrega prah ob kotalenju
 - **Progresivno razpadanje kamnov:** zadeti asteroidi dobijo razpoke (3 stopnje
   poškodbe + iskre ob udarcu); veliki razstreljeni kamni se razdvojijo v dva
   drobca, ki ju lahko nadaljnje uničuješ — drobci zgorejo na izhodu iz polja

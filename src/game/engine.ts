@@ -31,7 +31,7 @@ interface Bullet {
   // Elongated beam/missile rendering aligned to the travel direction
   capsule?: boolean; wave?: boolean;
   // Solid-fuel rocket: metallic body art + smoke trail (Gradius RAKETA)
-  missile?: boolean; trailT?: number;
+  missile?: boolean; trailT?: number; lastAng?: number;
   // Danmaku sine-wave motion (optional): the bullet oscillates around its
   // base trajectory, producing the flowing "wave wall" look.
   waveAmp?: number; waveFreq?: number; wavePhase?: number;
@@ -252,7 +252,13 @@ export class GameEngine {
   // Offline hall of fame: top-10 runs
   private leaderboard: LeaderboardEntry[] = [];
   private animFrame = 0;
-  private stars: { x: number; y: number; z: number; brightness: number }[] = [];
+  private stars: {
+    x: number; y: number; z: number; brightness: number;
+    color: string; tw: number; twFreq: number;
+  }[] = [];
+  // Accumulated starfield scroll (px): stars stream faster than the world
+  // for parallax and accelerate with the wave ramp — the "warp" feel.
+  private starScroll = 0;
   private webgpuSupported = false;
   private onStateChange: (state: GameState) => void;
   private waveAnnouncement: WaveAnnouncement | null = null;
@@ -355,12 +361,18 @@ export class GameEngine {
   // checkWebGPU moved to initWebGPU
 
   private initStars() {
-    for (let i = 0; i < 200; i++) {
+    // Realistic stellar palette: most stars white, a few warm (K/M class)
+    // and a few blue-white (hot O/B class) — a night sky, not a snowstorm.
+    const palette = ['#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffe9c8', '#cfe0ff', '#ffd9b0'];
+    for (let i = 0; i < 260; i++) {
       this.stars.push({
-        x: Math.random() * 2000 - 1000,
-        y: Math.random() * 2000 - 1000,
+        x: Math.random() * 2200 - 1100,
+        y: Math.random() * 2200 - 1100,
         z: Math.random() * 3 + 0.5,
-        brightness: Math.random()
+        brightness: Math.random(),
+        color: palette[Math.floor(Math.random() * palette.length)],
+        tw: Math.random() * Math.PI * 2,
+        twFreq: 2 + Math.random() * 5
       });
     }
   }
@@ -751,6 +763,23 @@ export class GameEngine {
         homing: 0.14, capsule: true, missile: true
       });
     }
+    // Launch flare: a bright pop + sparks where the boosters ignite.
+    this.particles.push({
+      x: p.x, y: p.y - 4, vx: 0, vy: 0,
+      life: 0.32, maxLife: 0.32, size: 30,
+      color: '#ffbb66', type: 'ring'
+    });
+    for (let j = 0; j < 8; j++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4;
+      const s2 = 2 + Math.random() * 3;
+      this.particles.push({
+        x: p.x, y: p.y - 4,
+        vx: Math.cos(a) * s2, vy: Math.sin(a) * s2 + 1,
+        life: 0.3, maxLife: 0.3, size: 2,
+        color: Math.random() < 0.5 ? '#ffcc66' : '#ff8833', type: 'spark'
+      });
+    }
+    this.audio.playShoot();
   }
 
   /** Per-frame timers for the System 16 arcade systems. */
@@ -1558,6 +1587,9 @@ export class GameEngine {
       this.deltaTime = rawDt;
     }
     this.time += this.deltaTime;
+    // Star parallax accumulator: the sky keeps drifting in the menu
+    // (attract mode) and accelerates with the world scroll in play.
+    this.starScroll += (this.worldScroll * 1.35 + 46) * this.deltaTime;
     this.frameCount++;
     this.fpsTimer += this.deltaTime;
     if (this.fpsTimer >= 1) {
@@ -2779,11 +2811,40 @@ export class GameEngine {
       // The trail is what sells "real rocket" — fire without smoke looks
       // like a spark; smoke without fire looks like a jet contrail.
       if (b.missile) {
+        // Solid-fuel thrust: the rocket accelerates along its heading up
+        // to burnout speed — a launch feels like a launch, not a drift.
+        const spd = Math.sqrt(b.vx * b.vx + b.vy * b.vy) || 1;
+        if (spd < 11) {
+          const ns = Math.min(11, spd + 9 * this.deltaTime);
+          b.vx = (b.vx / spd) * ns;
+          b.vy = (b.vy / spd) * ns;
+        }
         b.trailT = (b.trailT ?? 0) - this.deltaTime;
         if (b.trailT <= 0) {
           b.trailT = 0.024;
           const sp = Math.sqrt(b.vx * b.vx + b.vy * b.vy) || 1;
           const nx = -b.vx / sp, ny = -b.vy / sp; // tail direction
+          // Reaction-control thruster: hard homing turns vent a small
+          // side puff from the opposite side of the turn.
+          const ang = Math.atan2(b.vy, b.vx);
+          if (b.lastAng !== undefined) {
+            let d = ang - b.lastAng;
+            while (d > Math.PI) d -= Math.PI * 2;
+            while (d < -Math.PI) d += Math.PI * 2;
+            if (Math.abs(d) > 0.06) {
+              const side = d > 0 ? -1 : 1;
+              const px = Math.cos(ang + side * Math.PI * 0.5);
+              const py = Math.sin(ang + side * Math.PI * 0.5);
+              this.particles.push({
+                x: b.x - Math.cos(ang) * 4 + px * 3,
+                y: b.y - Math.sin(ang) * 4 + py * 3,
+                vx: px * 1.4, vy: py * 1.4,
+                life: 0.16, maxLife: 0.2, size: 2.2,
+                color: '#d8d8d8', type: 'smoke'
+              });
+            }
+          }
+          b.lastAng = ang;
           this.particles.push({
             x: b.x + nx * 9 + (Math.random() - 0.5) * 3,
             y: b.y + ny * 9 + (Math.random() - 0.5) * 3,
@@ -3353,6 +3414,19 @@ export class GameEngine {
       crystal.rotation += crystal.rotSpeed;
       crystal.y += this.worldScroll * crystal.speedMul * this.deltaTime;
       crystal.x += crystal.driftX * this.deltaTime;
+      // Tumbling rocks shed the odd dust grain — a tiny life sign that
+      // makes the field feel like matter, not sprites.
+      if (Math.random() < 0.008) {
+        this.particles.push({
+          x: crystal.x + (Math.random() - 0.5) * crystal.size * 1.4,
+          y: crystal.y + (Math.random() - 0.5) * crystal.size * 1.4,
+          vx: crystal.driftX * 0.15 + (Math.random() - 0.5) * 0.6,
+          vy: -this.worldScroll * 0.12 * crystal.speedMul,
+          life: 0.5 + Math.random() * 0.4, maxLife: 0.9,
+          size: 1 + Math.random() * 1.6,
+          color: crystal.color, type: 'debris'
+        });
+      }
       if (crystal.y - crystal.size > this.height) {
         if (crystal.frag) {
           // Split children burn up on exit instead of re-entering the stream.
@@ -3591,16 +3665,28 @@ export class GameEngine {
     // Render environment using the new system
     renderEnvironment(ctx, w, h, envConfig, this.time);
 
-    // Parallax starfield streaming downward — the forward-flight sensation
-    // (near stars rush past, far ones crawl; slight vertical smear = speed).
-    ctx.fillStyle = '#ffffff';
+    // Parallax starfield streaming downward — the forward-flight sensation.
+    // Depth: near stars are bigger, faster and smear into speed streaks;
+    // each star twinkles on its own phase and burns in a real stellar
+    // color (white / warm / cool). Streaks lengthen with scroll speed,
+    // so ramming the throttle feels like ramming the throttle.
     const range = h + 60;
+    const speed = this.starScroll;
     for (const s of this.stars) {
-      const y = (((s.y + this.time * 60 * s.z) % range) + range) % range - 30;
+      const y = (((s.y + speed * s.z) % range) + range) % range - 30;
       const x = ((s.x % w) + w) % w;
-      ctx.globalAlpha = 0.2 + s.brightness * 0.5;
-      const r = 0.8 + s.z * 0.6;
-      ctx.fillRect(x, y, r, r * (1 + s.z * 0.5));
+      const twinkle = 0.72 + 0.28 * Math.sin(this.time * s.twFreq + s.tw);
+      ctx.globalAlpha = Math.min(1, (0.22 + s.brightness * 0.55) * twinkle);
+      const r = 0.7 + s.z * 0.55;
+      const smear = r * (0.9 + s.z * (0.35 + speed * 0.004));
+      ctx.fillStyle = s.color;
+      ctx.fillRect(x, y, r, smear);
+      // The brightest near stars get a subtle four-point flare.
+      if (s.z > 3.1 && s.brightness > 0.86) {
+        ctx.globalAlpha *= 0.4;
+        ctx.fillRect(x - r * 1.6, y + smear * 0.35, r * 4.2, r * 0.4);
+        ctx.fillRect(x + r * 0.3, y - r * 1.3, r * 0.4, r * 3.2);
+      }
     }
     ctx.globalAlpha = 1;
     // Sector mood wash — every sector carries its own color identity
@@ -3830,16 +3916,38 @@ export class GameEngine {
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Impact craters (deterministic per rock via its shape jitter)
-      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      // Sun-kissed specular highlight: a small hot spot offset toward the
+      // key light — sells the rock as a lit 3D body, not a flat blob.
+      const spec = ctx.createRadialGradient(
+        -crystal.size * 0.42, -crystal.size * 0.46, 0,
+        -crystal.size * 0.42, -crystal.size * 0.46, crystal.size * 0.55
+      );
+      spec.addColorStop(0, 'rgba(255,255,255,0.30)');
+      spec.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = spec;
+      ctx.beginPath();
+      ctx.arc(-crystal.size * 0.42, -crystal.size * 0.46, crystal.size * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Impact craters (deterministic per rock via its shape jitter):
+      // each bowl gets a dark floor and a lit rim on the sun-facing edge.
       for (let k = 0; k < 3; k++) {
         const sa = crystal.shape[(k * 3 + 1) % n] ?? 0.8;
         const sb = crystal.shape[(k * 4 + 2) % n] ?? 0.8;
         const ca = sa * Math.PI * 2;
         const cd = crystal.size * (0.15 + sb * 0.45);
+        const cr = crystal.size * (0.12 + sb * 0.14);
+        const cxp = Math.cos(ca) * cd;
+        const cyp = Math.sin(ca) * cd;
+        ctx.fillStyle = 'rgba(0,0,0,0.30)';
         ctx.beginPath();
-        ctx.arc(Math.cos(ca) * cd, Math.sin(ca) * cd, crystal.size * (0.12 + sb * 0.14), 0, Math.PI * 2);
+        ctx.arc(cxp, cyp, cr, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+        ctx.lineWidth = Math.max(0.8, cr * 0.22);
+        ctx.beginPath();
+        ctx.arc(cxp, cyp, cr * 0.82, Math.PI * 0.7, Math.PI * 1.7);
+        ctx.stroke();
       }
 
       // Battle damage: jagged cracks appear as HP drops (3 stages), derived
@@ -4825,6 +4933,20 @@ export class GameEngine {
     ctx.beginPath();
     ctx.arc(-len * 0.46, 0, s * 0.34 * flicker, 0, Math.PI * 2);
     ctx.fill();
+    // Shock diamonds: the bright nodes of an over-expanded jet exhaust —
+    // the detail that separates a real plume from an orange blob.
+    ctx.fillStyle = `rgba(255,255,235,${(0.55 * flicker).toFixed(2)})`;
+    for (let i = 1; i <= 2; i++) {
+      const dx = -len * 0.5 - flameLen * 0.2 * i;
+      const dw = wid * (0.17 - i * 0.045);
+      ctx.beginPath();
+      ctx.moveTo(dx + dw * 1.7, 0);
+      ctx.lineTo(dx, -dw);
+      ctx.lineTo(dx - dw * 1.7, 0);
+      ctx.lineTo(dx, dw);
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.globalCompositeOperation = 'source-over';
 
     // ── Body: metallic gradient cylinder ──
