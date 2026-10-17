@@ -33,13 +33,16 @@ export function ParticleOverlay({ isActive }: ParticleOverlayProps) {
       return;
     }
 
+    // Monotonic id counter — Date.now()+random() collided within the same
+    // millisecond and React dropped particles with duplicate keys.
+    let particleId = 0;
     const interval = setInterval(() => {
       setParticles((prev) => {
         // Add new particles
         const newParticles: Particle[] = [];
         for (let i = 0; i < 3; i++) {
           newParticles.push({
-            id: Date.now() + Math.random(),
+            id: ++particleId,
             x: Math.random() * window.innerWidth,
             y: window.innerHeight + 10,
             size: Math.random() * 3 + 1,

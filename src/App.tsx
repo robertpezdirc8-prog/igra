@@ -186,8 +186,9 @@ export default function App() {
   const lastHpRef = useRef(100);
   const flashTimerRef = useRef<number | null>(null);
 
+  const notificationIdRef = useRef(0);
   const addNotification = useCallback((message: string, type: 'success' | 'warning' | 'error' | 'info') => {
-    const id = Date.now() + Math.random();
+    const id = ++notificationIdRef.current; // monotonic — never collides
     setNotifications((prev) => [...prev.slice(-4), { id, message, type }]);
   }, []);
 

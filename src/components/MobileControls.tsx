@@ -6,7 +6,10 @@ import { useState, useRef, useEffect } from 'react';
  * RELATIVE TOUCH and fires automatically"):
  *
  * 1. AUTO-FIRE — the ship fires automatically (straight battery).
- *    The player's attention belongs to DODGING, so there is no shoot button.
+ *    The player's attention belongs to DODGING. The FIRE button gives the
+ *    question "where do I shoot?" a visible answer: it glows green with an
+ *    AVTO badge while the battery fires by itself; a quick tap switches to
+ *    MANUAL (STREL) where holding the button fires.
  * 2. RELATIVE DRAG — touch anywhere on the left half; the ship does NOT
  *    jump to the finger. It keeps its touchstart offset and follows the
  *    finger's movement delta 1:1 (engine applies a small sensitivity gain).
@@ -20,6 +23,15 @@ import { useState, useRef, useEffect } from 'react';
  * touch-identifier tracking) because this layer is `pointer-events-none`
  * — the browser never hit-tests it. Identifier tracking keeps it
  * multi-touch safe: left thumb steers while the right thumb taps buttons.
+ *
+ * VISIBILITY: gated on (pointer: coarse), NOT viewport width. The old
+ * `md:hidden` gate hid the ENTIRE control layer on phones held in
+ * landscape (CSS width ≥ 768px) — every button vanished.
+ *
+ * FIRE GATE: auto-fire must be (re-)engaged every time the game becomes
+ * visible — this component mounts with App (before the engine exists)
+ * and merely returns null while hidden, so a mount-only "shoot(true)"
+ * hit a null engine and the ship never fired at all on phones.
  */
 
 interface MobileControlsProps {
@@ -57,19 +69,47 @@ export function MobileControls({
   const [touchRipples, setTouchRipples] = useState<Array<{ id: number; x: number; y: number }>>([]);
   const rippleIdRef = useRef(0);
 
+  // Fire mode: AUTO (battery fires itself) vs MANUAL (hold FIRE to shoot).
+  const [autoFire, setAutoFire] = useState(true);
+  const manualHoldRef = useRef(false);
+
+  // Touch-device gate — pointer capability, not viewport size, so the
+  // controls survive phone landscape (≥768px CSS width) and stay off desktop.
+  // maxTouchPoints covers devices whose primary pointer lies (mouse attached
+  // to a phone/tablet). `?touch=1` / localStorage is a preview + test
+  // escape hatch (automation browsers emulate neither media nor touch).
+  const computeTouch = () =>
+    new URLSearchParams(window.location.search).has('touch') ||
+    window.localStorage.getItem('atheria.forceTouch') === '1' ||
+    window.matchMedia('(pointer: coarse)').matches ||
+    navigator.maxTouchPoints > 0;
+  const [isTouchDevice, setIsTouchDevice] = useState(computeTouch);
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: coarse)');
+    const update = () => setIsTouchDevice(computeTouch());
+    update();
+    mq.addEventListener?.('change', update);
+    return () => mq.removeEventListener?.('change', update);
+  }, []);
+
   // Latest-callback refs so the auto-fire effect can run exactly once.
   const shootRef = useRef(onShoot);
   useEffect(() => {
     shootRef.current = onShoot;
   }, [onShoot]);
 
-  // ── AUTO-FIRE ──
-  // Standard mobile shmup convention: the battery fires the whole run.
-  // Mounted while playing → firing; unmounted (pause/menu) → stop.
+  // ── FIRE GATE ──
+  // Runs on every visibility/mode change (NOT mount-only — see header):
+  // game starts or resumes → fire per mode; pause/menu/game-over → stop.
   useEffect(() => {
-    shootRef.current(true);
+    if (!isVisible) {
+      manualHoldRef.current = false;
+      shootRef.current(false);
+      return;
+    }
+    shootRef.current(autoFire || manualHoldRef.current);
     return () => shootRef.current(false);
-  }, []);
+  }, [isVisible, autoFire]);
 
   // Haptic feedback
   const triggerHaptic = (pattern: number | number[] = 10) => {
@@ -209,7 +249,44 @@ export function MobileControls({
     }
   };
 
-  if (!isVisible) return null;
+  // ── FIRE button ──
+  // AUTO mode: quick tap (< 300 ms) → switch to MANUAL (long holds are a
+  // no-op, so an accidental press can never silence the battery silently).
+  // MANUAL mode: hold → fire, release → stop; quick tap → back to AUTO.
+  const fireTouchTsRef = useRef(0);
+  const TAP_MS = 300;
+
+  const handleFireStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    fireTouchTsRef.current = performance.now();
+    if (!autoFire) {
+      manualHoldRef.current = true;
+      shootRef.current(true);
+    }
+  };
+
+  const handleFireEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const heldMs = performance.now() - fireTouchTsRef.current;
+    if (autoFire) {
+      if (heldMs < TAP_MS) setAutoFire(false);
+    } else {
+      manualHoldRef.current = false;
+      shootRef.current(false);
+      if (heldMs < TAP_MS) setAutoFire(true);
+    }
+  };
+
+  const handleFireCancel = () => {
+    if (!autoFire && manualHoldRef.current) {
+      manualHoldRef.current = false;
+      shootRef.current(false);
+    }
+  };
+
+  if (!isVisible || !isTouchDevice) return null;
 
   // Shared ghost-button style: small, dark, borderless-ish, label-free.
   const ghost =
@@ -218,13 +295,13 @@ export function MobileControls({
     'active:scale-90 active:bg-white/25';
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-none md:hidden">
+    <div className="fixed inset-0 z-50 pointer-events-none">
       {/* First-run hint — vanishes the moment the ship moves */}
       {!hasMovedOnce && (
         <div className="absolute bottom-28 left-8 pointer-events-none animate-pulse">
-          <div className="w-20 h-20 rounded-full border-2 border-dashed border-cyan-300/25 flex items-center justify-center">
+          <div className="w-24 h-24 rounded-full border-2 border-dashed border-cyan-300/25 flex items-center justify-center">
             <span className="text-cyan-200/40 text-[10px] text-center leading-tight">
-              povleci<br />za let
+              povleci za let<br />🔥 strelja samodejno
             </span>
           </div>
         </div>
@@ -232,6 +309,35 @@ export function MobileControls({
 
       {/* ── Right-edge action stack (compact, label-free) ── */}
       <div className="absolute bottom-5 right-3 flex flex-col items-center gap-2 pointer-events-auto">
+        {/* FIRE — the button the player is looking for. Glows green with an
+            AVTO badge while auto-fire is active; quick tap → hold-to-fire. */}
+        <button
+          onTouchStart={handleFireStart}
+          onTouchEnd={handleFireEnd}
+          onTouchCancel={handleFireCancel}
+          aria-label={
+            autoFire
+              ? 'Samodejno streljanje vklopljeno — tapni za ročno streljanje'
+              : 'Ročno streljanje — drži za strel, tapni za samodejno'
+          }
+          className={
+            'w-14 h-14 rounded-full border-2 flex flex-col items-center justify-center select-none transition-transform duration-75 active:scale-90 ' +
+            (autoFire
+              ? 'bg-emerald-600/40 border-emerald-300/80 shadow-lg shadow-emerald-900/50 animate-pulse'
+              : 'bg-black/45 backdrop-blur-sm border-white/30')
+          }
+          style={{ touchAction: 'none' }}
+        >
+          <span className="text-xl leading-none">🔥</span>
+          <span
+            className={`text-[8px] leading-none mt-0.5 font-bold tracking-wide ${
+              autoFire ? 'text-emerald-100' : 'text-white/60'
+            }`}
+          >
+            {autoFire ? 'AVTO' : 'STREL'}
+          </span>
+        </button>
+
         {/* Panic button: BOMBA — the one button sized to find blindly */}
         <button
           onTouchStart={handleBomb}

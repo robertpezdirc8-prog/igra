@@ -47,10 +47,11 @@ export function ArcadeGame({ isOpen, onClose, onComplete }: ArcadeGameProps) {
   useEffect(() => {
     if (!isPlaying || gameOver) return;
 
+    let targetId = 0; // monotonic — Date.now()+random() collided in the same ms
     const spawnInterval = setInterval(() => {
       setTargets((prev) => {
         const newTarget = {
-          id: Date.now() + Math.random(),
+          id: ++targetId,
           x: Math.random() * 80 + 10,
           y: Math.random() * 60 + 20,
           size: Math.random() * 30 + 30
