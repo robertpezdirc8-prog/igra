@@ -110,6 +110,27 @@ function getTodayChallenges(data: SaveData): string[] {
   return data.completedChallenges[today] ?? [];
 }
 
+/** Single source of truth for "this device plays by touch".
+ *  Same rules as MobileControls' internal gate: coarse pointer,
+ *  real touch points, or the ?touch=1 / localStorage escape hatch
+ *  (used by automation and by users whose browser lies). */
+function detectTouchDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (new URLSearchParams(window.location.search).has('touch')) return true;
+  try {
+    if (window.localStorage.getItem('atheria.forceTouch') === '1') return true;
+  } catch { /* private mode */ }
+  return window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+}
+
+/** React-HUD switch = touch device OR a narrow preview window (a desktop
+ *  user squeezing the window still benefits from the compact HUD, while
+ *  the canvas keeps its keyboard dialect since no touch stack exists). */
+function detectMobileHud(): boolean {
+  if (typeof window === 'undefined') return false;
+  return detectTouchDevice() || window.matchMedia('(max-width: 767px)').matches;
+}
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const webgpuCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -119,11 +140,14 @@ export default function App() {
   const [gameState, setGameState] = useState<GameState>('loading');
   // Mobile detection: coarse pointer or narrow viewport → clean HUD mode
   // (auto-fire controls, no minimap/keyboard hints/debug widgets).
-  const [isMobile, setIsMobile] = useState(false);
+  // ?touch=1 / localStorage['atheria.forceTouch']='1' = manual escape
+  // hatch, kept IDENTICAL to MobileControls' gate so all three layers
+  // (React HUD, canvas HUD, touch controls) always agree.
+  const [isMobile, setIsMobile] = useState(() => detectMobileHud());
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia('(pointer: coarse), (max-width: 767px)');
-    const update = () => setIsMobile(mq.matches);
+    const update = () => setIsMobile(detectMobileHud());
     update();
     mq.addEventListener?.('change', update);
     return () => mq.removeEventListener?.('change', update);
@@ -316,6 +340,12 @@ export default function App() {
 
     const engine = new GameEngine(canvas, overlay, handleStateChange);
     engineRef.current = engine;
+    // Touch device → canvas HUD switches to the touch dialect and
+    // auto-aim becomes eligible from frame one (previously isMobile was
+    // only set incidentally by the first shoot(true) call).
+    if (detectTouchDevice()) {
+      engine.setMobileMode(true);
+    }
     // Apply persisted control/audio settings to the fresh engine (the
     // change-handler only fires on the NEXT settings edit).
     if (saveDataRef.current) engine.applySettings(saveDataRef.current.settings);
@@ -706,37 +736,51 @@ export default function App() {
             />
           )}
 
-          <HealthBar
-            hp={player.hp}
-            maxHp={player.maxHp}
-            shield={player.shield}
-            maxShield={player.maxShield}
-            energy={player.energy}
-            maxEnergy={player.maxEnergy}
-          />
-
-          {/* Score: desktop gets the full panel; mobile a one-line readout
-              (industry HUD practice — only what changes decisions). */}
-          {!isMobile ? (
-            <ScoreDisplay
-              score={stats.score}
-              wave={stats.wave}
-              combo={stats.combo}
-              fps={stats.fps}
-              seed={stats.seed}
-              webgpuSupported={stats.webgpuSupported}
-            />
-          ) : (
-            <div className="fixed top-[118px] left-4 z-30 font-mono">
-              <p
-                className="text-xl font-bold"
-                style={{ color: '#00ffff', textShadow: '0 0 10px rgba(0,255,255,0.5)' }}
-              >
-                {stats.score.toLocaleString()}
-              </p>
-              <p className="text-[11px] text-orange-300">VAL {stats.wave}</p>
-              <p className="text-[10px] text-purple-300">NIVO {stats.playerLevel} · XP {stats.playerXp}/{stats.xpToNext}</p>
+          {/* MOBILE: one compact left column (vitals + score) — no magic
+              pixel offsets, so nothing can slide under the bars. The old
+              top-[118px] score readout collided with the ENERGIJA bar. */}
+          {isMobile ? (
+            <div className="fixed top-4 left-4 z-30 w-40 space-y-1.5 pointer-events-none">
+              <HealthBar
+                compact
+                hp={player.hp}
+                maxHp={player.maxHp}
+                shield={player.shield}
+                maxShield={player.maxShield}
+                energy={player.energy}
+                maxEnergy={player.maxEnergy}
+              />
+              <div className="font-mono">
+                <p
+                  className="text-lg font-bold leading-tight"
+                  style={{ color: '#00ffff', textShadow: '0 0 10px rgba(0,255,255,0.5)' }}
+                >
+                  {stats.score.toLocaleString()}
+                </p>
+                <p className="text-[10px] text-purple-300">NIVO {stats.playerLevel} · XP {stats.playerXp}/{stats.xpToNext}</p>
+              </div>
             </div>
+          ) : (
+            <>
+              <HealthBar
+                hp={player.hp}
+                maxHp={player.maxHp}
+                shield={player.shield}
+                maxShield={player.maxShield}
+                energy={player.energy}
+                maxEnergy={player.maxEnergy}
+              />
+
+              {/* Score: desktop gets the full panel with all telemetry. */}
+              <ScoreDisplay
+                score={stats.score}
+                wave={stats.wave}
+                combo={stats.combo}
+                fps={stats.fps}
+                seed={stats.seed}
+                webgpuSupported={stats.webgpuSupported}
+              />
+            </>
           )}
 
           {!isMobile && (
@@ -778,6 +822,7 @@ export default function App() {
             enemiesRemaining={stats.enemiesRemaining}
             totalEnemies={Math.max(stats.totalWaveEnemies, stats.enemiesRemaining)}
             isBossWave={stats.isBossWave}
+            compact={isMobile}
           />
 
           {/* Meta buttons: desktop shows all chips; mobile collapses to a
@@ -869,6 +914,7 @@ export default function App() {
           <ComboDisplay
             combo={player.combo}
             multiplier={1 + player.combo * 0.1}
+            compact={isMobile}
           />
 
           {!isMobile && (

@@ -107,7 +107,12 @@ export function MobileControls({
   // ── FIRE GATE ──
   // Runs on every visibility/mode change (NOT mount-only — see header):
   // game starts or resumes → fire per mode; pause/menu/game-over → stop.
+  // MUST be gated on isTouchDevice: effects run even while the JSX
+  // returns null, so an ungated gate called shoot(true) on DESKTOP too —
+  // silently flipping the engine's isMobile flag (touch canvas dialect
+  // on desktop + auto-aim engaged for mouse players).
   useEffect(() => {
+    if (!isTouchDevice) return;
     if (!isVisible) {
       manualHoldRef.current = false;
       shootRef.current(false);
@@ -115,7 +120,7 @@ export function MobileControls({
     }
     shootRef.current(autoFire || manualHoldRef.current);
     return () => shootRef.current(false);
-  }, [isVisible, autoFire]);
+  }, [isVisible, autoFire, isTouchDevice]);
 
   // Haptic feedback
   const triggerHaptic = (pattern: number | number[] = 10) => {

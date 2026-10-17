@@ -591,6 +591,14 @@ export class GameEngine {
     if (active) this.isMobile = true;
   }
 
+  /** Touch-capable device → canvas HUD switches to the touch dialect
+   *  (no keyboard key hints, bomb stock moved off the button stack).
+   *  Also lets auto-aim engage from frame one, not just after the
+   *  first shoot(true) call set isMobile incidentally. */
+  setMobileMode(active: boolean) {
+    this.isMobile = active;
+  }
+
   /** Relative drag — touchstart: remember where the ship is now.
    *  The ship never jumps to the finger; it keeps its offset. */
   beginMobileDrag() {
@@ -3268,25 +3276,40 @@ export class GameEngine {
     }
   }
 
-  /** Classic arcade HUD row: bomb stock, options, Gradius meter, timers. */
+  /** Classic arcade HUD row: bomb stock, options, Gradius meter, timers.
+   *  TOUCH dialect (isMobile): no keyboard key hints, and the bomb stock
+   *  lives bottom-LEFT — the bottom-right corner belongs to the touch
+   *  button stack (Dash/BOMBA icons would cover it). */
   private renderRunIndicators(ctx: CanvasRenderingContext2D, w: number, h: number) {
     const p = this.player;
-    ctx.textAlign = 'right';
-    // Bomb stock (Raiden): filled ◉ for available, hollow ○ for spent
+    const touch = this.isMobile;
+    // Bomb stock (Raiden): filled ◉ for available, hollow ○ for spent.
+    // Desktop anchors sit LEFT of the minimap panel (it occupies the
+    // bottom-right ~135px — the old w-20 column was fully hidden).
     let bombStr = '';
     for (let i = 0; i < p.maxBombs; i++) bombStr += i < p.bombs ? '\u25C9' : '\u25CB';
     ctx.font = 'bold 15px monospace';
     ctx.fillStyle = '#ff6644';
-    ctx.fillText(bombStr, w - 20, h - 22);
-    ctx.font = '9px monospace';
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.fillText('BOMBA [X]', w - 20, h - 10);
+    if (touch) {
+      ctx.textAlign = 'left';
+      ctx.fillText(bombStr, 16, h - 22);
+      ctx.font = '9px monospace';
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillText('BOMBA', 16, h - 10);
+    } else {
+      ctx.textAlign = 'right';
+      ctx.fillText(bombStr, w - 150, h - 22);
+      ctx.font = '9px monospace';
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillText('BOMBA [X]', w - 150, h - 10);
+    }
     if (p.options > 0) {
       ctx.font = 'bold 12px monospace';
       ctx.fillStyle = '#66ffff';
       let optStr = 'OPTION ';
       for (let i = 0; i < p.options; i++) optStr += '\u25CF';
-      ctx.fillText(optStr, w - 20, h - 40);
+      ctx.textAlign = touch ? 'left' : 'right';
+      ctx.fillText(optStr, touch ? 16 : w - 150, h - 40);
     }
     // Temporary arcade weapon timers (Raiden II plasma + Gradius slots)
     const bars: Array<{ label: string; t: number; max: number; color: string }> = [];
@@ -3296,17 +3319,18 @@ export class GameEngine {
     if (this.laserTimer > 0) bars.push({ label: 'LASER', t: this.laserTimer, max: 15, color: '#ff44cc' });
     bars.forEach((bar, idx) => {
       const y = h - 58 - idx * 16;
+      const bx = touch ? 58 : w - 222;
       ctx.font = 'bold 9px monospace';
       ctx.fillStyle = bar.color;
-      ctx.textAlign = 'right';
-      ctx.fillText(bar.label, w - 96, y + 8);
+      ctx.textAlign = touch ? 'left' : 'right';
+      ctx.fillText(bar.label, touch ? 16 : w - 226, y + 8);
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      ctx.fillRect(w - 92, y, 72, 8);
+      ctx.fillRect(bx, y, 72, 8);
       ctx.fillStyle = bar.color;
-      ctx.fillRect(w - 92, y, 72 * Math.max(0, bar.t / bar.max), 8);
+      ctx.fillRect(bx, y, 72 * Math.max(0, bar.t / bar.max), 8);
       ctx.strokeStyle = bar.color + 'aa';
       ctx.lineWidth = 1;
-      ctx.strokeRect(w - 92, y, 72, 8);
+      ctx.strokeRect(bx, y, 72, 8);
     });
     // Gradius power meter (Konami): bottom-center — the only area that
     // stays clear of the React overlay panels on desktop AND mobile
@@ -3333,7 +3357,7 @@ export class GameEngine {
     ctx.font = '8px monospace';
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.textAlign = 'left';
-    ctx.fillText('GRADIUS [C]', mx, my - 4);
+    ctx.fillText(touch ? 'GRADIUS' : 'GRADIUS [C]', mx, my - 4);
     // DoDonPachi medal chain (top-right, below the wave number)
     if (this.medalChain > 0 && this.medalChainTimer > 0) {
       ctx.font = 'bold 14px monospace';

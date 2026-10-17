@@ -3,9 +3,12 @@ import { useEffect, useState } from 'react';
 interface ComboDisplayProps {
   combo: number;
   multiplier: number;
+  /** Touch layout: small pill on the right edge, below the pause/menu
+   *  buttons — the old tall card collided with the centered wave panel. */
+  compact?: boolean;
 }
 
-export function ComboDisplay({ combo, multiplier }: ComboDisplayProps) {
+export function ComboDisplay({ combo, multiplier, compact }: ComboDisplayProps) {
   const [animate, setAnimate] = useState(false);
 
   useEffect(() => {
@@ -35,6 +38,28 @@ export function ComboDisplay({ combo, multiplier }: ComboDisplayProps) {
     if (combo >= 5) return '0 0 20px rgba(255, 255, 0, 0.8)';
     return '0 0 20px rgba(0, 255, 255, 0.8)';
   };
+
+  if (compact) {
+    return (
+      <div className="fixed top-[62px] right-3 z-30 pointer-events-none">
+        <div
+          className={`bg-black/60 border rounded-full px-3 py-1.5 backdrop-blur-sm flex items-center gap-1.5 transition-all duration-300 ${
+            animate ? 'scale-110' : 'scale-100'
+          }`}
+          style={{
+            borderColor: combo >= 20 ? '#ff0000' : combo >= 10 ? '#ff00ff' : combo >= 5 ? '#ffff00' : '#00ffff',
+            boxShadow: getComboGlow()
+          }}
+        >
+          <span className={`font-mono font-bold text-sm ${getComboColor()}`}
+            style={{ textShadow: getComboGlow() }}>
+            {combo}x
+          </span>
+          <span className="font-mono text-[9px] text-gray-400 uppercase tracking-wider">combo</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed top-32 right-4 z-30">
