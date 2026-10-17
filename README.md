@@ -168,6 +168,11 @@ intenzivnost 0        1                 2                 BOSS
 - **Vertikalni svetovni scroll** (70 → 160 px/s z valovi) — nič več stojanja na mestu
 - **Pravi asteroidi:** nepravilne silhuete (9–12 točk), radialska sencenje s kraterji,
   5 sivkino-rjavih palet; vsak kamen ima lastno hitrost (0,55–1,45× × stopnja)
+- **Progresivno razpadanje kamnov:** zadeti asteroidi dobijo razpoke (3 stopnje
+  poškodbe + iskre ob udarcu); veliki razstreljeni kamni se razdvojijo v dva
+  drobca, ki ju lahko nadaljnje uničuješ — drobci zgorejo na izhodu iz polja
+- **Poškodovana ladja (klasični shmup megafon):** pod 35 % trupa ladja kadi,
+  pod 15 % tudi pljune ogenj; rdeča pulzirajoča vinjeta opozarja na kritično stanje
 - **Zalet se = škoda** (dash i-frames in Gradius ščit so štejeta) — izogibanje je veščina
 - **Sovražniki izvajajo lete:** formacije pridejo od zgoraj, posamezniki se potopijo
   v strafe-run in se vrnejo s zgornjega roba (pošteno omejeno število hkratnih potopov)

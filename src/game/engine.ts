@@ -111,11 +111,12 @@ interface LeaderboardEntry {
   score: number; wave: number; seed: string; date: string;
 }
 interface Crystal {
-  x: number; y: number; size: number; hp: number;
+  x: number; y: number; size: number; hp: number; maxHp: number;
   rotation: number; rotSpeed: number; color: string; dark: string;
   driftX: number;   // personal horizontal drift (px/s)
   speedMul: number; // personal scroll multiplier — rocks arrive at mixed speeds
   shape: number[];  // per-vertex radius jitter → irregular rocky silhouette
+  frag?: boolean;   // split child — burns up on exit, never re-enters the stream
 }
 
 // Real space-rock palette (light face / dark side) — gray-brown, not neon.
@@ -292,6 +293,8 @@ export class GameEngine {
   private bossVariant: 'horror' | 'skull' | 'station' = 'horror';
   // Greek suffix of the sector's mid-boss (PREDSTRAŽA-ALFA/BETA/GAMA)
   private midBossLetter = 'ALFA';
+  // Damaged-ship FX throttle (smoke/fire trail cadence)
+  private damageFxT = 0;
   private isMobile = false;
   private autoAimEnabled = true;
   // Particle budget scale from settings (0..1)
@@ -989,6 +992,7 @@ export class GameEngine {
       y: y ?? Math.random() * (this.height + 300) - 300,
       size,
       hp: Math.round(14 + size * 1.1),
+      maxHp: Math.round(14 + size * 1.1),
       rotation: Math.random() * Math.PI * 2,
       rotSpeed: (Math.random() - 0.5) * 0.018,
       color: pal.light, dark: pal.dark,
@@ -1011,7 +1015,9 @@ export class GameEngine {
     }
   }
 
-  /** Shatter an asteroid into debris; keeps the incoming stream flowing. */
+  /** Shatter an asteroid into debris; keeps the incoming stream flowing.
+   *  Large shot-down rocks split into two tumbling fragments (Asteroids-
+   *  style) that burn up when they exit the field. */
   private shatterAsteroid(index: number, byCrash: boolean) {
     const crystal = this.crystals[index];
     if (!crystal) return;
@@ -1035,8 +1041,36 @@ export class GameEngine {
       this.screenShake = 5;
       this.player.score += 25;
       this.player.energy = Math.min(this.player.maxEnergy, this.player.energy + 3);
+      // Big rocks split into two smaller children (one generation only).
+      if (!crystal.frag && crystal.size >= 22) this.splitAsteroid(crystal);
     }
     this.crystals.push(this.makeAsteroid(-60 - Math.random() * 160));
+  }
+
+  /** Two child rocks inherit the parent's palette and tumble apart with
+   *  faster spin and opposing drift — a readable, physical split. */
+  private splitAsteroid(parent: Crystal) {
+    for (const side of [-1, 1]) {
+      const size = parent.size * (0.42 + Math.random() * 0.14);
+      const verts = 8 + Math.floor(Math.random() * 3);
+      const shape: number[] = [];
+      for (let i = 0; i < verts; i++) shape.push(0.72 + Math.random() * 0.42);
+      const hp = Math.round(10 + size * 1.1);
+      this.crystals.push({
+        x: parent.x + side * parent.size * 0.45,
+        y: parent.y + (Math.random() - 0.5) * parent.size * 0.4,
+        size,
+        hp, maxHp: hp,
+        rotation: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.05,
+        color: parent.color, dark: parent.dark,
+        driftX: parent.driftX * 0.5 + side * (14 + Math.random() * 22),
+        speedMul: Math.min(2.4, parent.speedMul * 1.1),
+        shape,
+        frag: true
+      });
+      this.player.score += 10;
+    }
   }
 
   private tryDash() {
@@ -1561,6 +1595,7 @@ export class GameEngine {
     this.updateAutoAim();
     this.pollGamepad();
     this.updatePlayer();
+    this.updateDamageFx();
     this.updateEnemies();
     this.updateBullets();
     this.updateOptions();
@@ -2859,6 +2894,17 @@ export class GameEngine {
         if (crystal.hp <= 0) {
           // Asteroid shattered by gunfire — small reward, stream keeps flowing.
           this.shatterAsteroid(c, false);
+        } else {
+          // Chip off a few rock splinters — damage feedback on the rock.
+          for (let j = 0; j < 3; j++) {
+            const a = Math.random() * Math.PI * 2;
+            this.particles.push({
+              x: b.x, y: b.y,
+              vx: Math.cos(a) * 2.5, vy: Math.sin(a) * 2.5 - 0.5,
+              life: 0.5, maxLife: 0.5, size: 1.5 + Math.random() * 1.5,
+              color: crystal.color, type: 'debris'
+            });
+          }
         }
         return true;
       }
@@ -2984,8 +3030,35 @@ export class GameEngine {
     }
   }
 
-  /**
-   * Gradius-style Options: up to 2 drones orbit the ship and auto-fire at
+  /** Damaged-ship feedback: below 35% hull the ship leaks smoke; below 15%
+   *  it also spits engine fire — the classic shmup "you are critical" tell. */
+  private updateDamageFx() {
+    const frac = this.player.maxHp > 0 ? this.player.hp / this.player.maxHp : 1;
+    if (frac >= 0.35) {
+      this.damageFxT = 0;
+      return;
+    }
+    this.damageFxT -= this.deltaTime;
+    if (this.damageFxT > 0) return;
+    this.damageFxT = frac < 0.15 ? 0.045 : 0.075;
+    const p = this.player;
+    const hot = frac < 0.15;
+    const fire = hot && Math.random() < 0.45;
+    this.particles.push({
+      x: p.x + (Math.random() - 0.5) * 10,
+      y: p.y + 12 + Math.random() * 4,
+      vx: (Math.random() - 0.5) * 0.8,
+      vy: 1.4 + Math.random() * 0.8, // trails back with the forward flight
+      life: 0.6 + Math.random() * 0.4, maxLife: 1.0,
+      size: 3 + Math.random() * 3,
+      color: fire
+        ? (Math.random() < 0.5 ? '#ff8833' : '#ffcc55')
+        : (Math.random() < 0.5 ? '#777777' : '#555555'),
+      type: fire ? 'energy' : 'smoke'
+    });
+  }
+
+  /** Gradius-style Options: up to 2 drones orbit the ship and auto-fire at
    * the nearest enemy (position is a pure function of time, so rendering
    * and firing stay in perfect sync without storing state).
    */
@@ -3293,6 +3366,11 @@ export class GameEngine {
       crystal.y += this.worldScroll * crystal.speedMul * this.deltaTime;
       crystal.x += crystal.driftX * this.deltaTime;
       if (crystal.y - crystal.size > this.height) {
+        if (crystal.frag) {
+          // Split children burn up on exit instead of re-entering the stream.
+          this.crystals.splice(i, 1);
+          continue;
+        }
         crystal.y = -crystal.size - Math.random() * 140;
         crystal.x = Math.random() * this.width;
       }
@@ -3500,6 +3578,21 @@ export class GameEngine {
     this.renderAnnouncement(ctx, w, h);
 
     ctx.restore();
+
+    // Critical-damage vignette: pulsing red frame — the cockpit is burning.
+    // Drawn OUTSIDE the shake transform so it reads as cockpit damage, not
+    // world damage, and stays rock-steady at the edges.
+    if (this.state === 'playing' || this.state === 'levelup') {
+      const frac = this.player.maxHp > 0 ? this.player.hp / this.player.maxHp : 1;
+      if (frac < 0.35) {
+        const pulse = 0.14 + 0.09 * Math.sin(this.time * 6) + (0.35 - frac) * 0.55;
+        const vg = ctx.createRadialGradient(w / 2, h / 2, h * 0.34, w / 2, h / 2, h * 0.8);
+        vg.addColorStop(0, 'transparent');
+        vg.addColorStop(1, `rgba(255,28,18,${Math.min(0.5, pulse).toFixed(3)})`);
+        ctx.fillStyle = vg;
+        ctx.fillRect(0, 0, w, h);
+      }
+    }
   }
 
   private renderBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
@@ -3759,6 +3852,26 @@ export class GameEngine {
         ctx.beginPath();
         ctx.arc(Math.cos(ca) * cd, Math.sin(ca) * cd, crystal.size * (0.12 + sb * 0.14), 0, Math.PI * 2);
         ctx.fill();
+      }
+
+      // Battle damage: jagged cracks appear as HP drops (3 stages), derived
+      // deterministically from the shape jitter — no per-frame randomness.
+      const dmg = 1 - crystal.hp / Math.max(1, crystal.maxHp);
+      if (dmg > 0.3) {
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+        ctx.lineWidth = Math.max(1, crystal.size * 0.06);
+        const crackCount = dmg > 0.66 ? 3 : 1;
+        for (let k = 0; k < crackCount; k++) {
+          const a1 = (crystal.shape[(k * 2 + 1) % n] ?? 0.8) * Math.PI * 2;
+          const a2 = a1 + 1.1 + (crystal.shape[(k * 3 + 2) % n] ?? 0.8) * 1.4;
+          const midA = (a1 + a2) / 2;
+          const midR = crystal.size * 0.3 * (crystal.shape[(k + 3) % n] ?? 0.8);
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a1) * crystal.size * 0.85, Math.sin(a1) * crystal.size * 0.85);
+          ctx.lineTo(Math.cos(midA) * midR, Math.sin(midA) * midR);
+          ctx.lineTo(Math.cos(a2) * crystal.size * 0.7, Math.sin(a2) * crystal.size * 0.7);
+          ctx.stroke();
+        }
       }
 
       ctx.restore();
