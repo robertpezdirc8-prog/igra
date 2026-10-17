@@ -1,5 +1,6 @@
 import { AudioEngine } from './audio';
-import { ProceduralAudioSystem, ProceduralMusicGenerator } from './audioSystem';
+import { ProceduralAudioSystem } from './audioSystem';
+import { MusicEngine } from './musicEngine';
 import { WebGPURenderer } from './webgpu-renderer';
 import { getLevelForPlayer } from './levels';
 import { getEnvironmentForLevel, renderEnvironment } from './environment';
@@ -49,6 +50,10 @@ interface Enemy {
   diving?: boolean; diveCd?: number;
   // Boss visual identity (cycles horror → skull → station)
   variant?: 'horror' | 'skull' | 'station';
+  // Core-breach death choreography: while dying is defined the boss stops
+  // fighting and burns through a chain of explosions before the final blast.
+  dying?: number;
+  deathTick?: number;
 }
 interface Player {
   x: number; y: number; vx: number; vy: number;
@@ -144,7 +149,7 @@ export class GameEngine {
   private height = 0;
   private audio: AudioEngine;
   private proceduralAudio: ProceduralAudioSystem;
-  private proceduralMusic: ProceduralMusicGenerator;
+  private music = new MusicEngine();
   private state: GameState = 'menu';
   private player: Player;
   private enemies: Enemy[] = [];
@@ -199,6 +204,11 @@ export class GameEngine {
   private webgpuSupported = false;
   private onStateChange: (state: GameState) => void;
   private waveAnnouncement: WaveAnnouncement | null = null;
+  // Gradius-style WARNING phase: the klaxon takes the stage BEFORE the
+  // boss spawns (the boss enters only once the siren dies down).
+  private bossPending = false;
+  private bossWarningTimer = 0;
+  private klaxonTimer = 0;
   private seed: string = '';
   private gameTime = 0;
   private totalDamageDealt = 0;
@@ -251,7 +261,6 @@ export class GameEngine {
     this.ctx = canvas.getContext('2d')!;
     this.audio = new AudioEngine();
     this.proceduralAudio = new ProceduralAudioSystem();
-    this.proceduralMusic = new ProceduralMusicGenerator();
     this.onStateChange = onStateChange;
     this.player = this.createPlayer();
     // Initialize advanced systems
@@ -383,7 +392,7 @@ export class GameEngine {
 
   async start() {
     await this.audio.init();
-    this.audio.startMusic();
+    this.music.start();
   }
 
   // ============= PUBLIC CONTROL API =============
@@ -394,12 +403,14 @@ export class GameEngine {
     if (this.state !== 'playing') return;
     this.state = 'paused';
     this.onStateChange(this.state);
+    this.music.stop();
   }
 
   resume() {
     if (this.state !== 'paused') return;
     this.state = 'playing';
     this.onStateChange(this.state);
+    this.music.start();
   }
 
   togglePause() {
@@ -414,7 +425,8 @@ export class GameEngine {
   goToMenu() {
     this.state = 'menu';
     this.onStateChange(this.state);
-    this.audio.startMusic();
+    this.music.setBossMode(false);
+    this.music.start();
   }
 
   /** Apply the upgrade at the given index of the current level-up choices. */
@@ -446,6 +458,7 @@ export class GameEngine {
   /** Apply user settings (audio volumes, particle budget). */
   applySettings(settings: { musicVolume: number; sfxVolume: number; particles: 'low' | 'medium' | 'high' }) {
     this.audio.setVolumes(settings.musicVolume, settings.sfxVolume);
+    this.music.setVolume(settings.musicVolume);
     this.particleScale = settings.particles === 'low' ? 0.25 : settings.particles === 'medium' ? 0.6 : 1;
     // Bloom is a full-screen post pass — skip it at low particle quality.
     this.webgpuRenderer?.setBloomEnabled(settings.particles !== 'low');
@@ -862,8 +875,11 @@ export class GameEngine {
     this.levelChoices = [];
     this.state = 'playing';
     this.onStateChange(this.state);
-    this.audio.startMusic();
-    this.proceduralMusic.start(1);
+    this.bossPending = false;
+    this.bossWarningTimer = 0;
+    this.klaxonTimer = 0;
+    this.music.setBossMode(false);
+    this.music.start();
     this.generateSeed();
     this.spawnCrystals();
     // Apply starting XP from persistent rewards (may trigger a level-up)
@@ -1049,12 +1065,13 @@ export class GameEngine {
     
     // Wave announcement
     if (this.wave % 5 === 0) {
-      this.waveAnnouncement = {
-        text: `VOID BREACH — WAVE ${this.wave}`,
-        subtext: '⚠ BOSS INCOMING ⚠',
-        timer: 3,
-        color: '#ff00ff'
-      };
+      // Gradius/Raiden flow: the WARNING klaxon takes the stage first —
+      // the boss itself spawns only after the siren dies down.
+      this.waveAnnouncement = null;
+      this.bossPending = true;
+      this.bossWarningTimer = 3.6;
+      this.klaxonTimer = 0.05;
+      this.music.setBossMode(true);
     } else {
       this.waveAnnouncement = {
         text: `WAVE ${this.wave}`,
@@ -1111,10 +1128,8 @@ export class GameEngine {
       this.crystals.push(this.makeAsteroid(-60 - Math.random() * 200));
     }
 
-    if (this.wave % 5 === 0) {
-      this.spawnBoss();
-    }
-    
+    // The boss spawns after the WARNING klaxon expires (updateBossWarning).
+
     // Spawn environmental hazards on certain waves
     if (this.wave >= 3 && this.wave % 2 === 0) {
       this.spawnEnvironmentalHazards();
@@ -1329,6 +1344,14 @@ export class GameEngine {
     this.gameTime += this.deltaTime;
     // Scroll speed ramps gently with the wave (70 → 160 px/s).
     this.worldScroll = 70 + Math.min(90, (this.wave - 1) * 6);
+    // Adaptive soundtrack: boss mode spans the klaxon + the fight; the
+    // layered intensity tracks danger (boss, low hull, late sectors).
+    this.music.setBossMode(this.bossActive || this.bossPending);
+    const hpFrac = this.player.maxHp > 0 ? this.player.hp / this.player.maxHp : 1;
+    this.music.setIntensity(
+      this.bossActive || this.bossPending || hpFrac < 0.4 || this.wave >= 5 ? 2 : 1
+    );
+    this.updateBossWarning();
     this.updateAutoAim();
     this.pollGamepad();
     this.updatePlayer();
@@ -1555,7 +1578,11 @@ export class GameEngine {
       if (e.hitFlash && e.hitFlash > 0) e.hitFlash -= this.deltaTime;
 
       if (e.type === 'boss') {
-        this.updateBoss(e, timeScale);
+        if (e.dying !== undefined) {
+          this.updateBossDeath(e);
+        } else {
+          this.updateBoss(e, timeScale);
+        }
       } else {
         // Get or create AI for this enemy (merged from webgpu-online-games-51d72)
         const enemyId = `enemy_${i}`;
@@ -1667,11 +1694,19 @@ export class GameEngine {
 
       // Check death
       if (e.hp <= 0) {
-        this.onEnemyDeath(e);
-        // Remove AI when enemy dies
-        const enemyId = `enemy_${i}`;
-        this.enemyAIs.delete(enemyId);
-        this.enemies.splice(i, 1);
+        if (e.type === 'boss' && e.dying === undefined) {
+          // Bosses don't die instantly — they burn through a core-breach
+          // chain first (startBossDeath), THEN grant the kill rewards.
+          this.startBossDeath(e);
+          continue;
+        }
+        if (e.type !== 'boss') {
+          this.onEnemyDeath(e);
+          // Remove AI when enemy dies
+          const enemyId = `enemy_${i}`;
+          this.enemyAIs.delete(enemyId);
+          this.enemies.splice(i, 1);
+        }
       }
     }
   }
@@ -1967,6 +2002,83 @@ export class GameEngine {
         life: 0.25, maxLife: 0.25, size: 2.5,
         color: '#ffff00', type: 'spark'
       });
+    }
+  }
+
+  /** Ticks the WARNING phase down and spawns the boss once it expires. */
+  private updateBossWarning() {
+    if (!this.bossPending) return;
+    this.bossWarningTimer -= this.deltaTime;
+    this.klaxonTimer -= this.deltaTime;
+    if (this.klaxonTimer <= 0) {
+      this.audio.playKlaxon();
+      this.klaxonTimer = 1.7;
+    }
+    if (this.bossWarningTimer <= 0) {
+      this.bossPending = false;
+      this.spawnBoss();
+    }
+  }
+
+  /** Core breach: the boss stops fighting and burns for ~1.6s of chained
+   *  explosions (slow-motion hit-stop + music duck) before the final blast. */
+  private startBossDeath(boss: Enemy) {
+    boss.dying = 1.6;
+    boss.deathTick = 0;
+    boss.vx = 0;
+    boss.vy = 0;
+    this.bossActive = false;
+    this.hitStop = Math.max(this.hitStop, 0.4);
+    this.screenShake = Math.max(this.screenShake, 12);
+    this.music.setBossMode(false);
+    this.music.duck(1.8);
+    this.floatingTexts.push({
+      x: boss.x, y: boss.y - boss.size - 24,
+      text: '\u26A0 CORE BREACH', color: '#ff5544',
+      life: 1.2, maxLife: 1.2, vy: -1.2
+    });
+    this.audio.playExplosion();
+  }
+
+  /** Burns the dying boss down: random explosions across its hull, then
+   *  the classic full-death blast (rewards, rings, shockwave, big shake). */
+  private updateBossDeath(boss: Enemy) {
+    boss.dying = (boss.dying ?? 0) - this.deltaTime;
+    boss.deathTick = (boss.deathTick ?? 0) - this.deltaTime;
+    // Wobbling death drift — sinking, out of control.
+    boss.x += Math.sin(this.time * 22) * 1.4;
+    boss.y += 16 * this.deltaTime;
+    if (boss.deathTick <= 0) {
+      boss.deathTick = 0.16;
+      const ox = (Math.random() - 0.5) * boss.size * 1.6;
+      const oy = (Math.random() - 0.5) * boss.size * 1.2;
+      this.particles.push({
+        x: boss.x + ox, y: boss.y + oy, vx: 0, vy: 0,
+        life: 0.5, maxLife: 0.5,
+        size: 60 + Math.random() * 70,
+        color: Math.random() < 0.5 ? '#ffaa44' : '#ffffff',
+        type: 'ring'
+      });
+      const n = Math.floor(14 * this.particleScale);
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const s = Math.random() * 6 + 1.5;
+        this.particles.push({
+          x: boss.x + ox, y: boss.y + oy,
+          vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+          life: 0.7 + Math.random() * 0.5, maxLife: 1.2,
+          size: Math.random() * 3.5 + 1.5,
+          color: boss.color, type: 'debris'
+        });
+      }
+      this.audio.playBreachPop();
+    }
+    if (boss.dying <= 0) {
+      const idx = this.enemies.indexOf(boss);
+      if (idx >= 0) {
+        this.onEnemyDeath(boss);
+        this.enemies.splice(idx, 1);
+      }
     }
   }
 
@@ -2421,7 +2533,7 @@ export class GameEngine {
     this.saveHighScore();
     this.recordLeaderboard();
     this.audio.stopMusic();
-    this.proceduralMusic.stop();
+    this.music.stop();
     this.proceduralAudio.playDeath();
     // Death explosion
     for (let i = 0; i < 100; i++) {
@@ -2884,7 +2996,7 @@ export class GameEngine {
 
   private updateWave() {
     this.waveTimer += this.deltaTime;
-    if (this.enemies.length === 0 && !this.bossActive) {
+    if (this.enemies.length === 0 && !this.bossActive && !this.bossPending) {
       if (this.waveTimer > 2) {
         this.wave++;
         this.waveTimer = 0;
@@ -3007,25 +3119,71 @@ export class GameEngine {
   }
 
   private renderAnnouncement(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    if (!this.waveAnnouncement) return;
-    this.waveAnnouncement.timer -= this.deltaTime;
-    if (this.waveAnnouncement.timer <= 0) {
-      this.waveAnnouncement = null;
-      return;
+    if (this.waveAnnouncement) {
+      this.waveAnnouncement.timer -= this.deltaTime;
+      if (this.waveAnnouncement.timer <= 0) {
+        this.waveAnnouncement = null;
+      } else {
+        const alpha = Math.min(1, this.waveAnnouncement.timer);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.textAlign = 'center';
+        ctx.shadowColor = this.waveAnnouncement.color;
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = this.waveAnnouncement.color;
+        ctx.font = 'bold 32px monospace';
+        ctx.fillText(this.waveAnnouncement.text, w / 2, h * 0.2);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.font = '14px monospace';
+        ctx.fillText(this.waveAnnouncement.subtext, w / 2, h * 0.2 + 30);
+        ctx.restore();
+      }
     }
-    const alpha = Math.min(1, this.waveAnnouncement.timer);
+    this.renderBossWarning(ctx, w, h);
+  }
+
+  /** Gradius homage: full-screen WARNING klaxon while a boss approaches —
+   *  pulsing red banner over animated caution stripes, top and bottom. */
+  private renderBossWarning(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    if (!this.bossPending) return;
+    const pulse = 0.55 + 0.45 * Math.sin(this.time * 14);
+    const stripeH = 26;
+    const offset = (this.time * 120) % 48;
+    // Animated caution stripes across the top and bottom of the screen.
+    for (const by of [6, h - stripeH - 6]) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, by, w, stripeH);
+      ctx.clip();
+      ctx.fillStyle = '#111111';
+      ctx.fillRect(0, by, w, stripeH);
+      ctx.fillStyle = '#ffcc00';
+      for (let x = -60 + offset; x < w + 60; x += 48) {
+        ctx.beginPath();
+        ctx.moveTo(x, by + stripeH);
+        ctx.lineTo(x + 20, by);
+        ctx.lineTo(x + 40, by);
+        ctx.lineTo(x + 20, by + stripeH);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    // Pulsing WARNING headline (siren-synced) + static subtext.
     ctx.save();
-    ctx.globalAlpha = alpha;
     ctx.textAlign = 'center';
-    ctx.shadowColor = this.waveAnnouncement.color;
-    ctx.shadowBlur = 20;
-    ctx.fillStyle = this.waveAnnouncement.color;
-    ctx.font = 'bold 32px monospace';
-    ctx.fillText(this.waveAnnouncement.text, w / 2, h * 0.2);
+    ctx.globalAlpha = 0.35 + pulse * 0.65;
+    ctx.shadowColor = '#ff2233';
+    ctx.shadowBlur = 26;
+    ctx.fillStyle = '#ff2233';
+    ctx.font = `bold ${Math.round(52 + pulse * 14)}px monospace`;
+    ctx.fillText('\u26A0 WARNING \u26A0', w / 2, h * 0.3);
     ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.font = '14px monospace';
-    ctx.fillText(this.waveAnnouncement.subtext, w / 2, h * 0.2 + 30);
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 17px monospace';
+    ctx.fillText('A HUGE FOE IS APPROACHING FAST', w / 2, h * 0.3 + 44);
     ctx.restore();
   }
 

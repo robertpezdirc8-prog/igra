@@ -183,6 +183,52 @@ export class AudioEngine {
     modulator.stop(t + 0.6);
   }
 
+  /** Boss-approach klaxon: three rising two-tone siren blasts — the
+   *  Gradius "WARNING" air-raid feel. Called while the warning banner is
+   *  on screen (roughly every 1.7s). */
+  playKlaxon() {
+    if (!this.ctx || !this.sfxGain) return;
+    const t = this.ctx.currentTime;
+    for (let i = 0; i < 3; i++) {
+      const start = t + i * 0.42;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const filt = this.ctx.createBiquadFilter();
+      osc.type = 'sawtooth';
+      // Alternating minor-third stabs (392Hz G4 / 466Hz Bb4) — air-raid.
+      osc.frequency.setValueAtTime(i % 2 === 0 ? 392 : 466.16, start);
+      osc.frequency.linearRampToValueAtTime(i % 2 === 0 ? 466.16 : 392, start + 0.34);
+      filt.type = 'lowpass';
+      filt.frequency.value = 2200;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.linearRampToValueAtTime(0.2, start + 0.04);
+      gain.gain.linearRampToValueAtTime(0.0001, start + 0.38);
+      osc.connect(filt);
+      filt.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start(start);
+      osc.stop(start + 0.4);
+    }
+  }
+
+  /** Small muffled blast for the boss core-breach death choreography —
+   *  quieter than a full explosion so the chain doesn't overwhelm. */
+  playBreachPop() {
+    if (!this.ctx || !this.sfxGain) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(220 + Math.random() * 140, t);
+    osc.frequency.exponentialRampToValueAtTime(50, t + 0.18);
+    gain.gain.setValueAtTime(0.22, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(t);
+    osc.stop(t + 0.22);
+  }
+
   playStasis() {
     if (!this.ctx || !this.sfxGain) return;
     const t = this.ctx.currentTime;
