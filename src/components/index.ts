@@ -34,3 +34,6 @@ export { ScreenShake } from './ScreenShake';
 export { ParticleOverlay } from './ParticleOverlay';
 export { VignetteOverlay } from './VignetteOverlay';
 export { ChromaticAberration } from './ChromaticAberration';
+export { LevelDisplay } from './LevelDisplay';
+export { LevelInfo } from './LevelInfo';
+export { LevelUpChoiceScreen } from './LevelUpChoiceScreen';
