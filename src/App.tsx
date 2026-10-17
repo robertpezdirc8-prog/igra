@@ -36,7 +36,9 @@ import {
   SaveLoadUI,
   StatsLeaderboardUI,
   ArcadeGame,
-  DailyRewardsUI
+  DailyRewardsUI,
+  ShopUI,
+  DifficultySelectUI
 } from './components';
 import { loadGame, saveGame, createDefaultSaveData, SaveData } from './game/saveSystem';
 import { getLevelForPlayer } from './game/levels';
@@ -70,6 +72,12 @@ export default function App() {
   const [showStatsLeaderboard, setShowStatsLeaderboard] = useState(false);
   const [showArcadeGame, setShowArcadeGame] = useState(false);
   const [showDailyRewards, setShowDailyRewards] = useState(false);
+  const [showShop, setShowShop] = useState(false);
+  const [showDifficultySelect, setShowDifficultySelect] = useState(false);
+  const [gold, setGold] = useState(0);
+  const [gems, setGems] = useState(0);
+  const [ownedCosmetics, setOwnedCosmetics] = useState<string[]>(['default']);
+  const [equippedCosmetics, setEquippedCosmetics] = useState<{ [key: string]: string | null }>({});
 
   // Load save data on mount
   useEffect(() => {
@@ -291,6 +299,21 @@ export default function App() {
     }
   };
 
+  const handleBuyCosmetic = (item: any) => {
+    if (item.currency === 'gold') {
+      setGold(prev => prev - item.price);
+    } else {
+      setGems(prev => prev - item.price);
+    }
+    setOwnedCosmetics(prev => [...prev, item.id]);
+    addNotification(`Kupil si ${item.name}!`, 'success');
+  };
+
+  const handleEquipCosmetic = (item: any) => {
+    setEquippedCosmetics(prev => ({ ...prev, [item.type]: item.id }));
+    addNotification(`Opremil si ${item.name}!`, 'success');
+  };
+
   return (
     <div className="relative w-full h-screen overflow-hidden bg-black">
       {/* Canvas */}
@@ -315,6 +338,8 @@ export default function App() {
           onShowStats={() => setShowStatsLeaderboard(true)}
           onShowArcade={() => setShowArcadeGame(true)}
           onShowDailyRewards={() => setShowDailyRewards(true)}
+          onShowShop={() => setShowShop(true)}
+          onShowDifficulty={() => setShowDifficultySelect(true)}
           highScore={highScore}
           webgpuSupported={webgpuSupported}
         />
@@ -570,6 +595,31 @@ export default function App() {
         onClaim={(reward) => {
           addNotification(`Prejel si ${reward.amount} ${reward.reward}!`, 'success');
         }}
+      />
+
+      {/* Shop */}
+      <ShopUI
+        isOpen={showShop}
+        onClose={() => setShowShop(false)}
+        gold={gold}
+        gems={gems}
+        ownedItems={ownedCosmetics}
+        equippedItems={equippedCosmetics}
+        onBuy={handleBuyCosmetic}
+        onEquip={handleEquipCosmetic}
+        playerLevel={playerStats.level}
+      />
+
+      {/* Difficulty Select */}
+      <DifficultySelectUI
+        isOpen={showDifficultySelect}
+        onClose={() => setShowDifficultySelect(false)}
+        onSelect={(difficulty) => {
+          addNotification(`Težavnost spremenjena na: ${difficulty.name}`, 'info');
+          setShowDifficultySelect(false);
+        }}
+        playerLevel={playerStats.level}
+        currentDifficulty={null}
       />
 
       {/* Settings Menu */}
