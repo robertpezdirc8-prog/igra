@@ -47,6 +47,8 @@ interface Enemy {
   // Vertical-scroller fly-bys (Raiden/Strikers attacking waves): a diving
   // enemy commits to a downward strafing run and re-enters from the top.
   diving?: boolean; diveCd?: number;
+  // Boss visual identity (cycles horror → skull → station)
+  variant?: 'horror' | 'skull' | 'station';
 }
 interface Player {
   x: number; y: number; vx: number; vy: number;
@@ -79,6 +81,9 @@ interface PowerOrb {
   type: 'hp' | 'energy' | 'shield' | 'score' | 'advanced_powerup' | 'power' | 'speed' | 'bomb' | 'option' | 'capsule' | 'plasma' | 'medal';
   life: number; size: number;
   powerUpId?: string;
+}
+interface LeaderboardEntry {
+  score: number; wave: number; seed: string; date: string;
 }
 interface Crystal {
   x: number; y: number; size: number; hp: number;
@@ -187,6 +192,8 @@ export class GameEngine {
   private static readonly GRADIUS_SLOTS: readonly string[] = ['HITRO', 'RAKETA', 'DVOJNIK', 'LASER', 'OPCIJA', 'ŠČIT'];
   private upgrades: Upgrade[] = [];
   private highScore = 0;
+  // Offline hall of fame: top-10 runs
+  private leaderboard: LeaderboardEntry[] = [];
   private animFrame = 0;
   private stars: { x: number; y: number; z: number; brightness: number }[] = [];
   private webgpuSupported = false;
@@ -216,6 +223,12 @@ export class GameEngine {
   // Mobile input state
   private mobileMove: Vec2 = { x: 0, y: 0 };
   private mobileShooting = false;
+  // Gamepad (Bullet-Heaven-2 lesson: more control schemes = more players)
+  private gamepadPrev: boolean[] = [];
+  private gamepadFire = false;
+  private gamepadMove: Vec2 = { x: 0, y: 0 };
+  // Boss identity: horror → skull → station cycle
+  private bossVariant: 'horror' | 'skull' | 'station' = 'horror';
   private isMobile = false;
   private autoAimEnabled = true;
   // Particle budget scale from settings (0..1)
@@ -290,7 +303,24 @@ export class GameEngine {
   private loadHighScore() {
     try {
       this.highScore = parseInt(localStorage.getItem('atheria_highscore') || '0');
+      const raw = localStorage.getItem('atheria_leaderboard');
+      if (raw) this.leaderboard = JSON.parse(raw) as LeaderboardEntry[];
     } catch { this.highScore = 0; }
+  }
+
+  /** Record the finished run in the offline top-10 hall of fame. */
+  private recordLeaderboard() {
+    try {
+      this.leaderboard.push({
+        score: this.player.score,
+        wave: this.wave,
+        seed: this.seed,
+        date: new Date().toLocaleDateString('sl-SI')
+      });
+      this.leaderboard.sort((a, b) => b.score - a.score);
+      this.leaderboard = this.leaderboard.slice(0, 10);
+      localStorage.setItem('atheria_leaderboard', JSON.stringify(this.leaderboard));
+    } catch { /* storage unavailable */ }
   }
 
   private saveHighScore() {
@@ -720,6 +750,53 @@ export class GameEngine {
     }
   }
 
+  /** Gamepad polling (Xbox/PS layout): stick 1 moves, stick 2 aims,
+   * A/RT fire, B/LT dash, X/RB bomb, Y gradius, LB secondary, Start pause. */
+  private pollGamepad() {
+    if (typeof navigator.getGamepads !== 'function') return;
+    const pads = navigator.getGamepads();
+    let gp: Gamepad | null = null;
+    for (const g of pads) {
+      if (g && g.connected) { gp = g; break; }
+    }
+    if (!gp) {
+      this.gamepadFire = false;
+      this.gamepadMove.x = 0;
+      this.gamepadMove.y = 0;
+      return;
+    }
+    const b = gp.buttons;
+    const pressed = (i: number) => !!b[i]?.pressed;
+    const edge = (i: number) => pressed(i) && !this.gamepadPrev[i];
+    const dz = (v: number) => (Math.abs(v) > 0.22 ? v : 0);
+
+    // Left stick / D-pad → movement
+    let mx = dz(gp.axes[0] ?? 0);
+    let my = dz(gp.axes[1] ?? 0);
+    if (pressed(12)) my = -1;
+    if (pressed(13)) my = 1;
+    if (pressed(14)) mx = -1;
+    if (pressed(15)) mx = 1;
+    this.gamepadMove.x = Math.max(-1, Math.min(1, mx));
+    this.gamepadMove.y = Math.max(-1, Math.min(1, my));
+
+    // Right stick → aim reticle (falls back to the last mouse position)
+    const rx = dz(gp.axes[2] ?? 0);
+    const ry = dz(gp.axes[3] ?? 0);
+    if (rx !== 0 || ry !== 0) {
+      this.mouse.x = this.player.x + rx * 170;
+      this.mouse.y = this.player.y + ry * 170;
+    }
+
+    this.gamepadFire = pressed(0) || pressed(7);
+    if (edge(1) || edge(6)) this.tryDash();
+    if (edge(2) || edge(5)) this.useBomb();
+    if (edge(3)) this.activateGradiusUpgrade();
+    if (edge(4)) this.useSecondaryWeapon();
+    if (edge(9)) this.togglePause();
+    this.gamepadPrev = b.map(x => x.pressed);
+  }
+
   /** Auto-aim assist for mobile: aim at nearest enemy while shooting (merged from webgpu-online-games-51d72). */
   private updateAutoAim() {
     if (!this.isMobile || !this.autoAimEnabled || (!this.mouseDown && !this.mobileShooting)) return;
@@ -827,7 +904,12 @@ export class GameEngine {
     // Oncoming asteroid stream: rocks enter from the top edge and tumble
     // down past the ship instead of sitting on the screen.
     for (let i = 0; i < this.asteroidTarget(); i++) {
-      this.crystals.push(this.makeAsteroid());
+      // Fair start: no rock spawns right on top of the ship.
+      let a = this.makeAsteroid();
+      for (let t = 0; t < 8 && Math.hypot(a.x - this.player.x, a.y - this.player.y) < 200; t++) {
+        a = this.makeAsteroid();
+      }
+      this.crystals.push(a);
     }
   }
 
@@ -1194,6 +1276,13 @@ export class GameEngine {
     const maxPhases = Math.min(5, Math.floor(this.wave / 5) + 2);
     this.bossAI = new BossAI(maxPhases);
 
+    // Boss roster cycles: cosmic horror → mechanical skull (Truxton
+    // homage) → void station (fortress style).
+    const roster: Array<'horror' | 'skull' | 'station'> = ['horror', 'skull', 'station'];
+    this.bossVariant = roster[Math.floor((this.wave / 5 - 1) % 3)] ?? 'horror';
+    const bossColor = this.bossVariant === 'skull' ? '#ffaa33'
+      : this.bossVariant === 'station' ? '#66ffcc' : '#ff00ff';
+
     this.enemies.push({
       x: this.player.x, y: this.player.y - 350,
       vx: 0, vy: 0,
@@ -1201,12 +1290,13 @@ export class GameEngine {
       maxHp: (500 + this.wave * 100) * hpMul,
       size: 60,
       type: 'boss',
-      color: '#ff00ff',
+      color: bossColor,
       phase: 0,
       pattern: Math.floor(Math.random() * 4),
       shootTimer: 0,
       moveTimer: 0,
-      targetX: this.player.x, targetY: this.player.y
+      targetX: this.player.x, targetY: this.player.y,
+      variant: this.bossVariant
     });
   }
 
@@ -1240,6 +1330,7 @@ export class GameEngine {
     // Scroll speed ramps gently with the wave (70 → 160 px/s).
     this.worldScroll = 70 + Math.min(90, (this.wave - 1) * 6);
     this.updateAutoAim();
+    this.pollGamepad();
     this.updatePlayer();
     this.updateEnemies();
     this.updateBullets();
@@ -1286,6 +1377,10 @@ export class GameEngine {
     if (this.mobileMove.x !== 0) p.vx += this.mobileMove.x * accel;
     if (this.mobileMove.y !== 0) p.vy += this.mobileMove.y * accel;
 
+    // Gamepad stick / d-pad input (same channel as the joystick)
+    if (this.gamepadMove.x !== 0) p.vx += this.gamepadMove.x * accel;
+    if (this.gamepadMove.y !== 0) p.vy += this.gamepadMove.y * accel;
+
     p.vx *= friction;
     p.vy *= friction;
     p.x += p.vx;
@@ -1325,7 +1420,7 @@ export class GameEngine {
     }
 
     // Shooting
-    if (this.mouseDown || this.mobileShooting || this.keys.has(' ')) {
+    if (this.mouseDown || this.mobileShooting || this.gamepadFire || this.keys.has(' ')) {
       p.shootTimer -= this.deltaTime;
       if (p.shootTimer <= 0) {
         this.playerShoot();
@@ -1447,6 +1542,10 @@ export class GameEngine {
 
   private updateEnemies() {
     const timeScale = this.player.stasisActive ? 0.1 : 1;
+    // Fly-by cap: never a wall of kamikazes — keep dives readable & fair.
+    const maxDivers = this.wave < 5 ? 2 : this.wave < 10 ? 4 : 6;
+    let divers = 0;
+    for (const en of this.enemies) if (en.diving) divers++;
     
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
@@ -1531,8 +1630,9 @@ export class GameEngine {
         // from the top edge — the wave keeps attacking from above.
         if (!e.diving) {
           e.diveCd = (e.diveCd ?? 1.5 + Math.random() * 3.5) - this.deltaTime * timeScale;
-          if ((e.diveCd ?? 0) <= 0) {
+          if ((e.diveCd ?? 0) <= 0 && divers < maxDivers) {
             e.diving = true;
+            divers++;
             e.vy = (e.type === 'swarmer' ? 5.5 : 4) * (this.difficulty?.enemySpeedMultiplier ?? 1);
             e.vx = Math.max(-2.2, Math.min(2.2, (this.player.x - e.x) * 0.012));
           }
@@ -2319,6 +2419,7 @@ export class GameEngine {
     this.state = 'gameover';
     this.onStateChange(this.state);
     this.saveHighScore();
+    this.recordLeaderboard();
     this.audio.stopMusic();
     this.proceduralMusic.stop();
     this.proceduralAudio.playDeath();
@@ -2787,6 +2888,14 @@ export class GameEngine {
       if (this.waveTimer > 2) {
         this.wave++;
         this.waveTimer = 0;
+        // Wave-clear bonus — arcade convention: reward the sweep.
+        const bonus = 200 * (this.wave - 1);
+        this.player.score += bonus;
+        this.floatingTexts.push({
+          x: this.player.x, y: this.player.y - 50,
+          text: `VAL JASEN +${bonus}`, color: '#ffdd44',
+          life: 1.4, maxLife: 1.4, vy: -1.4
+        });
         this.spawnWave();
         
         // Level up every 3 waves
@@ -3199,48 +3308,95 @@ export class GameEngine {
       ctx.globalAlpha = 0.5;
     }
 
-    // Ship body
+    // Ship body — layered fighter (wings → hull → spine → lights → canopy → engines)
     const angle = Math.atan2(this.mouse.y - p.y, this.mouse.x - p.x);
-    ctx.rotate(angle);
+    // Slight bank into lateral movement for a sense of weight
+    const bank = Math.max(-0.35, Math.min(0.35, p.vx * 0.03));
+    ctx.rotate(angle + bank);
 
-    // Ship wings
+    // Wing spars (rear swept blades)
     ctx.beginPath();
-    ctx.moveTo(20, 0);
-    ctx.lineTo(-8, -14);
-    ctx.lineTo(-4, -6);
-    ctx.lineTo(-10, -4);
-    ctx.lineTo(-6, 0);
-    ctx.lineTo(-10, 4);
-    ctx.lineTo(-4, 6);
-    ctx.lineTo(-8, 14);
+    ctx.moveTo(2, -3);
+    ctx.lineTo(-16, -17);
+    ctx.lineTo(-7, -5);
+    ctx.lineTo(-16, 17);
+    ctx.lineTo(2, 3);
     ctx.closePath();
-    
-    const shipGrad = ctx.createLinearGradient(-10, -14, 20, 14);
-    shipGrad.addColorStop(0, '#004488');
-    shipGrad.addColorStop(0.5, '#00bbff');
-    shipGrad.addColorStop(1, '#00ffff');
+    const wingGrad = ctx.createLinearGradient(0, -17, 0, 17);
+    wingGrad.addColorStop(0, '#0077cc');
+    wingGrad.addColorStop(0.5, '#00aadd');
+    wingGrad.addColorStop(1, '#0077cc');
+    ctx.fillStyle = wingGrad;
+    ctx.fill();
+    ctx.strokeStyle = '#00e5ff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Main hull (elongated dart)
+    ctx.beginPath();
+    ctx.moveTo(22, 0);
+    ctx.lineTo(6, -6.5);
+    ctx.lineTo(-10, -5);
+    ctx.lineTo(-13, 0);
+    ctx.lineTo(-10, 5);
+    ctx.lineTo(6, 6.5);
+    ctx.closePath();
+    const shipGrad = ctx.createLinearGradient(-13, -7, 22, 7);
+    shipGrad.addColorStop(0, '#003a66');
+    shipGrad.addColorStop(0.45, '#0099dd');
+    shipGrad.addColorStop(1, '#ccfaff');
     ctx.fillStyle = shipGrad;
     ctx.fill();
     ctx.strokeStyle = '#00ffff';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Cockpit
+    // Hull spine stripe
     ctx.beginPath();
-    ctx.ellipse(6, 0, 5, 3, 0, 0, Math.PI * 2);
-    ctx.fillStyle = '#88eeff';
+    ctx.moveTo(16, 0);
+    ctx.lineTo(-9, 0);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Wingtip lights (port red / starboard green — flight convention)
+    ctx.beginPath();
+    ctx.arc(-13, -12, 1.8, 0, Math.PI * 2);
+    ctx.fillStyle = '#ff4466';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(-13, 12, 1.8, 0, Math.PI * 2);
+    ctx.fillStyle = '#44ff88';
     ctx.fill();
 
-    // Engine glow
-    const engineFlicker = Math.random() * 8;
+    // Cockpit canopy
     ctx.beginPath();
-    ctx.moveTo(-6, -3);
-    ctx.lineTo(-16 - engineFlicker, -2);
-    ctx.lineTo(-16 - engineFlicker, 2);
-    ctx.lineTo(-6, 3);
-    ctx.closePath();
-    ctx.fillStyle = `rgba(0, 150, 255, ${0.6 + Math.random() * 0.4})`;
+    ctx.ellipse(6, 0, 5.5, 3, 0, 0, Math.PI * 2);
+    const cockpit = ctx.createRadialGradient(5, -1, 0.5, 6, 0, 6);
+    cockpit.addColorStop(0, '#ffffff');
+    cockpit.addColorStop(0.5, '#7fe8ff');
+    cockpit.addColorStop(1, '#1177aa');
+    ctx.fillStyle = cockpit;
     ctx.fill();
+
+    // Twin engine flames (animated outer cone + white-hot inner core)
+    const engineFlicker = 4 + Math.random() * 8;
+    for (const side of [-3.2, 3.2]) {
+      ctx.beginPath();
+      ctx.moveTo(-11, side - 2.2);
+      ctx.lineTo(-13 - engineFlicker, side);
+      ctx.lineTo(-11, side + 2.2);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(0, 170, 255, ${0.55 + Math.random() * 0.35})`;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-11, side - 1);
+      ctx.lineTo(-12.5 - engineFlicker * 0.55, side);
+      ctx.lineTo(-11, side + 1);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.fill();
+    }
 
     ctx.restore();
 
@@ -3309,6 +3465,18 @@ export class GameEngine {
       ctx.fillStyle = glow;
       ctx.fillRect(-e.size * 2, -e.size * 2, e.size * 4, e.size * 4);
 
+      // Boss roster: skull & station variants have dedicated art
+      if (e.type === 'boss' && e.variant === 'skull') {
+        this.renderSkullBoss(ctx, e);
+        ctx.restore();
+        continue;
+      }
+      if (e.type === 'boss' && e.variant === 'station') {
+        this.renderStationBoss(ctx, e);
+        ctx.restore();
+        continue;
+      }
+
       if (e.type === 'boss') {
         // Cosmic horror boss with tendrils
         ctx.rotate(e.phase * 0.3);
@@ -3370,6 +3538,87 @@ export class GameEngine {
         ctx.arc((toPlayerX / toPlayerDist) * 4, (toPlayerY / toPlayerDist) * 4, 5, 0, Math.PI * 2);
         ctx.fillStyle = '#000';
         ctx.fill();
+      } else if (e.type === 'swarmer') {
+        // Dart fighter: faces its travel direction, swept wings, engine dot
+        const heading = Math.hypot(e.vx, e.vy) > 0.4 ? Math.atan2(e.vy, e.vx) : Math.PI / 2;
+        ctx.rotate(heading);
+        ctx.beginPath();
+        ctx.moveTo(e.size, 0);
+        ctx.lineTo(-e.size * 0.55, -e.size * 0.75);
+        ctx.lineTo(-e.size * 0.2, 0);
+        ctx.lineTo(-e.size * 0.55, e.size * 0.75);
+        ctx.closePath();
+        ctx.fillStyle = e.color;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(-e.size * 0.45, 0, e.size * 0.16, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffddaa';
+        ctx.fill();
+      } else if (e.type === 'sniper') {
+        // Angular marksman: diamond hull + barrel aimed at the player
+        ctx.rotate(Math.atan2(this.player.y - e.y, this.player.x - e.x));
+        ctx.beginPath();
+        ctx.moveTo(e.size, 0);
+        ctx.lineTo(0, -e.size * 0.6);
+        ctx.lineTo(-e.size * 0.8, 0);
+        ctx.lineTo(0, e.size * 0.6);
+        ctx.closePath();
+        ctx.fillStyle = e.color;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(e.size * 0.5, -e.size * 0.14);
+        ctx.lineTo(e.size * 1.35, -e.size * 0.14);
+        ctx.lineTo(e.size * 1.35, e.size * 0.14);
+        ctx.lineTo(e.size * 0.5, e.size * 0.14);
+        ctx.closePath();
+        ctx.fillStyle = '#442200';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, 0, e.size * 0.2, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffdd66';
+        ctx.fill();
+      } else if (e.type === 'titan') {
+        // Heavy gunship: hexagon hull, twin cannons, pulsing core, spinning ring
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (Math.PI * 2 * i) / 6;
+          if (i === 0) ctx.moveTo(Math.cos(a) * e.size, Math.sin(a) * e.size);
+          else ctx.lineTo(Math.cos(a) * e.size, Math.sin(a) * e.size);
+        }
+        ctx.closePath();
+        const tg = ctx.createRadialGradient(0, 0, e.size * 0.1, 0, 0, e.size);
+        tg.addColorStop(0, '#cc44ff');
+        tg.addColorStop(1, '#5500aa');
+        ctx.fillStyle = tg;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = '#331144';
+        ctx.fillRect(e.size * 0.35, -e.size * 0.55, e.size * 0.7, e.size * 0.22);
+        ctx.fillRect(e.size * 0.35, e.size * 0.33, e.size * 0.7, e.size * 0.22);
+        const pulse = 0.6 + Math.sin(this.time * 5 + e.phase) * 0.4;
+        ctx.beginPath();
+        ctx.arc(0, 0, e.size * 0.3, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,170,255,${pulse.toFixed(2)})`;
+        ctx.fill();
+        ctx.save();
+        ctx.rotate(e.phase);
+        ctx.beginPath();
+        ctx.arc(0, 0, e.size * 0.5, 0.4, Math.PI - 0.4);
+        ctx.strokeStyle = '#ff88ff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(0, 0, e.size * 0.5, Math.PI + 0.4, Math.PI * 2 - 0.4);
+        ctx.stroke();
+        ctx.restore();
       } else {
         ctx.rotate(e.phase);
         ctx.beginPath();
@@ -3401,19 +3650,189 @@ export class GameEngine {
       ctx.fillStyle = '#222';
       ctx.fillRect(barX, barY, barWidth, 12);
       const hpRatio = boss.hp / boss.maxHp;
+      const isSkull = boss.variant === 'skull';
+      const isStation = boss.variant === 'station';
       const hpGrad = ctx.createLinearGradient(barX, 0, barX + barWidth, 0);
-      hpGrad.addColorStop(0, '#ff00ff');
-      hpGrad.addColorStop(1, '#ff0066');
+      if (isSkull) { hpGrad.addColorStop(0, '#ffaa33'); hpGrad.addColorStop(1, '#ff4400'); }
+      else if (isStation) { hpGrad.addColorStop(0, '#66ffcc'); hpGrad.addColorStop(1, '#00aa88'); }
+      else { hpGrad.addColorStop(0, '#ff00ff'); hpGrad.addColorStop(1, '#ff0066'); }
       ctx.fillStyle = hpGrad;
       ctx.fillRect(barX, barY, barWidth * hpRatio, 12);
-      ctx.strokeStyle = '#ff00ff';
+      ctx.strokeStyle = isSkull ? '#ffaa33' : isStation ? '#66ffcc' : '#ff00ff';
       ctx.lineWidth = 1;
       ctx.strokeRect(barX, barY, barWidth, 12);
       ctx.fillStyle = '#fff';
       ctx.font = '10px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('VOID TITAN', this.width / 2, barY - 4);
+      ctx.fillText(isSkull ? 'LOBANJA-NIČELA' : isStation ? 'POSTAJA NIČ' : 'VOID TITAN', this.width / 2, barY - 4);
     }
+  }
+
+  /** Mechanical skull boss (Truxton homage): cranium, tracking sockets, jaw. */
+  private renderSkullBoss(ctx: CanvasRenderingContext2D, e: Enemy) {
+    const s = e.size;
+    const bob = Math.sin(this.time * 2) * 4;
+
+    // Side vanes / antennae
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(side * s * 0.8, -s * 0.1);
+      ctx.lineTo(side * s * 1.25, -s * 0.45);
+      ctx.lineTo(side * s * 1.05, s * 0.15);
+      ctx.closePath();
+      ctx.fillStyle = '#8a6a34';
+      ctx.fill();
+      ctx.strokeStyle = '#3d2a10';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    // Cranium dome
+    ctx.beginPath();
+    ctx.arc(0, bob * 0.4, s * 0.85, Math.PI * 0.95, Math.PI * 2.05);
+    ctx.closePath();
+    const dome = ctx.createRadialGradient(-s * 0.3, -s * 0.3, s * 0.1, 0, 0, s);
+    dome.addColorStop(0, '#ffe0b0');
+    dome.addColorStop(0.55, '#c89858');
+    dome.addColorStop(1, '#6b4a22');
+    ctx.fillStyle = dome;
+    ctx.fill();
+    ctx.strokeStyle = '#3d2a10';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Eye sockets — dark pits with tracking glow pupils
+    const pdx = this.player.x - e.x, pdy = this.player.y - e.y;
+    const pd = Math.hypot(pdx, pdy) || 1;
+    for (const side of [-1, 1]) {
+      const ex = side * s * 0.34;
+      const ey = -s * 0.12 + bob * 0.4;
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, s * 0.22, s * 0.26, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#1a0e00';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(ex + (pdx / pd) * s * 0.09, ey + (pdy / pd) * s * 0.09, s * 0.09, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,170,40,${(0.65 + Math.sin(this.time * 6) * 0.35).toFixed(2)})`;
+      ctx.fill();
+    }
+
+    // Nasal slit
+    ctx.beginPath();
+    ctx.moveTo(0, s * 0.12 + bob * 0.4);
+    ctx.lineTo(-s * 0.07, s * 0.3 + bob * 0.4);
+    ctx.lineTo(s * 0.07, s * 0.3 + bob * 0.4);
+    ctx.closePath();
+    ctx.fillStyle = '#1a0e00';
+    ctx.fill();
+
+    // Jaw with teeth
+    const jawY = s * 0.52 + bob * 0.6;
+    ctx.beginPath();
+    ctx.roundRect(-s * 0.5, jawY, s, s * 0.3, s * 0.08);
+    ctx.fillStyle = '#e8c890';
+    ctx.fill();
+    ctx.strokeStyle = '#3d2a10';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = '#1a0e00';
+    for (let i = 0; i < 7; i++) {
+      const tx = -s * 0.42 + (i * s * 0.84) / 6;
+      ctx.fillRect(tx - s * 0.045, jawY + s * 0.05, s * 0.09, s * 0.16);
+    }
+    // Jaw seam glow (about-to-fire feel)
+    ctx.strokeStyle = `rgba(255,170,40,${(0.25 + Math.sin(this.time * 4) * 0.2).toFixed(2)})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.5, jawY - s * 0.02);
+    ctx.lineTo(s * 0.5, jawY - s * 0.02);
+    ctx.stroke();
+  }
+
+  /** Void station boss: armored core, rotating defense ring, pods, mast. */
+  private renderStationBoss(ctx: CanvasRenderingContext2D, e: Enemy) {
+    const s = e.size;
+
+    // Rotating outer defense ring (arc segments + node lights)
+    ctx.save();
+    ctx.rotate(this.time * 0.7);
+    for (let i = 0; i < 6; i++) {
+      ctx.beginPath();
+      ctx.arc(0, 0, s * 1.15, (Math.PI * 2 * i) / 6, (Math.PI * 2 * i) / 6 + Math.PI / 4.2);
+      ctx.strokeStyle = '#3a7a72';
+      ctx.lineWidth = s * 0.16;
+      ctx.stroke();
+    }
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI * 2 * i) / 6;
+      const blink = 0.4 + 0.6 * Math.abs(Math.sin(this.time * 3 + i));
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * s * 1.15, Math.sin(a) * s * 1.15, s * 0.07, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(102,255,204,${blink.toFixed(2)})`; 
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Four docking pods at 90°
+    for (let i = 0; i < 4; i++) {
+      const a = (Math.PI * 2 * i) / 4 + Math.PI / 4;
+      ctx.save();
+      ctx.translate(Math.cos(a) * s * 0.72, Math.sin(a) * s * 0.72);
+      ctx.rotate(a + Math.PI / 2);
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.14, -s * 0.22, s * 0.28, s * 0.44, s * 0.06);
+      ctx.fillStyle = '#2b6b62';
+      ctx.fill();
+      ctx.strokeStyle = '#9fe8d8';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Main hexagonal hull
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI * 2 * i) / 6 + Math.PI / 6;
+      const px = Math.cos(a) * s * 0.62, py = Math.sin(a) * s * 0.62;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    const hull = ctx.createRadialGradient(-s * 0.2, -s * 0.2, s * 0.08, 0, 0, s * 0.7);
+    hull.addColorStop(0, '#8fe8d8');
+    hull.addColorStop(0.6, '#2b6b62');
+    hull.addColorStop(1, '#12332e');
+    ctx.fillStyle = hull;
+    ctx.fill();
+    ctx.strokeStyle = '#9fe8d8';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    // Antenna mast with blinking beacon
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.6);
+    ctx.lineTo(0, -s * 1.0);
+    ctx.strokeStyle = '#9fe8d8';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, -s * 1.02, s * 0.05, 0, Math.PI * 2);
+    ctx.fillStyle = Math.sin(this.time * 8) > 0 ? '#ff5577' : '#551122';
+    ctx.fill();
+
+    // Reactor core (pulsing)
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.26, 0, Math.PI * 2);
+    ctx.fillStyle = '#0a1f1b';
+    ctx.fill();
+    const corePulse = 0.55 + Math.sin(this.time * 5) * 0.45;
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.18, 0, Math.PI * 2);
+    const core = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 0.18);
+    core.addColorStop(0, '#ffffff');
+    core.addColorStop(0.4, `rgba(102,255,204,${corePulse.toFixed(2)})`);
+    core.addColorStop(1, 'rgba(20,80,70,0)');
+    ctx.fillStyle = core;
+    ctx.fill();
   }
 
   private renderBullets(ctx: CanvasRenderingContext2D) {
@@ -3796,6 +4215,23 @@ export class GameEngine {
     ctx.shadowBlur = 20;
     ctx.fillText('VOID CONSUMED', w / 2, h * 0.25);
     ctx.shadowBlur = 0;
+
+    // Offline hall of fame — top 5 local runs
+    if (this.leaderboard.length > 0) {
+      ctx.font = 'bold 13px monospace';
+      ctx.fillStyle = '#ffcc66';
+      ctx.fillText('— TOP 5 TEKI —', w / 2, h * 0.25 + 46);
+      ctx.font = '12px monospace';
+      for (let i = 0; i < Math.min(5, this.leaderboard.length); i++) {
+        const entry = this.leaderboard[i];
+        const y = h * 0.25 + 72 + i * 20;
+        ctx.fillStyle = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#8899aa';
+        ctx.fillText(
+          `${i + 1}. ${entry.score.toLocaleString('sl-SI')} · val ${entry.wave} · ${entry.seed} · ${entry.date}`,
+          w / 2, y
+        );
+      }
+    }
   }
 
   startLoop() {
@@ -3815,6 +4251,7 @@ export class GameEngine {
   getPlayerXP(): number { return this.player.xp; }
   getPlayerXPToNext(): number { return this.player.xpToNextLevel; }
   getHighScore(): number { return this.highScore; }
+  getLeaderboard(): LeaderboardEntry[] { return this.leaderboard; }
   getSeed(): string { return this.seed; }
   getGameStartTime(): number { return this.gameStartTime; }
   isWebGPUSupported(): boolean { return this.webgpuSupported; }
