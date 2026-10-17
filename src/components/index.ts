@@ -47,3 +47,5 @@ export { ShopUI } from './ShopUI';
 export { DifficultySelectUI } from './DifficultySelectUI';
 export { MetaProgressionUI } from './MetaProgressionUI';
 export { AchievementUI } from './AchievementUI';
+export { BloomEffect } from './BloomEffect';
+export { InteractiveTutorial } from './InteractiveTutorial';

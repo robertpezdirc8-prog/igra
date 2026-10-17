@@ -39,7 +39,12 @@ import {
   DailyRewardsUI,
   ShopUI,
   DifficultySelectUI,
-  MetaProgressionUI
+  MetaProgressionUI,
+  BloomEffect,
+  VignetteOverlay,
+  ParticleOverlay,
+  ChromaticAberration,
+  InteractiveTutorial
 } from './components';
 import { loadGame, saveGame, createDefaultSaveData, SaveData } from './game/saveSystem';
 import { getLevelForPlayer } from './game/levels';
@@ -76,6 +81,7 @@ export default function App() {
   const [showShop, setShowShop] = useState(false);
   const [showDifficultySelect, setShowDifficultySelect] = useState(false);
   const [showMetaProgression, setShowMetaProgression] = useState(false);
+  const [showInteractiveTutorial, setShowInteractiveTutorial] = useState(false);
   const [gold, setGold] = useState(0);
   const [gems, setGems] = useState(0);
   const [ownedCosmetics, setOwnedCosmetics] = useState<string[]>(['default']);
@@ -343,6 +349,7 @@ export default function App() {
           onShowShop={() => setShowShop(true)}
           onShowDifficulty={() => setShowDifficultySelect(true)}
           onShowMetaProgression={() => setShowMetaProgression(true)}
+          onShowInteractiveTutorial={() => setShowInteractiveTutorial(true)}
           highScore={highScore}
           webgpuSupported={webgpuSupported}
         />
@@ -643,6 +650,15 @@ export default function App() {
         }}
       />
 
+      {/* Interactive Tutorial */}
+      <InteractiveTutorial
+        isOpen={showInteractiveTutorial}
+        onClose={() => setShowInteractiveTutorial(false)}
+        onComplete={() => {
+          addNotification('Vodnik končan!', 'success');
+        }}
+      />
+
       {/* Settings Menu */}
       <SettingsMenu
         isOpen={showSettings}
@@ -705,6 +721,20 @@ export default function App() {
         onSecondary={() => {}}
         isVisible={gameState === 'playing'}
       />
+
+      {/* Visual Effects */}
+      {gameState === 'playing' && (
+        <>
+          {/* Bloom Effect */}
+          <BloomEffect intensity={1.2} threshold={0.8} />
+
+          {/* Particle Overlay */}
+          <ParticleOverlay isActive={true} />
+
+          {/* Chromatic Aberration */}
+          <ChromaticAberration intensity={2} isActive={true} />
+        </>
+      )}
 
       {/* Scanline effect */}
       <div

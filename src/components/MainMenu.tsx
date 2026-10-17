@@ -12,11 +12,12 @@ interface MainMenuProps {
   onShowShop: () => void;
   onShowDifficulty: () => void;
   onShowMetaProgression: () => void;
+  onShowInteractiveTutorial: () => void;
   highScore: number;
   webgpuSupported: boolean;
 }
 
-export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, onShowSaveLoad, onShowStats, onShowArcade, onShowDailyRewards, onShowShop, onShowDifficulty, onShowMetaProgression, highScore, webgpuSupported }: MainMenuProps) {
+export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, onShowSaveLoad, onShowStats, onShowArcade, onShowDailyRewards, onShowShop, onShowDifficulty, onShowMetaProgression, onShowInteractiveTutorial, highScore, webgpuSupported }: MainMenuProps) {
   const [titleGlow, setTitleGlow] = useState(0);
   const [particles, setParticles] = useState<Array<{ x: number; y: number; vx: number; vy: number; life: number }>>([]);
 
@@ -149,6 +150,9 @@ export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, onShowSa
         </Button>
         <Button onClick={onShowMetaProgression} variant="secondary" size="medium" className="w-full">
           🌳 META-PROGRESIJA
+        </Button>
+        <Button onClick={onShowInteractiveTutorial} variant="secondary" size="medium" className="w-full">
+          📚 INTERAKTIVNI VODNIK
         </Button>
       </div>
 
