@@ -82,9 +82,20 @@ interface PowerOrb {
 }
 interface Crystal {
   x: number; y: number; size: number; hp: number;
-  rotation: number; rotSpeed: number; color: string;
-  driftX: number; // personal horizontal drift (px/s)
+  rotation: number; rotSpeed: number; color: string; dark: string;
+  driftX: number;   // personal horizontal drift (px/s)
+  speedMul: number; // personal scroll multiplier — rocks arrive at mixed speeds
+  shape: number[];  // per-vertex radius jitter → irregular rocky silhouette
 }
+
+// Real space-rock palette (light face / dark side) — gray-brown, not neon.
+const ASTEROID_PALETTE: ReadonlyArray<{ light: string; dark: string }> = [
+  { light: '#9a8d7c', dark: '#463c33' },
+  { light: '#7d7469', dark: '#38312a' },
+  { light: '#8b7463', dark: '#41312a' },
+  { light: '#6e6a66', dark: '#302c29' },
+  { light: '#a09183', dark: '#50453a' }
+];
 type GameState = 'menu' | 'playing' | 'paused' | 'levelup' | 'levelchoice' | 'gameover';
 
 interface WaveAnnouncement {
@@ -786,21 +797,66 @@ export class GameEngine {
     }
   }
 
+  /** Field density scales with the stage: 8 rocks at wave 1, up to 24. */
+  private asteroidTarget(): number {
+    return Math.min(24, 6 + this.wave * 2);
+  }
+
+  /** Build one irregular rocky asteroid (speed scales with the stage). */
+  private makeAsteroid(y?: number): Crystal {
+    const size = 16 + Math.random() * 30;
+    const pal = ASTEROID_PALETTE[Math.floor(Math.random() * ASTEROID_PALETTE.length)];
+    const verts = 9 + Math.floor(Math.random() * 3);
+    const shape: number[] = [];
+    for (let i = 0; i < verts; i++) shape.push(0.72 + Math.random() * 0.42);
+    return {
+      x: Math.random() * this.width,
+      y: y ?? Math.random() * (this.height + 300) - 300,
+      size,
+      hp: Math.round(14 + size * 1.1),
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.018,
+      color: pal.light, dark: pal.dark,
+      driftX: (Math.random() - 0.5) * 26,
+      speedMul: (0.55 + Math.random() * 0.9) * Math.min(2.2, 1 + (this.wave - 1) * 0.07),
+      shape
+    };
+  }
+
   private spawnCrystals() {
-    // Oncoming asteroid stream: rocks enter from the top edge and drift
-    // down past the ship (world scroll) instead of sitting on the screen.
-    for (let i = 0; i < 12; i++) {
-      this.crystals.push({
-        x: Math.random() * this.width,
-        y: Math.random() * (this.height + 300) - 300,
-        size: 18 + Math.random() * 26,
-        hp: 30 + Math.random() * 20,
-        rotation: Math.random() * Math.PI * 2,
-        rotSpeed: (Math.random() - 0.5) * 0.02,
-        color: Math.random() < 0.5 ? '#4400aa' : '#aa0044',
-        driftX: (Math.random() - 0.5) * 30
+    // Oncoming asteroid stream: rocks enter from the top edge and tumble
+    // down past the ship instead of sitting on the screen.
+    for (let i = 0; i < this.asteroidTarget(); i++) {
+      this.crystals.push(this.makeAsteroid());
+    }
+  }
+
+  /** Shatter an asteroid into debris; keeps the incoming stream flowing. */
+  private shatterAsteroid(index: number, byCrash: boolean) {
+    const crystal = this.crystals[index];
+    if (!crystal) return;
+    for (let j = 0; j < 22; j++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 7 + 3;
+      this.particles.push({
+        x: crystal.x + (Math.random() - 0.5) * crystal.size,
+        y: crystal.y + (Math.random() - 0.5) * crystal.size,
+        vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        life: 1.1, maxLife: 1.1, size: 2 + Math.random() * 3,
+        color: crystal.color, type: 'debris'
       });
     }
+    this.crystals.splice(index, 1);
+    this.audio.playExplosion();
+    if (byCrash) {
+      // Ramming a rock hurts more than it pays — no score, bigger shake.
+      this.screenShake = 7;
+    } else {
+      this.screenShake = 5;
+      this.player.score += 25;
+      this.player.energy = Math.min(this.player.maxEnergy, this.player.energy + 3);
+    }
+    this.crystals.push(this.makeAsteroid(-60 - Math.random() * 160));
   }
 
   private tryDash() {
@@ -966,6 +1022,11 @@ export class GameEngine {
         targetX: this.player.x, targetY: this.player.y,
         playerPattern: { left: 0, right: 0, up: 0, down: 0 }
       });
+    }
+
+    // The asteroid field thickens with every stage: top the stream back up.
+    while (this.crystals.length < this.asteroidTarget()) {
+      this.crystals.push(this.makeAsteroid(-60 - Math.random() * 200));
     }
 
     if (this.wave % 5 === 0) {
@@ -2180,45 +2241,8 @@ export class GameEngine {
       if (dx * dx + dy * dy < (crystal.size + b.size) * (crystal.size + b.size)) {
         crystal.hp -= b.damage;
         if (crystal.hp <= 0) {
-          // Crystal destruction with shards
-          for (let j = 0; j < 25; j++) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = Math.random() * 7 + 3;
-            this.particles.push({
-              x: crystal.x + (Math.random() - 0.5) * crystal.size,
-              y: crystal.y + (Math.random() - 0.5) * crystal.size,
-              vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-              life: 1.2, maxLife: 1.2, size: 2 + Math.random() * 3,
-              color: crystal.color, type: 'debris'
-            });
-          }
-          // Energy burst
-          for (let j = 0; j < 10; j++) {
-            const angle = (Math.PI * 2 * j) / 10;
-            this.particles.push({
-              x: crystal.x, y: crystal.y,
-              vx: Math.cos(angle) * 4, vy: Math.sin(angle) * 4,
-              life: 0.8, maxLife: 0.8, size: 4,
-              color: '#ffffff', type: 'energy'
-            });
-          }
-          this.crystals.splice(c, 1);
-          this.audio.playExplosion();
-          this.screenShake = 5;
-          // Small reward for clearing the flight path + a fresh rock
-          // enters from the top so the asteroid stream keeps flowing.
-          this.player.score += 25;
-          this.player.energy = Math.min(this.player.maxEnergy, this.player.energy + 3);
-          this.crystals.push({
-            x: Math.random() * this.width,
-            y: -60 - Math.random() * 160,
-            size: 18 + Math.random() * 26,
-            hp: 30 + Math.random() * 20,
-            rotation: Math.random() * Math.PI * 2,
-            rotSpeed: (Math.random() - 0.5) * 0.02,
-            color: Math.random() < 0.5 ? '#4400aa' : '#aa0044',
-            driftX: (Math.random() - 0.5) * 30
-          });
+          // Asteroid shattered by gunfire — small reward, stream keeps flowing.
+          this.shatterAsteroid(c, false);
         }
         return true;
       }
@@ -2629,11 +2653,12 @@ export class GameEngine {
   }
 
   private updateCrystals() {
-    // Rocks ride the world scroll: they stream in from the top, tumble
-    // past the ship and wrap back above the screen. No more static clutter.
-    for (const crystal of this.crystals) {
+    // Rocks ride the world scroll at personal speeds (mixed traffic), wrap
+    // back above the screen — and HURT when the ship rams them. Dodge!
+    for (let i = this.crystals.length - 1; i >= 0; i--) {
+      const crystal = this.crystals[i];
       crystal.rotation += crystal.rotSpeed;
-      crystal.y += this.worldScroll * this.deltaTime;
+      crystal.y += this.worldScroll * crystal.speedMul * this.deltaTime;
       crystal.x += crystal.driftX * this.deltaTime;
       if (crystal.y - crystal.size > this.height) {
         crystal.y = -crystal.size - Math.random() * 140;
@@ -2641,6 +2666,18 @@ export class GameEngine {
       }
       if (crystal.x < -crystal.size - 20) crystal.x = this.width + crystal.size;
       else if (crystal.x > this.width + crystal.size + 20) crystal.x = -crystal.size;
+
+      // Crash collision — flying into a rock deals damage scaled by size
+      // (dash i-frames or the Gradius shield can save you).
+      if (this.player.invincible <= 0) {
+        const dx = crystal.x - this.player.x;
+        const dy = crystal.y - this.player.y;
+        const rr = crystal.size * 0.8 + 12;
+        if (dx * dx + dy * dy < rr * rr) {
+          this.shatterAsteroid(i, true);
+          this.damagePlayer(10 + crystal.size * 0.35);
+        }
+      }
     }
   }
 
@@ -2946,29 +2983,41 @@ export class GameEngine {
       ctx.translate(crystal.x, crystal.y);
       ctx.rotate(crystal.rotation);
 
-      // Crystal glow
-      const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, crystal.size * 1.5);
-      glow.addColorStop(0, crystal.color + '44');
-      glow.addColorStop(1, 'transparent');
-      ctx.fillStyle = glow;
+      // Irregular rocky silhouette (per-asteroid vertex jitter)
+      const n = crystal.shape.length;
       ctx.beginPath();
-      ctx.arc(0, 0, crystal.size * 1.5, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Crystal body
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const angle = (Math.PI * 2 * i) / 6;
-        const r = crystal.size * (i % 2 === 0 ? 1 : 0.7);
-        if (i === 0) ctx.moveTo(Math.cos(angle) * r, Math.sin(angle) * r);
-        else ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+      for (let i = 0; i < n; i++) {
+        const a = (Math.PI * 2 * i) / n;
+        const r = crystal.size * (crystal.shape[i] ?? 1);
+        if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
       }
       ctx.closePath();
-      ctx.fillStyle = crystal.color;
+
+      // Sun-lit rock: bright face toward the top-left, dark side away
+      const g = ctx.createRadialGradient(
+        -crystal.size * 0.4, -crystal.size * 0.4, crystal.size * 0.1,
+        0, 0, crystal.size * 1.2
+      );
+      g.addColorStop(0, crystal.color);
+      g.addColorStop(1, crystal.dark);
+      ctx.fillStyle = g;
       ctx.fill();
-      ctx.strokeStyle = '#ffffff44';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 1.5;
       ctx.stroke();
+
+      // Impact craters (deterministic per rock via its shape jitter)
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      for (let k = 0; k < 3; k++) {
+        const sa = crystal.shape[(k * 3 + 1) % n] ?? 0.8;
+        const sb = crystal.shape[(k * 4 + 2) % n] ?? 0.8;
+        const ca = sa * Math.PI * 2;
+        const cd = crystal.size * (0.15 + sb * 0.45);
+        ctx.beginPath();
+        ctx.arc(Math.cos(ca) * cd, Math.sin(ca) * cd, crystal.size * (0.12 + sb * 0.14), 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       ctx.restore();
     }
