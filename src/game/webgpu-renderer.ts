@@ -3,6 +3,14 @@
 // instanced quads. Physics integration stays on the CPU (single source of
 // truth for positions); the GPU accelerates the rendering of up to 10k
 // particles.
+//
+// Visual quality (v2):
+//  - soft radial particles with bright core + wide halo (no more flat squares)
+//  - additive blending for sparks/glow (light adds up; bullets stay readable
+//    through dense explosions — per "Anatomy of a Shmup" visibility rules)
+//  - normal (premultiplied) blending for smoke/debris
+//  - expanding shockwave rings for explosions
+//  - subtle per-particle twinkle driven by a time uniform
 declare const GPUBufferUsage: any;
 
 type GPUDevice = any;
@@ -19,10 +27,30 @@ interface RenderParticle {
 }
 
 // CPU-side particle layout (matches WGSL struct alignment):
-// [0]=x [1]=y [2]=vx [3]=vy [4]=life [5]=maxLife [6]=size [7]=pad
+// [0]=x [1]=y [2]=vx [3]=vy [4]=life [5]=maxLife [6]=size [7]=mode
 // [8]=r [9]=g [10]=b [11]=a   -> 48 bytes per particle
 const FLOATS_PER_PARTICLE = 12;
 const BYTES_PER_PARTICLE = FLOATS_PER_PARTICLE * 4;
+
+// Particle render modes (packed into float slot [7]):
+const MODE_NORMAL_DOT = 0;   // soft dot, normal (premultiplied) blending — smoke/debris
+const MODE_ADDITIVE_DOT = 1; // soft dot, additive blending — sparks/glow/energy
+const MODE_RING = 2;         // expanding shockwave ring, additive blending
+
+function modeForType(type: string): number {
+  switch (type) {
+    case 'spark':
+    case 'energy':
+    case 'glow':
+    case 'trail':
+      return MODE_ADDITIVE_DOT;
+    case 'ring':
+    case 'shockwave':
+      return MODE_RING;
+    default:
+      return MODE_NORMAL_DOT;
+  }
+}
 
 export class WebGPURenderer {
   private canvas: HTMLCanvasElement;
@@ -30,14 +58,16 @@ export class WebGPURenderer {
   private context: GPUCanvasContext | null = null;
   private format: GPUTextureFormat = 'bgra8unorm';
 
-  private particlePipeline: GPURenderPipeline | null = null;
+  private normalPipeline: GPURenderPipeline | null = null;
+  private additivePipeline: GPURenderPipeline | null = null;
 
   private quadVertexBuffer: GPUBuffer | null = null;
   private particleStagingBuffer: GPUBuffer | null = null;
   private particleInstanceBuffer: GPUBuffer | null = null;
   private uniformBuffer: GPUBuffer | null = null;
 
-  private particleBindGroup: GPUBindGroup | null = null;
+  private normalBindGroup: GPUBindGroup | null = null;
+  private additiveBindGroup: GPUBindGroup | null = null;
 
   private maxParticles = 10000;
   private isInitialized = false;
@@ -105,103 +135,161 @@ export class WebGPURenderer {
   private createPipelines() {
     if (!this.device) return;
 
-    // Vertex shader for instanced particle quads
-    const vertexShader = `
-      struct VertexInput {
-        @location(0) corner: vec2<f32>,
-        @location(1) position: vec2<f32>,
-        @location(2) size: f32,
-        @location(3) color: vec4<f32>,
-      }
-
-      struct VertexOutput {
-        @builtin(position) position: vec4<f32>,
-        @location(0) color: vec4<f32>,
-      }
-
+    // Vertex shader for instanced particle quads.
+    const shaderCode = `
       struct Uniforms {
         resolution: vec2<f32>,
         time: f32,
         pad: f32,
       }
-
       @group(0) @binding(0) var<uniform> uniforms: Uniforms;
+
+      struct VertexInput {
+        @location(0) corner: vec2<f32>,    // quad corner in [-1, 1]
+        @location(1) position: vec2<f32>,  // world position (px)
+        @location(2) size: f32,            // radius in px (max radius for rings)
+        @location(3) lifeMax: vec2<f32>,   // (life, maxLife)
+        @location(4) color: vec4<f32>,
+        @location(5) mode: f32,
+      }
+
+      struct VertexOutput {
+        @builtin(position) position: vec4<f32>,
+        @location(0) uv: vec2<f32>,
+        @location(1) color: vec4<f32>,
+        @location(2) mode: f32,
+        @location(3) progress: f32,
+      }
 
       @vertex
       fn main(input: VertexInput) -> VertexOutput {
-        var output: VertexOutput;
+        var out: VertexOutput;
 
-        let worldPos = input.position + input.corner * input.size;
+        let ratio = clamp(input.lifeMax.x / max(input.lifeMax.y, 0.0001), 0.0, 1.0);
+        let progress = 1.0 - ratio;
+
+        // Rings expand from a small seed to their full radius as they age.
+        let radius = select(
+          input.size,
+          input.size * (0.15 + 0.85 * progress),
+          input.mode == 2.0
+        );
+
+        let worldPos = input.position + input.corner * radius;
         let clipPos = vec2<f32>(
           (worldPos.x / uniforms.resolution.x) * 2.0 - 1.0,
           1.0 - (worldPos.y / uniforms.resolution.y) * 2.0
         );
 
-        output.position = vec4<f32>(clipPos, 0.0, 1.0);
-        // Fade out as life runs out; premultiplied alpha
-        let a = input.color.a;
-        output.color = vec4<f32>(input.color.rgb * a, a);
+        out.position = vec4<f32>(clipPos, 0.0, 1.0);
+        out.uv = input.corner;
+        out.mode = input.mode;
+        out.progress = progress;
 
-        return output;
+        // Dots fade with remaining life; rings fade as they expand.
+        let fade = select(ratio, 1.0 - progress, input.mode == 2.0);
+        out.color = vec4<f32>(input.color.rgb, input.color.a * fade);
+
+        return out;
       }
-    `;
 
-    const fragmentShader = `
       struct FragmentInput {
-        @location(0) color: vec4<f32>,
+        @location(0) uv: vec2<f32>,
+        @location(1) color: vec4<f32>,
+        @location(2) mode: f32,
+        @location(3) progress: f32,
       }
 
       @fragment
       fn main(input: FragmentInput) -> @location(0) vec4<f32> {
-        return input.color;
+        let d = length(input.uv); // 0 at particle center, 1 at quad edge
+
+        // Expanding shockwave ring: thin bright band that sharpens as it grows.
+        if (input.mode == 2.0) {
+          let ringR = 0.55 + 0.25 * input.progress;
+          let width = mix(0.18, 0.06, input.progress);
+          let band = 1.0 - smoothstep(0.0, width, abs(d - ringR));
+          let ringA = input.color.a * band;
+          return vec4<f32>(input.color.rgb * ringA, ringA);
+        }
+
+        // Soft glowing dot: bright core + wide halo.
+        // NOTE: WGSL smoothstep is undefined when edge0 >= edge1, so all
+        // falloffs are written as ascending-edge smoothsteps inverted by hand.
+        var intensity = (1.0 - smoothstep(0.0, 1.0, d)) * 0.45; // halo
+        intensity += 1.0 - smoothstep(0.0, 0.35, d);            // core
+
+        // Subtle twinkle so dense particle fields shimmer instead of
+        // looking like flat blobs.
+        let twinkle = 0.9 + 0.1 * sin(uniforms.time * 12.0 + input.progress * 47.0);
+        intensity *= twinkle;
+
+        var alpha = input.color.a * intensity;
+        if (input.mode == 0.0) {
+          // Smoke/debris: cap density so clouds never wash out the playfield.
+          alpha = min(alpha, input.color.a * 0.85);
+        }
+
+        return vec4<f32>(input.color.rgb * alpha, alpha);
       }
     `;
 
-    this.particlePipeline = this.device.createRenderPipeline({
+    const shaderModule = this.device.createShaderModule({ code: shaderCode });
+
+    const vertex = {
+      module: shaderModule,
+      entryPoint: 'main',
+      buffers: [
+        {
+          // Quad corner vertices (per-vertex)
+          arrayStride: 8,
+          attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x2' }]
+        },
+        {
+          // Per-instance particle data
+          arrayStride: BYTES_PER_PARTICLE,
+          stepMode: 'instance' as const,
+          attributes: [
+            { shaderLocation: 1, offset: 0, format: 'float32x2' },   // position
+            { shaderLocation: 2, offset: 24, format: 'float32' },    // size
+            { shaderLocation: 3, offset: 16, format: 'float32x2' },  // (life, maxLife)
+            { shaderLocation: 4, offset: 32, format: 'float32x4' },  // color
+            { shaderLocation: 5, offset: 28, format: 'float32' }     // mode
+          ]
+        }
+      ]
+    };
+
+    const makePipeline = (blend: any) => this.device.createRenderPipeline({
       layout: 'auto',
-      vertex: {
-        module: this.device.createShaderModule({ code: vertexShader }),
-        entryPoint: 'main',
-        buffers: [
-          {
-            // Quad corner vertices (per-vertex)
-            arrayStride: 8,
-            attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x2' }]
-          },
-          {
-            // Per-instance particle data
-            arrayStride: BYTES_PER_PARTICLE,
-            stepMode: 'instance',
-            attributes: [
-              { shaderLocation: 1, offset: 0, format: 'float32x2' },   // position
-              { shaderLocation: 2, offset: 24, format: 'float32' },    // size
-              { shaderLocation: 3, offset: 32, format: 'float32x4' }   // color
-            ]
-          }
-        ]
-      },
+      vertex,
       fragment: {
-        module: this.device.createShaderModule({ code: fragmentShader }),
+        module: shaderModule,
         entryPoint: 'main',
-        targets: [{
-          format: this.format,
-          blend: {
-            color: {
-              srcFactor: 'one',
-              dstFactor: 'one-minus-src-alpha',
-              operation: 'add'
-            },
-            alpha: {
-              srcFactor: 'one',
-              dstFactor: 'one-minus-src-alpha',
-              operation: 'add'
-            }
-          }
-        }]
+        targets: [{ format: this.format, blend }]
       },
-      primitive: {
-        topology: 'triangle-list'
+      primitive: { topology: 'triangle-list' }
+    });
+
+    // Normal blending (premultiplied source-over) for smoke/debris.
+    this.normalPipeline = makePipeline({
+      color: {
+        srcFactor: 'one',
+        dstFactor: 'one-minus-src-alpha',
+        operation: 'add'
+      },
+      alpha: {
+        srcFactor: 'one',
+        dstFactor: 'one-minus-src-alpha',
+        operation: 'add'
       }
+    });
+
+    // Pure additive blending for sparks/glow/rings: light accumulates, so
+    // enemy bullets and ships stay readable through dense explosions.
+    this.additivePipeline = makePipeline({
+      color: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+      alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' }
     });
   }
 
@@ -242,8 +330,15 @@ export class WebGPURenderer {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
-    this.particleBindGroup = this.device.createBindGroup({
-      layout: this.particlePipeline!.getBindGroupLayout(0),
+    this.normalBindGroup = this.device.createBindGroup({
+      layout: this.normalPipeline!.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: this.uniformBuffer } }
+      ]
+    });
+
+    this.additiveBindGroup = this.device.createBindGroup({
+      layout: this.additivePipeline!.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: { buffer: this.uniformBuffer } }
       ]
@@ -297,12 +392,16 @@ export class WebGPURenderer {
     ]);
     this.device.queue.writeBuffer(this.uniformBuffer, 0, uniformData);
 
+    let normalCount = 0;
+    let additiveCount = 0;
+
     if (count > 0) {
-      // Pack particle data on the CPU and upload via staging buffer
+      // Pack particle data on the CPU and upload via staging buffer.
+      // Normal-blended particles are packed first, additive ones after, so
+      // each pass can draw a contiguous range of the shared instance buffer.
       const cpuData = new Float32Array(count * FLOATS_PER_PARTICLE);
-      for (let i = 0; i < count; i++) {
-        const p = particles[i];
-        const o = i * FLOATS_PER_PARTICLE;
+      const pack = (p: RenderParticle, o: number) => {
+        const mode = modeForType(p.type);
         const [r, g, b] = this.packColor(p.color);
         cpuData[o] = p.x;
         cpuData[o + 1] = p.y;
@@ -311,11 +410,38 @@ export class WebGPURenderer {
         cpuData[o + 4] = p.life;
         cpuData[o + 5] = p.maxLife;
         cpuData[o + 6] = p.size;
-        cpuData[o + 7] = 0; // WGSL struct padding
+        cpuData[o + 7] = mode;
         cpuData[o + 8] = r;
         cpuData[o + 9] = g;
         cpuData[o + 10] = b;
-        cpuData[o + 11] = Math.max(0, Math.min(1, p.life / (p.maxLife || 1)));
+        // Rings drive their fade from life/maxLife in the shader, so their
+        // base alpha stays 1; dots fade with remaining life.
+        cpuData[o + 11] = mode === MODE_RING
+          ? 1.0
+          : Math.max(0, Math.min(1, p.life / (p.maxLife || 1)));
+      };
+
+      let writeIdx = 0;
+      let n = 0;
+      for (let i = 0; i < count; i++) {
+        if (modeForType(particles[i].type) === MODE_NORMAL_DOT) n++;
+      }
+      normalCount = n;
+      additiveCount = count - n;
+
+      // Normal-blended particles first...
+      for (let i = 0; i < count; i++) {
+        if (modeForType(particles[i].type) === MODE_NORMAL_DOT) {
+          pack(particles[i], writeIdx * FLOATS_PER_PARTICLE);
+          writeIdx++;
+        }
+      }
+      // ...then additive ones (sparks/glow/rings).
+      for (let i = 0; i < count; i++) {
+        if (modeForType(particles[i].type) !== MODE_NORMAL_DOT) {
+          pack(particles[i], writeIdx * FLOATS_PER_PARTICLE);
+          writeIdx++;
+        }
       }
 
       this.device.queue.writeBuffer(this.particleStagingBuffer!, 0, cpuData.buffer, 0, cpuData.byteLength);
@@ -338,11 +464,27 @@ export class WebGPURenderer {
     });
 
     if (count > 0) {
-      renderPass.setPipeline(this.particlePipeline!);
-      renderPass.setBindGroup(0, this.particleBindGroup!);
-      renderPass.setVertexBuffer(0, this.quadVertexBuffer!);
-      renderPass.setVertexBuffer(1, this.particleInstanceBuffer!);
-      renderPass.draw(6, count, 0, 0);
+      // Pass 1: normal-blended particles (smoke/debris) under the glow.
+      if (normalCount > 0) {
+        renderPass.setPipeline(this.normalPipeline!);
+        renderPass.setBindGroup(0, this.normalBindGroup!);
+        renderPass.setVertexBuffer(0, this.quadVertexBuffer!);
+        renderPass.setVertexBuffer(1, this.particleInstanceBuffer!, 0);
+        renderPass.draw(6, normalCount, 0, 0);
+      }
+
+      // Pass 2: additive particles (sparks/glow/rings) on top.
+      if (additiveCount > 0) {
+        renderPass.setPipeline(this.additivePipeline!);
+        renderPass.setBindGroup(0, this.additiveBindGroup!);
+        renderPass.setVertexBuffer(0, this.quadVertexBuffer!);
+        renderPass.setVertexBuffer(
+          1,
+          this.particleInstanceBuffer!,
+          normalCount * BYTES_PER_PARTICLE
+        );
+        renderPass.draw(6, additiveCount, 0, 0);
+      }
     }
 
     renderPass.end();

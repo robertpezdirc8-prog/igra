@@ -14,7 +14,7 @@ interface Vec2 { x: number; y: number; }
 interface Particle {
   x: number; y: number; vx: number; vy: number;
   life: number; maxLife: number; size: number;
-  color: string; type: 'spark' | 'trail' | 'debris' | 'energy' | 'orb';
+  color: string; type: 'spark' | 'trail' | 'debris' | 'energy' | 'orb' | 'ring';
 }
 interface Bullet {
   x: number; y: number; vx: number; vy: number;
@@ -30,6 +30,8 @@ interface Enemy {
   shootTimer: number; moveTimer: number;
   targetX: number; targetY: number;
   playerPattern?: { left: number; right: number; up: number; down: number };
+  hitFlash?: number;    // white flash timer when damaged
+  desperate?: boolean;  // titan one-shot desperation barrage flag
 }
 interface Player {
   x: number; y: number; vx: number; vy: number;
@@ -1032,6 +1034,7 @@ export class GameEngine {
       e.phase += this.deltaTime * 2 * timeScale;
       e.shootTimer -= this.deltaTime * timeScale;
       e.moveTimer -= this.deltaTime * timeScale;
+      if (e.hitFlash && e.hitFlash > 0) e.hitFlash -= this.deltaTime;
 
       if (e.type === 'boss') {
         this.updateBoss(e, timeScale);
@@ -1046,7 +1049,33 @@ export class GameEngine {
 
         
         const ai = this.enemyAIs.get(enemyId)!;
-        
+
+        // Titan desperation: a single readable spiral barrage once it drops
+        // below 35% HP (telegraphed with a flash of floating text + shake).
+        if (
+          e.type === 'titan' && !e.desperate &&
+          e.maxHp > 0 && e.hp / e.maxHp < 0.35
+        ) {
+          e.desperate = true;
+          const spiralBase = e.phase;
+          const dmgMul = this.difficulty?.enemyDamageMultiplier ?? 1;
+          for (let k = 0; k < 16; k++) {
+            const angle = spiralBase + (Math.PI * 2 * k) / 16;
+            this.bullets.push({
+              x: e.x, y: e.y,
+              vx: Math.cos(angle) * 3.4, vy: Math.sin(angle) * 3.4,
+              size: 5, color: '#cc66ff', damage: 10 * dmgMul,
+              life: 3, type: 'enemy'
+            });
+          }
+          this.screenShake = Math.max(this.screenShake, 6);
+          this.floatingTexts.push({
+            x: e.x, y: e.y - e.size,
+            text: '\u26A0 RAGE', color: '#ff66ff',
+            life: 1, maxLife: 1, vy: -1.5
+          });
+        }
+
         // Update AI with current state
         const aiResult = ai.update(
           e.x, e.y,
@@ -1376,6 +1405,15 @@ export class GameEngine {
     const xpGained = Math.round((e.type === 'boss' ? 500 : e.type === 'titan' ? 50 : 15) * (this.difficulty?.xpMultiplier ?? 1));
     this.awardXP(xpGained, e.x, e.y);
 
+    // Expanding shockwave ring — one readable pulse marking the blast
+    this.particles.push({
+      x: e.x, y: e.y, vx: 0, vy: 0,
+      life: 0.55, maxLife: 0.55,
+      size: e.type === 'boss' ? 220 : e.type === 'titan' ? 90 : 55,
+      color: e.type === 'boss' ? '#ff66ff' : '#ffffff',
+      type: 'ring'
+    });
+
     // Death particles - more when WebGPU is active
     const particleCount = Math.floor((this.webgpuSupported ? (e.type === 'boss' ? 200 : 50) : (e.type === 'boss' ? 80 : 20)) * this.particleScale);
     for (let i = 0; i < particleCount; i++) {
@@ -1414,6 +1452,17 @@ export class GameEngine {
 
     if (e.type === 'boss') {
       this.bossActive = false;
+      // Boss death: huge double shockwave ring
+      this.particles.push({
+        x: e.x, y: e.y, vx: 0, vy: 0,
+        life: 0.9, maxLife: 0.9,
+        size: 340, color: '#ffffff', type: 'ring'
+      });
+      this.particles.push({
+        x: e.x, y: e.y, vx: 0, vy: 0,
+        life: 1.2, maxLife: 1.2,
+        size: 420, color: '#ff66ff', type: 'ring'
+      });
       // Boss death shockwave
       for (let i = 0; i < 50; i++) {
         const angle = (Math.PI * 2 * i) / 50;
@@ -1554,6 +1603,7 @@ export class GameEngine {
           const dy = b.y - e.y;
           if (dx * dx + dy * dy < (e.size + b.size) * (e.size + b.size)) {
             e.hp -= b.damage;
+            e.hitFlash = 0.09; // white hit flash for instant damage feedback
             this.totalDamageDealt += b.damage;
             this.hitsLanded++;
             this.bullets.splice(i, 1);
@@ -2286,6 +2336,18 @@ export class GameEngine {
       ctx.save();
       ctx.translate(e.x, e.y);
 
+      // White hit flash — instant, readable damage feedback
+      if (e.hitFlash && e.hitFlash > 0) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = Math.min(1, e.hitFlash / 0.09) * 0.85;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(0, 0, e.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
       // Glow
       const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, e.size * 2);
       glow.addColorStop(0, e.color + '44');
@@ -2430,12 +2492,51 @@ export class GameEngine {
 
   private renderParticles(ctx: CanvasRenderingContext2D) {
     for (const p of this.particles) {
-      const alpha = p.life / p.maxLife;
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
-      ctx.fill();
+      const ratio = Math.max(0, Math.min(1, p.life / (p.maxLife || 1)));
+
+      // Expanding shockwave ring (Canvas2D fallback for the GPU ring mode)
+      if (p.type === 'ring') {
+        const progress = 1 - ratio;
+        const radius = Math.max(1, p.size * (0.15 + 0.85 * progress));
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = ratio * 0.9;
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 1 + 4 * ratio;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        continue;
+      }
+
+      // Sparks/energy/trails: additive blending so light accumulates and the
+      // playfield (bullets, ships) stays readable through dense explosions.
+      const additive =
+        p.type === 'spark' || p.type === 'energy' || p.type === 'trail';
+
+      if (additive) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = Math.min(1, ratio * 1.4);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, Math.max(0.5, p.size * (0.4 + 0.6 * ratio)), 0, Math.PI * 2);
+        ctx.fill();
+        // Bright core
+        ctx.globalAlpha = Math.min(1, ratio);
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, Math.max(0.3, p.size * 0.35 * ratio), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else {
+        ctx.globalAlpha = ratio;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, Math.max(0.5, p.size * ratio), 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     ctx.globalAlpha = 1;
   }
