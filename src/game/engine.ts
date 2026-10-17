@@ -9,6 +9,7 @@ import { SkillBonuses, defaultSkillBonuses } from './skillTree';
 import { WeatherSystem, EnvironmentalHazardsSystem, WeatherType } from './weatherSystem';
 import { AdvancedEnemyAI, BossAI, FormationSystem } from './enemyAI';
 import { PowerUpManager, ADVANCED_POWERUPS, POWERUP_COMBOS } from './advancedPowerups';
+import { getWavePlan, pickEnemyType, WavePlan } from './levelCurve';
 
 // ============= TYPES =============
 interface Vec2 { x: number; y: number; }
@@ -1003,9 +1004,9 @@ export class GameEngine {
     }
   }
 
-  /** Field density scales with the stage: 8 rocks at wave 1, up to 24. */
+  /** Asteroid field density from the level curve (scales by sector). */
   private asteroidTarget(): number {
-    return Math.min(24, 6 + this.wave * 2);
+    return this.wavePlan().asteroidCap;
   }
 
   /** Build one irregular rocky asteroid (speed scales with the stage). */
@@ -1211,20 +1212,30 @@ export class GameEngine {
     return Math.floor((this.wave - 1) / 5) + 1;
   }
 
-  /** Fair per-sector HP ramp: +12% per sector, capped at 2.2×. */
+  /** Current wave's authored plan from the level curve 1–50 (cached). */
+  private wavePlan(): WavePlan {
+    return getWavePlan(this.wave);
+  }
+
+  /** Fair per-wave HP ramp from the level curve, on top of the difficulty mode. */
   private sectorHpMul(): number {
-    return Math.min(2.2, 1 + (this.sector() - 1) * 0.12);
+    return this.wavePlan().hpMul;
   }
 
-  /** Bullet-speed budget: +6% per sector, capped at 1.35× so patterns stay
-   *  readable — times the invisible adaptive assist. */
+  /** Bullet-speed budget from the level curve — patterns stay readable —
+   *  times the invisible adaptive assist. */
   private bulletSpeedMul(): number {
-    return Math.min(1.35, 1 + (this.sector() - 1) * 0.06) * this.assistMul;
+    return this.wavePlan().bulletSpeedMul * this.assistMul;
   }
 
-  /** Fire-rate budget: +5% per sector, capped at 1.3×. */
+  /** Enemy fire-rate aggression from the level curve (Gradius rank lesson). */
   private fireRateMul(): number {
-    return Math.min(1.3, 1 + (this.sector() - 1) * 0.05);
+    return this.wavePlan().fireMul;
+  }
+
+  /** Enemy bullet damage: difficulty mode × level-curve ramp. */
+  private enemyDmgMul(): number {
+    return (this.difficulty?.enemyDamageMultiplier ?? 1) * this.wavePlan().dmgMul;
   }
 
   /** Line-by-line sector tally payout (Raiden DX result-screen feel). */
@@ -1246,7 +1257,10 @@ export class GameEngine {
   }
 
   private spawnWave() {
-    const count = Math.min(24, 3 + this.wave * 2);
+    // The authored level curve (1–50) drives everything: density, HP,
+    // aggression, composition, elites — multi-dial scaling, never HP-only.
+    const plan = this.wavePlan();
+    const count = plan.count;
     this.elitesThisWave = 0;
     
     // Wave announcement
@@ -1259,14 +1273,15 @@ export class GameEngine {
       this.klaxonTimer = 0.05;
       this.music.setBossMode(true);
     } else if ((this.wave - 1) % 5 === 0) {
-      // First wave of a sector: a proper stage intro (Gradius stage card).
+      // First wave of a sector: a proper stage intro (Gradius stage card)
+      // with the sector's milestone — the player always KNOWS what's new.
       const sec = this.sector();
       const info = GameEngine.SECTORS[(sec - 1) % GameEngine.SECTORS.length];
       this.sectorDamage = 0;
       this.sectorMedals = 0;
       this.waveAnnouncement = {
-        text: `SEKTOR ${sec} — ${info?.name ?? 'THE VOID'}`,
-        subtext: `${info?.subtitle ?? 'unknown space'} · ${count} sovražnikov`,
+        text: `SEKTOR ${sec}${sec <= 10 ? '/10' : ''} — ${info?.name ?? 'THE VOID'}`,
+        subtext: `${plan.milestone} · ${count} sovražnikov`,
         timer: 2.8,
         color: '#66ffe0'
       };
@@ -1293,8 +1308,8 @@ export class GameEngine {
     // Boss and mid-boss waves have one extra roster entry for the HUD.
     const extraBoss = this.wave % 5 === 0 ? 1 : (this.wave - 1) % 5 === 2 ? 1 : 0;
     this.waveTotalEnemies = count + extraBoss;
-    // Fair per-sector HP ramp on top of the chosen difficulty mode.
-    const hpMul = (this.difficulty?.enemyHpMultiplier ?? 1) * this.sectorHpMul();
+    // Fair per-wave HP ramp on top of the chosen difficulty mode.
+    const hpMul = (this.difficulty?.enemyHpMultiplier ?? 1) * plan.hpMul;
 
     // Choose formation based on wave (merged from webgpu-online-games-51d72)
     const formationTypes: Array<'line' | 'circle' | 'vshape' | 'random' | 'spiral'> =
@@ -1309,19 +1324,20 @@ export class GameEngine {
     const centerY = Math.min(this.player.y - 400, -140);
     this.formationSystem.setCenter(centerX, centerY);
     this.formationSystem.setRotation(Math.random() * Math.PI * 2);
-    this.formationSystem.setScale(1 + this.wave * 0.1);
+    this.formationSystem.setScale(plan.formationScale);
 
     for (let i = 0; i < count; i++) {
       // Get position from formation
       const pos = this.formationSystem.getPosition(i, count);
-      const type = Math.random() < 0.6 ? 'swarmer' : (Math.random() < 0.7 ? 'sniper' : 'titan');
+      // Authored composition: the sector's mix decides, not a coin flip —
+      // S1 teaches with swarmers, Titans arrive in S3, dominate by S8.
+      const type = pickEnemyType(plan.comp);
       const baseHp = type === 'swarmer' ? 20 : type === 'sniper' ? 40 : 100;
 
       // Elite roll (rare modified enemies — spike moments, jackpot loot).
       let elite: EliteAffix | null = null;
-      if (this.wave >= 4 && this.elitesThisWave < 2) {
-        const chance = Math.min(0.22, 0.05 + this.wave * 0.012);
-        if (Math.random() < chance) {
+      if (this.wave >= plan.eliteMinWave && this.elitesThisWave < plan.eliteCap) {
+        if (Math.random() < plan.eliteChance) {
           const pool = (Object.keys(GameEngine.ELITE_AFFIXES) as EliteAffix[])
             .filter((a) => GameEngine.ELITE_AFFIXES[a].minSector <= this.sector());
           elite = pool[Math.floor(Math.random() * pool.length)] ?? null;
@@ -1545,7 +1561,9 @@ export class GameEngine {
 
   private spawnBoss() {
     this.bossActive = true;
-    const hpMul = this.difficulty?.enemyHpMultiplier ?? 1;
+    // Boss HP rides the full level curve too (it previously skipped the
+    // sector ramp entirely — sector 10 bosses were farm-easy).
+    const hpMul = (this.difficulty?.enemyHpMultiplier ?? 1) * this.wavePlan().hpMul;
 
     // Create Boss AI based on wave (merged from webgpu-online-games-51d72)
     const maxPhases = Math.min(5, Math.floor(this.wave / 5) + 2);
@@ -1605,8 +1623,8 @@ export class GameEngine {
     }
 
     this.gameTime += this.deltaTime;
-    // Scroll speed ramps gently with the wave (70 → 160 px/s).
-    this.worldScroll = 70 + Math.min(90, (this.wave - 1) * 6);
+    // Scroll speed comes from the authored level curve (70 → 160 px/s).
+    this.worldScroll = this.wavePlan().scroll;
     // Adaptive soundtrack: boss mode spans the klaxon + the fight; the
     // layered intensity tracks danger (boss, low hull, late sectors).
     this.music.setBossMode(this.bossActive || this.bossPending);
@@ -1838,8 +1856,9 @@ export class GameEngine {
 
   private updateEnemies() {
     const timeScale = this.player.stasisActive ? 0.1 : 1;
-    // Fly-by cap: never a wall of kamikazes — keep dives readable & fair.
-    const maxDivers = this.wave < 5 ? 2 : this.wave < 10 ? 4 : 6;
+    // Fly-by cap from the level curve: never a wall of kamikazes —
+    // keep dives readable & fair (2 in S1 → 7 in S10).
+    const maxDivers = this.wavePlan().diveMax;
     let divers = 0;
     for (const en of this.enemies) if (en.diving) divers++;
     
@@ -1878,7 +1897,7 @@ export class GameEngine {
         ) {
           e.desperate = true;
           const spiralBase = e.phase;
-          const dmgMul = this.difficulty?.enemyDamageMultiplier ?? 1;
+          const dmgMul = this.enemyDmgMul();
           for (let k = 0; k < 16; k++) {
             const angle = spiralBase + (Math.PI * 2 * k) / 16;
             this.bullets.push({
@@ -1904,11 +1923,13 @@ export class GameEngine {
           this.deltaTime * timeScale
         );
         
-        // Apply AI movement (with difficulty speed multiplier from main).
+        // Apply AI movement (with difficulty speed multiplier from main,
+        // plus the level-curve aggression ramp).
         // During a dive the ship ignores hover-steering and commits to the
         // strafing run — but keeps shooting via the AI decision below.
         const speed = (e.type === 'swarmer' ? 2.5 : e.type === 'sniper' ? 1 : 0.8)
           * (this.difficulty?.enemySpeedMultiplier ?? 1)
+          * this.wavePlan().speedMul
           * (e.elite ? GameEngine.ELITE_AFFIXES[e.elite].speedMul : 1);
         if (!e.diving) {
           e.vx += aiResult.moveX * speed * 0.1 * timeScale;
@@ -1937,7 +1958,7 @@ export class GameEngine {
           if ((e.diveCd ?? 0) <= 0 && divers < maxDivers) {
             e.diving = true;
             divers++;
-            e.vy = (e.type === 'swarmer' ? 5.5 : 4) * (this.difficulty?.enemySpeedMultiplier ?? 1);
+            e.vy = (e.type === 'swarmer' ? 5.5 : 4) * (this.difficulty?.enemySpeedMultiplier ?? 1) * this.wavePlan().speedMul;
             e.vx = Math.max(-2.2, Math.min(2.2, (this.player.x - e.x) * 0.012));
           }
         } else if (e.y > this.height + 70) {
@@ -2069,6 +2090,8 @@ export class GameEngine {
   }
   
   private executeBossAttackPattern(boss: Enemy, pattern: string) {
+    // Every boss pattern rides the level-curve damage ramp.
+    const dmg = this.enemyDmgMul();
     switch (pattern) {
       case 'spiral': {
         const spiralAngle = boss.phase * 3;
@@ -2077,7 +2100,7 @@ export class GameEngine {
           this.bullets.push({
             x: boss.x, y: boss.y,
             vx: Math.cos(a) * 4, vy: Math.sin(a) * 4,
-            size: 5, color: '#ff00ff', damage: 15,
+            size: 5, color: '#ff00ff', damage: 15 * dmg,
             life: 4, type: 'enemy'
           });
         }
@@ -2093,7 +2116,7 @@ export class GameEngine {
           this.bullets.push({
             x: boss.x, y: boss.y,
             vx: Math.cos(a) * r, vy: Math.sin(a * 2 + t) * r,
-            size: 4, color: '#ff88ff', damage: 12,
+            size: 4, color: '#ff88ff', damage: 12 * dmg,
             life: 4, type: 'enemy'
           });
         }
@@ -2109,7 +2132,7 @@ export class GameEngine {
           this.bullets.push({
             x: boss.x, y: boss.y,
             vx: Math.cos(a) * r, vy: Math.sin(a) * r,
-            size: 3, color: '#cc00ff', damage: 10,
+            size: 3, color: '#cc00ff', damage: 10 * dmg,
             life: 3.5, type: 'enemy'
           });
         }
@@ -2123,7 +2146,7 @@ export class GameEngine {
           this.bullets.push({
             x: boss.x, y: boss.y,
             vx: Math.cos(angle) * 3, vy: Math.sin(angle) * 3,
-            size: 6, color: '#ff4444', damage: 20,
+            size: 6, color: '#ff4444', damage: 20 * dmg,
             life: 5, type: 'enemy'
           });
         }
@@ -2136,7 +2159,7 @@ export class GameEngine {
           this.bullets.push({
             x: boss.x, y: boss.y,
             vx: Math.cos(a) * 3, vy: Math.sin(a) * 3,
-            size: 4, color: '#cc00ff', damage: 10,
+            size: 4, color: '#cc00ff', damage: 10 * dmg,
             life: 3.5, type: 'enemy'
           });
         }
@@ -2146,7 +2169,7 @@ export class GameEngine {
         // Flowing curtain: a wall of sine-wave bullets that weaves as it
         // descends (per danmaku pattern research — sine walls read as
         // waves of light and reward rhythm-based dodging).
-        const waveDmg = 12 * (this.difficulty?.enemyDamageMultiplier ?? 1);
+        const waveDmg = 12 * dmg;
         const n = 14;
         const speed = 3.2;
         for (let i = 0; i < n; i++) {
@@ -2171,7 +2194,7 @@ export class GameEngine {
             this.bullets.push({
               x: boss.x, y: boss.y,
               vx: Math.cos(a) * (2 + j), vy: Math.sin(a) * (2 + j),
-              size: 4, color: '#cc00ff', damage: 10,
+              size: 4, color: '#cc00ff', damage: 10 * dmg,
               life: 3.5, type: 'enemy'
             });
           }
@@ -2183,7 +2206,7 @@ export class GameEngine {
   private enemyShoot(e: Enemy, attackAngle?: number) {
     const dx = this.player.x - e.x;
     const dy = this.player.y - e.y;
-    const dmgMul = this.difficulty?.enemyDamageMultiplier ?? 1;
+    const dmgMul = this.enemyDmgMul();
     const bSpeed = this.bulletSpeedMul();
 
     // Use AI-provided attack angle if available
@@ -2431,7 +2454,7 @@ export class GameEngine {
     // Aimed fan attack (+ interleaved ring once berserk).
     m.shootTimer -= dt;
     if (m.shootTimer <= 0) {
-      const dmgMul = this.difficulty?.enemyDamageMultiplier ?? 1;
+      const dmgMul = this.enemyDmgMul();
       m.shootTimer = (m.desperate ? 1.25 : 2.1) / this.fireRateMul();
       const base = Math.atan2(this.player.y - m.y, this.player.x - m.x);
       for (let k = -2; k <= 2; k++) {

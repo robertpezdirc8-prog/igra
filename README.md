@@ -72,6 +72,35 @@ Igra je razdeljena na **poimenovane sektorje** po 5 valovih, vsak z lastno barvn
   ali jo izteguj: po 15 s se umakne brez nagrad, val se ne more zablokirati
 - Ozadje dobi sektorsko barvno pranji (klasični arcade premik palete)
 
+## 📈 Krivulja nivojev 1–50 (raziskava najboljših shmupov)
+
+Podatkovno vodena krivulja (`src/game/levelCurve.ts`) po vzoru Gradius *rank*
+sistema, Raidena, Sky Force Reloaded in Danmaku Unlimited 3 — **več gumbov,
+ne samo HP**:
+
+| Val | Sektor | Sovražniki | HP | Škoda | Agresija | Metki | Potopi | Mejnik |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 1 | 5 | 1,00× | 1,00× | 1,00× | 1,00× | 2 | VPAD — učenje |
+| 10 | 2 | 8 | 1,58× | 1,23× | 1,14× | 1,05× | 3 | prvi snajperji & elita |
+| 15 | 3 | 10 | 1,97× | 1,35× | 1,22× | 1,10× | 3 | TITANI na sceno |
+| 25 | 5 | 13 | 2,87× | 1,60× | 1,38× | 1,20× | 4 | POL POT |
+| 30 | 6 | 15 | 3,39× | 1,73× | 1,46× | 1,25× | 5 | plazma zidovi |
+| 40 | 8 | 19 | 4,55× | 1,98× | 1,62× | 1,35× | 6 | titan dominantnost |
+| 50 | 10 | 22 | 5,89× | 2,20× | 1,78× | 1,45× | 7 | ZADNJI VZPON |
+
+- **Avtorska kompozicija po sektorjih:** S1 = 85 % swarmers (brez Titanov),
+  S3 = Titan prihod, S8 = Titan dominantnost (38 %) — nove grožnje prihajajo
+  postopoma, ne naključno
+- **Vsi gumbi hkrati:** HP (polinomska krivulja do 5,9×), škoda (+2,5 %/val,
+  cap 2,2×), hitrost (+1,2 %/val, cap 1,6×), agresija streljanja (+1,6 %/val,
+  cap 1,85×), hitrost metkov (+5 %/sektor, cap 1,5×) — vsak svojim tempom
+- **Boss HP zdaj jezdi celotno krivuljo** (prej je preskočil sektorski ramp)
+- **Elitne legije:** do 3 elite na val od 15. vala naprej (24 % možnost)
+- **Formacije ostanejo berljive:** razpon do 2,2× (strop namesto neomejene
+  rasti), gostota capped na 22 sovražnikov
+- **Zanka po 50:** Gradius Gaiden lekcija — ista krivulja z zmernim bonusom
+  (+35 % HP, +22 % škoda na zanko), "ne le hitrejši in gostejši metki"
+
 ## 👹 Bossi in predstraže (rotirajoča zaseda)
 
 **MID BOSS predstraže** (3. val vsakega sektorja): oklepna nosilka z vrtčečima
