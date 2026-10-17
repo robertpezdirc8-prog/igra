@@ -561,15 +561,26 @@ export class GameEngine {
   }
 
   /** Apply user settings (audio volumes, particle budget). */
-  applySettings(settings: { musicVolume: number; sfxVolume: number; particles: 'low' | 'medium' | 'high' }) {
+  applySettings(settings: { musicVolume: number; sfxVolume: number; particles: 'low' | 'medium' | 'high'; touchSensitivity?: number }) {
     this.audio.setVolumes(settings.musicVolume, settings.sfxVolume);
     this.music.setVolume(settings.musicVolume);
     this.particleScale = settings.particles === 'low' ? 0.25 : settings.particles === 'medium' ? 0.6 : 1;
     // Bloom is a full-screen post pass — skip it at low particle quality.
     this.webgpuRenderer?.setBloomEnabled(settings.particles !== 'low');
+    if (typeof settings.touchSensitivity === 'number') {
+      this.setMobileDragSensitivity(settings.touchSensitivity);
+    }
   }
 
   // ============= MOBILE INPUT =============
+  // Player-tunable drag gain (settings slider) on top of the 1.2 base.
+  private mobileDragSensitivity = GameEngine.MOBILE_DRAG_SENSITIVITY;
+
+  /** Drag sensitivity multiplier from the settings slider (clamped ×0.5–×2.5). */
+  setMobileDragSensitivity(mul: number) {
+    this.mobileDragSensitivity = Math.max(0.5, Math.min(2.5, mul));
+  }
+
   setMobileMove(x: number, y: number) {
     this.mobileMove.x = Math.max(-1, Math.min(1, x));
     this.mobileMove.y = Math.max(-1, Math.min(1, y));
@@ -593,7 +604,7 @@ export class GameEngine {
    *  Direct target-follow each frame ⇒ zero perceived latency. */
   updateMobileDrag(dxPx: number, dyPx: number) {
     if (!this.mobileDragBase) return;
-    const s = GameEngine.MOBILE_DRAG_SENSITIVITY;
+    const s = this.mobileDragSensitivity;
     this.mobileDragTarget = {
       x: Math.max(20, Math.min(this.width - 20, this.mobileDragBase.x + dxPx * s)),
       y: Math.max(20, Math.min(this.height - 20, this.mobileDragBase.y + dyPx * s)),

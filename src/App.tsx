@@ -72,6 +72,9 @@ interface Settings {
   sfxVolume: number;
   showFPS: boolean;
   particles: 'low' | 'medium' | 'high';
+  touchSensitivity: number;
+  leftHanded: boolean;
+  bigButtons: boolean;
 }
 
 // Keys the game consumes - preventDefault is applied ONLY to these while
@@ -313,6 +316,9 @@ export default function App() {
 
     const engine = new GameEngine(canvas, overlay, handleStateChange);
     engineRef.current = engine;
+    // Apply persisted control/audio settings to the fresh engine (the
+    // change-handler only fires on the NEXT settings edit).
+    if (saveDataRef.current) engine.applySettings(saveDataRef.current.settings);
     // Expose the advanced-system manager via state for render-time use
     setPowerUpManager(engine.getPowerUpManager());
 
@@ -1111,6 +1117,8 @@ export default function App() {
         onWaveEnd={() => engineRef.current?.mobileWaveEnd()}
         onGradius={() => engineRef.current?.mobileGradius()}
         isVisible={gameState === 'playing' && !showClassicArcade}
+        leftHanded={settings.leftHanded}
+        bigButtons={settings.bigButtons}
       />
 
       {/* Visual Effects */}

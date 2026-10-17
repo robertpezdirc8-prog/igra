@@ -10,6 +10,9 @@ interface SettingsMenuProps {
     showFPS: boolean;
     particles: 'low' | 'medium' | 'high';
     autoAim?: boolean;
+    touchSensitivity?: number;
+    leftHanded?: boolean;
+    bigButtons?: boolean;
   };
   onSettingsChange: (settings: any) => void;
 }
@@ -123,6 +126,68 @@ export function SettingsMenu({ isOpen, onClose, settings, onSettingsChange }: Se
                 }`}
               />
             </button>
+          </div>
+
+          {/* ── Mobile control feel ── */}
+          <div className="pt-4 border-t border-gray-700/60">
+            <p className="text-xs font-mono text-cyan-300/70 mb-4 tracking-widest">📱 MOBILNE KONTROLE</p>
+
+            {/* Drag sensitivity */}
+            <div className="mb-4">
+              <label className="block text-sm font-mono text-gray-400 mb-2">
+                OBČUTLJIVOST VLEČENJA: ×{(localSettings.touchSensitivity ?? 1.2).toFixed(1)}
+              </label>
+              <input
+                type="range"
+                min="0.6"
+                max="2"
+                step="0.1"
+                value={localSettings.touchSensitivity ?? 1.2}
+                onChange={(e) => setLocalSettings({ ...localSettings, touchSensitivity: parseFloat(e.target.value) })}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+              />
+              <p className="text-xs font-mono text-gray-500 mt-1">Kako hitro ladja sledi prstu</p>
+            </div>
+
+            {/* Left-handed layout */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <label className="text-sm font-mono text-gray-400">LEVIČARSKI NAČIN</label>
+                <p className="text-xs font-mono text-gray-500 mt-1">Gumbi na levi, vodenje z desno stranjo</p>
+              </div>
+              <button
+                onClick={() => setLocalSettings({ ...localSettings, leftHanded: !localSettings.leftHanded })}
+                className={`relative w-14 h-7 rounded-full transition-all ${
+                  localSettings.leftHanded ? 'bg-cyan-500' : 'bg-gray-700'
+                }`}
+              >
+                <div
+                  className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${
+                    localSettings.leftHanded ? 'left-8' : 'left-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Bigger touch targets */}
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm font-mono text-gray-400">VELIKI GUMBI</label>
+                <p className="text-xs font-mono text-gray-500 mt-1">Večje ciljne površine za prste</p>
+              </div>
+              <button
+                onClick={() => setLocalSettings({ ...localSettings, bigButtons: !localSettings.bigButtons })}
+                className={`relative w-14 h-7 rounded-full transition-all ${
+                  localSettings.bigButtons ? 'bg-cyan-500' : 'bg-gray-700'
+                }`}
+              >
+                <div
+                  className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${
+                    localSettings.bigButtons ? 'left-8' : 'left-1'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
         </div>
 

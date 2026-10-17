@@ -46,6 +46,10 @@ interface MobileControlsProps {
   onWaveEnd: () => void;
   onGradius: () => void;
   isVisible: boolean;
+  /** Mirrored layout: button stack on the LEFT, steering on the RIGHT half. */
+  leftHanded?: boolean;
+  /** Larger touch targets (FIRE/BOMBA 68px, ghosts 58px). */
+  bigButtons?: boolean;
   joystickPosition?: { x: number; y: number };
   buttonSize?: 'small' | 'medium' | 'large';
 }
@@ -61,7 +65,9 @@ export function MobileControls({
   onWaveStart,
   onWaveEnd,
   onGradius,
-  isVisible
+  isVisible,
+  leftHanded = false,
+  bigButtons = false
 }: MobileControlsProps) {
   const [hasMovedOnce, setHasMovedOnce] = useState(false);
   const [dashCooldown, setDashCooldown] = useState(false);
@@ -151,11 +157,18 @@ export function MobileControls({
     const isInteractive = (el: EventTarget | null): boolean =>
       el instanceof Element && !!el.closest('button, input, a, select, textarea, [role="button"]');
 
+    // Steering half mirrors with the left-handed setting: right-handed
+    // players steer on the LEFT half (buttons right), left-handed the
+    // opposite. The button stack itself is a real hit-testable layer, so
+    // isInteractive already guards it; this split keeps the thumbs apart.
+    const onButtonHalf = (clientX: number): boolean =>
+      leftHanded ? clientX < window.innerWidth / 2 : clientX >= window.innerWidth / 2;
+
     const handleTouchStart = (e: TouchEvent) => {
       for (const t of Array.from(e.changedTouches)) {
-        // Only one steering finger at a time; right half belongs to buttons.
+        // Only one steering finger at a time; the button half belongs to buttons.
         if (dragIdRef.current !== null) break;
-        if (t.clientX >= window.innerWidth / 2) continue;
+        if (onButtonHalf(t.clientX)) continue;
         if (isInteractive(t.target)) continue;
         dragIdRef.current = t.identifier;
         anchorRef.current = { x: t.clientX, y: t.clientY };
@@ -197,7 +210,7 @@ export function MobileControls({
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [isVisible]);
+  }, [isVisible, leftHanded]);
 
   const handleDash = (e: React.TouchEvent) => {
     e.preventDefault();
@@ -288,17 +301,27 @@ export function MobileControls({
 
   if (!isVisible || !isTouchDevice) return null;
 
-  // Shared ghost-button style: small, dark, borderless-ish, label-free.
+  // Touch-target sizes grow with the “big buttons” accessibility setting.
+  const sideBtn = bigButtons
+    ? 'w-[68px] h-[68px] text-2xl'
+    : 'w-14 h-14 text-xl';
   const ghost =
-    'w-[46px] h-[46px] rounded-full bg-black/45 backdrop-blur-sm border border-white/20 ' +
-    'flex items-center justify-center text-xl select-none transition-transform duration-75 ' +
+    (bigButtons
+      ? 'w-[58px] h-[58px] rounded-full bg-black/45 backdrop-blur-sm border border-white/20 '
+      : 'w-[46px] h-[46px] rounded-full bg-black/45 backdrop-blur-sm border border-white/20 ') +
+    'flex items-center justify-center ' +
+    (bigButtons ? 'text-2xl ' : 'text-xl ') +
+    'select-none transition-transform duration-75 ' +
     'active:scale-90 active:bg-white/25';
+  // The whole layer mirrors for left-handed players.
+  const stackSide = leftHanded ? 'left-3' : 'right-3';
+  const hintSide = leftHanded ? 'right-8' : 'left-8';
 
   return (
     <div className="fixed inset-0 z-50 pointer-events-none">
       {/* First-run hint — vanishes the moment the ship moves */}
       {!hasMovedOnce && (
-        <div className="absolute bottom-28 left-8 pointer-events-none animate-pulse">
+        <div className={`absolute bottom-28 ${hintSide} pointer-events-none animate-pulse`}>
           <div className="w-24 h-24 rounded-full border-2 border-dashed border-cyan-300/25 flex items-center justify-center">
             <span className="text-cyan-200/40 text-[10px] text-center leading-tight">
               povleci za let<br />🔥 strelja samodejno
@@ -307,8 +330,8 @@ export function MobileControls({
         </div>
       )}
 
-      {/* ── Right-edge action stack (compact, label-free) ── */}
-      <div className="absolute bottom-5 right-3 flex flex-col items-center gap-2 pointer-events-auto">
+      {/* ── Action stack (mirrors for left-handed players) ── */}
+      <div className={`absolute bottom-5 ${stackSide} flex flex-col items-center gap-2 pointer-events-auto`}>
         {/* FIRE — the button the player is looking for. Glows green with an
             AVTO badge while auto-fire is active; quick tap → hold-to-fire. */}
         <button
@@ -321,14 +344,14 @@ export function MobileControls({
               : 'Ročno streljanje — drži za strel, tapni za samodejno'
           }
           className={
-            'w-14 h-14 rounded-full border-2 flex flex-col items-center justify-center select-none transition-transform duration-75 active:scale-90 ' +
+            `${sideBtn} rounded-full border-2 flex flex-col items-center justify-center select-none transition-transform duration-75 active:scale-90 ` +
             (autoFire
               ? 'bg-emerald-600/40 border-emerald-300/80 shadow-lg shadow-emerald-900/50 animate-pulse'
               : 'bg-black/45 backdrop-blur-sm border-white/30')
           }
           style={{ touchAction: 'none' }}
         >
-          <span className="text-xl leading-none">🔥</span>
+          <span className="leading-none">🔥</span>
           <span
             className={`text-[8px] leading-none mt-0.5 font-bold tracking-wide ${
               autoFire ? 'text-emerald-100' : 'text-white/60'
@@ -342,7 +365,7 @@ export function MobileControls({
         <button
           onTouchStart={handleBomb}
           aria-label="Bomba"
-          className="w-14 h-14 rounded-full bg-red-600/35 backdrop-blur-sm border-2 border-red-400/60 flex items-center justify-center text-2xl select-none shadow-lg shadow-red-900/40 transition-transform duration-75 active:scale-90 active:bg-red-500/60"
+          className={`${sideBtn} rounded-full bg-red-600/35 backdrop-blur-sm border-2 border-red-400/60 flex items-center justify-center select-none shadow-lg shadow-red-900/40 transition-transform duration-75 active:scale-90 active:bg-red-500/60`}
           style={{ touchAction: 'none' }}
         >
           💥

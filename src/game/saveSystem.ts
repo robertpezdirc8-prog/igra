@@ -31,6 +31,9 @@ export interface SaveData {
     sfxVolume: number;
     showFPS: boolean;
     particles: 'low' | 'medium' | 'high';
+    touchSensitivity: number;
+    leftHanded: boolean;
+    bigButtons: boolean;
   };
   cosmetics: {
     unlocked: string[];
@@ -78,7 +81,10 @@ export function createDefaultSaveData(): SaveData {
       musicVolume: 0.5,
       sfxVolume: 0.6,
       showFPS: true,
-      particles: 'high'
+      particles: 'high',
+      touchSensitivity: 1.2,
+      leftHanded: false,
+      bigButtons: false
     },
     cosmetics: {
       unlocked: ['default'],
