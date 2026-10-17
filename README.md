@@ -38,7 +38,7 @@ vektorsko podobo in imenovano HP litico.
 
 | Dejanje | Namizje | Gamepad | Mobilno |
 |---|---|---|---|
-| Premikanje | `W A S D` / puščice | leva palica / D-pad | povleci levo polovico (duh-palica) |
+| Premikanje | `W A S D` / puščice | leva palica / D-pad | relativni vlek — ladja sledi premiku prsta 1:1 (Phoenix 2 standard) |
 | Streljanje | miška (drži) | samodejno + gumbi | **AVTOMATICNO** (Sky Force standard) |
 | Dash (i-frames) | `SPACE` | A / X | ⚡ duh-gumb |
 | Bomba (počisti izstrelke) | `B` | B / krožni gumb | 💥 velik rdeči gumb |
@@ -64,8 +64,10 @@ Po vzoru Sky Force / Phoenix II / Danmaku Unlimited mobilnih verzij:
   vremenska plošča, FPS/seed, debug vremenski gumb
 - **Kompaktni gumbi** — 💥 (56px) + 4 duh-gumbi (46px, brez besedil,
   pol-prosojni) ob desnem robu, izven igrališča
-- **Duh-palica** — pojavi se tam, kjer palec pristane (leva polovica),
-  skromna vizualika; "povleci za let" Namig izgine po prvem dotiku
+- **Relativni vlek** — dotik kjer koli na levi polovici; ladja obdrži
+  svoj odmik od prsta in sledi premiku 1:1 (×1.2 občutljivost) — brez
+  pospeševanja, brez mrtvega prostora, brez preskoka na prst;
+  "povleci za let" namig izgine po prvem dotiku
 - **⏸ + ☰** — pavza in razporejni meni (SKILLS/IZZIVI/DOSEŽKI) zgoraj desno;
   nič funkcionalnosti ne izgubi
 

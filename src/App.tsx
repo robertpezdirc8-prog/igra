@@ -1097,9 +1097,11 @@ export default function App() {
         />
       ))}
 
-      {/* Mobile Controls (wired to the engine) */}
+      {/* Mobile Controls (wired to the engine) — relative drag, Phoenix 2 style */}
       <MobileControls
-        onMove={(x, y) => engineRef.current?.setMobileMove(x, y)}
+        onDragStart={() => engineRef.current?.beginMobileDrag()}
+        onDragMove={(dx, dy) => engineRef.current?.updateMobileDrag(dx, dy)}
+        onDragEnd={() => engineRef.current?.endMobileDrag()}
         onShoot={(active) => engineRef.current?.setMobileShooting(active)}
         onDash={() => engineRef.current?.mobileDash()}
         onSecondary={() => engineRef.current?.mobileSecondary()}

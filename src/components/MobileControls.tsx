@@ -2,29 +2,30 @@ import { useState, useRef, useEffect } from 'react';
 
 /**
  * Mobile controls — built on the mobile-shmup industry standard
- * (Sky Force, Phoenix II, Danmaku Unlimited mobile research):
+ * (Phoenix 2 / Sky Force research: "the ship is controlled via
+ * RELATIVE TOUCH and fires automatically"):
  *
  * 1. AUTO-FIRE — the ship fires automatically (straight battery).
- *    "Auto-fire removes an input that adds no decision" — the player's
- *    attention belongs to DODGING, so there is no shoot button at all.
- * 2. Drag anywhere on the left half — a dynamic ghost joystick that only
- *    appears where the thumb lands.
+ *    The player's attention belongs to DODGING, so there is no shoot button.
+ * 2. RELATIVE DRAG — touch anywhere on the left half; the ship does NOT
+ *    jump to the finger. It keeps its touchstart offset and follows the
+ *    finger's movement delta 1:1 (engine applies a small sensitivity gain).
+ *    No acceleration, no deadzone, no joystick ring — the finger itself
+ *    is the indicator. This is what makes dodge maneuvers feel instant.
  * 3. One panic button (BOMBA) + a compact ghost stack of utility icons —
  *    no labels, ~46px touch targets, tucked against the right edge so
  *    the playfield stays clear.
  *
- * IMPORTANT IMPLEMENTATION NOTE: the joystick listens on `window` with
- * NATIVE listeners (not React onTouch* on this layer) because this layer
- * is `pointer-events-none` — the browser never makes it a hit-test target,
- * so synthetic handlers on it would never fire for playfield touches.
- * Window-level listeners + touch-identifier tracking make it multi-touch
- * safe: left thumb steers while the right thumb presses buttons.
+ * IMPLEMENTATION NOTE: drag listeners live on `window` (native, with
+ * touch-identifier tracking) because this layer is `pointer-events-none`
+ * — the browser never hit-tests it. Identifier tracking keeps it
+ * multi-touch safe: left thumb steers while the right thumb taps buttons.
  */
 
-const JOY_RADIUS = 60;
-
 interface MobileControlsProps {
-  onMove: (x: number, y: number) => void;
+  onDragStart: () => void;
+  onDragMove: (dx: number, dy: number) => void;
+  onDragEnd: () => void;
   onShoot: (active: boolean) => void;
   onDash: () => void;
   onSecondary: () => void;
@@ -38,7 +39,9 @@ interface MobileControlsProps {
 }
 
 export function MobileControls({
-  onMove,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
   onShoot,
   onDash,
   onSecondary,
@@ -48,9 +51,6 @@ export function MobileControls({
   onGradius,
   isVisible
 }: MobileControlsProps) {
-  const [joystickActive, setJoystickActive] = useState(false);
-  const [joystickPos, setJoystickPos] = useState({ x: 0, y: 0 });
-  const [joystickOrigin, setJoystickOrigin] = useState({ x: 0, y: 0 });
   const [hasMovedOnce, setHasMovedOnce] = useState(false);
   const [dashCooldown, setDashCooldown] = useState(false);
   const [secondaryCooldown, setSecondaryCooldown] = useState(false);
@@ -86,22 +86,24 @@ export function MobileControls({
     }, 500);
   };
 
-  // ── Dynamic joystick — native window listeners, multi-touch safe ──
-  const joyIdRef = useRef<number | null>(null);
-  const originRef = useRef({ x: 0, y: 0 });
-  const moveRef = useRef(onMove);
+  // ── Relative drag — native window listeners, multi-touch safe ──
+  const dragIdRef = useRef<number | null>(null);
+  const anchorRef = useRef({ x: 0, y: 0 });
+  const dragStartRef = useRef(onDragStart);
+  const dragMoveRef = useRef(onDragMove);
+  const dragEndRef = useRef(onDragEnd);
   useEffect(() => {
-    moveRef.current = onMove;
-  }, [onMove]);
+    dragStartRef.current = onDragStart;
+    dragMoveRef.current = onDragMove;
+    dragEndRef.current = onDragEnd;
+  }, [onDragStart, onDragMove, onDragEnd]);
 
   useEffect(() => {
     if (!isVisible) {
       // Controls hidden → release any active drag instantly.
-      if (joyIdRef.current !== null) {
-        joyIdRef.current = null;
-        setJoystickActive(false);
-        setJoystickPos({ x: 0, y: 0 });
-        moveRef.current(0, 0);
+      if (dragIdRef.current !== null) {
+        dragIdRef.current = null;
+        dragEndRef.current();
       }
       return;
     }
@@ -111,45 +113,36 @@ export function MobileControls({
 
     const handleTouchStart = (e: TouchEvent) => {
       for (const t of Array.from(e.changedTouches)) {
-        // Only one joystick finger at a time; right half belongs to buttons.
-        if (joyIdRef.current !== null) break;
+        // Only one steering finger at a time; right half belongs to buttons.
+        if (dragIdRef.current !== null) break;
         if (t.clientX >= window.innerWidth / 2) continue;
         if (isInteractive(t.target)) continue;
-        joyIdRef.current = t.identifier;
-        originRef.current = { x: t.clientX, y: t.clientY };
-        setJoystickOrigin({ x: t.clientX, y: t.clientY });
-        setJoystickPos({ x: 0, y: 0 });
-        setJoystickActive(true);
+        dragIdRef.current = t.identifier;
+        anchorRef.current = { x: t.clientX, y: t.clientY };
         setHasMovedOnce(true);
         triggerHaptic(8);
+        dragStartRef.current();
       }
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (joyIdRef.current === null) return;
-      const t = Array.from(e.touches).find(x => x.identifier === joyIdRef.current);
+      if (dragIdRef.current === null) return;
+      const t = Array.from(e.touches).find(x => x.identifier === dragIdRef.current);
       if (!t) return;
       // Steering finger → suppress browser pan/zoom gestures.
       e.preventDefault();
-      let dx = t.clientX - originRef.current.x;
-      let dy = t.clientY - originRef.current.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist > JOY_RADIUS) {
-        dx = (dx / dist) * JOY_RADIUS;
-        dy = (dy / dist) * JOY_RADIUS;
-      }
-      setJoystickPos({ x: dx, y: dy });
-      moveRef.current(dx / JOY_RADIUS, dy / JOY_RADIUS);
+      dragMoveRef.current(
+        t.clientX - anchorRef.current.x,
+        t.clientY - anchorRef.current.y
+      );
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
-      if (joyIdRef.current === null) return;
+      if (dragIdRef.current === null) return;
       for (const t of Array.from(e.changedTouches)) {
-        if (t.identifier === joyIdRef.current) {
-          joyIdRef.current = null;
-          setJoystickActive(false);
-          setJoystickPos({ x: 0, y: 0 });
-          moveRef.current(0, 0);
+        if (t.identifier === dragIdRef.current) {
+          dragIdRef.current = null;
+          dragEndRef.current();
         }
       }
     };
@@ -226,30 +219,8 @@ export function MobileControls({
 
   return (
     <div className="fixed inset-0 z-50 pointer-events-none md:hidden">
-      {/* Dynamic ghost joystick — only while the thumb is down */}
-      {joystickActive && (
-        <div
-          className="absolute pointer-events-none"
-          style={{
-            left: joystickOrigin.x - 70,
-            top: joystickOrigin.y - 70,
-            width: 140,
-            height: 140
-          }}
-        >
-          <div className="absolute inset-0 rounded-full border-2 border-cyan-300/30 bg-cyan-300/5" />
-          <div
-            className="absolute w-14 h-14 rounded-full bg-cyan-300/25 border-2 border-cyan-200/50"
-            style={{
-              left: `calc(50% - 28px + ${joystickPos.x}px)`,
-              top: `calc(50% - 28px + ${joystickPos.y}px)`
-            }}
-          />
-        </div>
-      )}
-
       {/* First-run hint — vanishes the moment the ship moves */}
-      {!joystickActive && !hasMovedOnce && (
+      {!hasMovedOnce && (
         <div className="absolute bottom-28 left-8 pointer-events-none animate-pulse">
           <div className="w-20 h-20 rounded-full border-2 border-dashed border-cyan-300/25 flex items-center justify-center">
             <span className="text-cyan-200/40 text-[10px] text-center leading-tight">

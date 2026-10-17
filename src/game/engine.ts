@@ -292,6 +292,11 @@ export class GameEngine {
   // Mobile input state
   private mobileMove: Vec2 = { x: 0, y: 0 };
   private mobileShooting = false;
+  /** Relative drag (Phoenix 2 standard): ship anchor at touchstart + the
+   *  finger's total delta — no acceleration, no deadzone, no snap. */
+  private mobileDragBase: Vec2 | null = null;
+  private mobileDragTarget: Vec2 | null = null;
+  private static readonly MOBILE_DRAG_SENSITIVITY = 1.2;
   // Gamepad (Bullet-Heaven-2 lesson: more control schemes = more players)
   private gamepadPrev: boolean[] = [];
   private gamepadFire = false;
@@ -564,6 +569,34 @@ export class GameEngine {
   setMobileShooting(active: boolean) {
     this.mobileShooting = active;
     if (active) this.isMobile = true;
+  }
+
+  /** Relative drag — touchstart: remember where the ship is now.
+   *  The ship never jumps to the finger; it keeps its offset. */
+  beginMobileDrag() {
+    this.mobileDragBase = { x: this.player.x, y: this.player.y };
+    this.mobileDragTarget = { x: this.player.x, y: this.player.y };
+    this.mobileMove.x = 0;
+    this.mobileMove.y = 0;
+  }
+
+  /** Relative drag — touchmove: ship = anchor + finger delta (scaled).
+   *  Direct target-follow each frame ⇒ zero perceived latency. */
+  updateMobileDrag(dxPx: number, dyPx: number) {
+    if (!this.mobileDragBase) return;
+    const s = GameEngine.MOBILE_DRAG_SENSITIVITY;
+    this.mobileDragTarget = {
+      x: Math.max(20, Math.min(this.width - 20, this.mobileDragBase.x + dxPx * s)),
+      y: Math.max(20, Math.min(this.height - 20, this.mobileDragBase.y + dyPx * s)),
+    };
+  }
+
+  /** Relative drag — touchend: hand control back to physics cleanly. */
+  endMobileDrag() {
+    this.mobileDragBase = null;
+    this.mobileDragTarget = null;
+    this.mobileMove.x = 0;
+    this.mobileMove.y = 0;
   }
 
   mobileDash() {
@@ -1696,8 +1729,24 @@ export class GameEngine {
 
     p.vx *= friction;
     p.vy *= friction;
-    p.x += p.vx;
-    p.y += p.vy;
+
+    // Relative-touch drag overrides physics: direct 1:1 follow (zero latency).
+    // During a dash the impulse wins, and the drag anchor re-syncs each frame
+    // so the ship continues from the dash endpoint instead of snapping back.
+    if (this.mobileDragTarget && p.dashTimer <= 0) {
+      p.x = this.mobileDragTarget.x;
+      p.y = this.mobileDragTarget.y;
+      p.vx = 0;
+      p.vy = 0;
+    } else {
+      p.x += p.vx;
+      p.y += p.vy;
+    }
+    if (this.mobileDragBase && p.dashTimer > 0) {
+      this.mobileDragBase.x = p.x;
+      this.mobileDragBase.y = p.y;
+      this.mobileDragTarget = null;
+    }
 
     // Bounds
     p.x = Math.max(20, Math.min(this.width - 20, p.x));
