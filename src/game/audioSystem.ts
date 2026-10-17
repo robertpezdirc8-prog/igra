@@ -23,39 +23,51 @@ export class ProceduralAudioSystem {
   playShoot(pitch: number = 1): void {
     if (!this.enabled || !this.audioContext || !this.masterGain) return;
 
+    // Classic arcade laser sound
     const osc = this.audioContext.createOscillator();
+    const osc2 = this.audioContext.createOscillator();
     const gain = this.audioContext.createGain();
     
     osc.type = 'square';
-    osc.frequency.setValueAtTime(440 * pitch, this.audioContext.currentTime);
+    osc.frequency.setValueAtTime(880 * pitch, this.audioContext.currentTime);
     osc.frequency.exponentialRampToValueAtTime(
-      220 * pitch,
-      this.audioContext.currentTime + 0.1
+      440 * pitch,
+      this.audioContext.currentTime + 0.05
     );
     
-    gain.gain.setValueAtTime(0.2, this.audioContext.currentTime);
+    osc2.type = 'sawtooth';
+    osc2.frequency.setValueAtTime(660 * pitch, this.audioContext.currentTime);
+    osc2.frequency.exponentialRampToValueAtTime(
+      330 * pitch,
+      this.audioContext.currentTime + 0.05
+    );
+    
+    gain.gain.setValueAtTime(0.15, this.audioContext.currentTime);
     gain.gain.exponentialRampToValueAtTime(
       0.01,
-      this.audioContext.currentTime + 0.1
+      this.audioContext.currentTime + 0.08
     );
     
     osc.connect(gain);
+    osc2.connect(gain);
     gain.connect(this.masterGain);
     
     osc.start(this.audioContext.currentTime);
-    osc.stop(this.audioContext.currentTime + 0.1);
+    osc2.start(this.audioContext.currentTime);
+    osc.stop(this.audioContext.currentTime + 0.08);
+    osc2.stop(this.audioContext.currentTime + 0.08);
   }
 
   playExplosion(): void {
     if (!this.enabled || !this.audioContext || !this.masterGain) return;
 
-    // Noise burst
-    const bufferSize = this.audioContext.sampleRate * 0.3;
+    // Classic arcade explosion sound
+    const bufferSize = this.audioContext.sampleRate * 0.5;
     const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
     const data = buffer.getChannelData(0);
     
     for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.2));
     }
     
     const noise = this.audioContext.createBufferSource();
@@ -63,17 +75,17 @@ export class ProceduralAudioSystem {
     
     const filter = this.audioContext.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(1000, this.audioContext.currentTime);
+    filter.frequency.setValueAtTime(2000, this.audioContext.currentTime);
     filter.frequency.exponentialRampToValueAtTime(
-      100,
-      this.audioContext.currentTime + 0.3
+      50,
+      this.audioContext.currentTime + 0.4
     );
     
     const gain = this.audioContext.createGain();
-    gain.gain.setValueAtTime(0.4, this.audioContext.currentTime);
+    gain.gain.setValueAtTime(0.5, this.audioContext.currentTime);
     gain.gain.exponentialRampToValueAtTime(
       0.01,
-      this.audioContext.currentTime + 0.3
+      this.audioContext.currentTime + 0.4
     );
     
     noise.connect(filter);
@@ -81,6 +93,19 @@ export class ProceduralAudioSystem {
     gain.connect(this.masterGain);
     
     noise.start(this.audioContext.currentTime);
+
+    // Add bass thump
+    const osc = this.audioContext.createOscillator();
+    const oscGain = this.audioContext.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(100, this.audioContext.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(20, this.audioContext.currentTime + 0.3);
+    oscGain.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+    oscGain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.3);
+    osc.connect(oscGain);
+    oscGain.connect(this.masterGain);
+    osc.start(this.audioContext.currentTime);
+    osc.stop(this.audioContext.currentTime + 0.3);
   }
 
   playHit(): void {
@@ -112,57 +137,202 @@ export class ProceduralAudioSystem {
   playPowerUp(): void {
     if (!this.enabled || !this.audioContext || !this.masterGain) return;
 
-    const osc = this.audioContext.createOscillator();
-    const gain = this.audioContext.createGain();
-    
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(440, this.audioContext.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(
-      880,
-      this.audioContext.currentTime + 0.2
-    );
-    
-    gain.gain.setValueAtTime(0.2, this.audioContext.currentTime);
-    gain.gain.exponentialRampToValueAtTime(
-      0.01,
-      this.audioContext.currentTime + 0.2
-    );
-    
-    osc.connect(gain);
-    gain.connect(this.masterGain);
-    
-    osc.start(this.audioContext.currentTime);
-    osc.stop(this.audioContext.currentTime + 0.2);
-  }
-
-  playLevelUp(): void {
-    if (!this.enabled || !this.audioContext || !this.masterGain) return;
-
+    // Classic arcade power-up sound - ascending arpeggio
     const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
     
     notes.forEach((freq, i) => {
       const osc = this.audioContext!.createOscillator();
       const gain = this.audioContext!.createGain();
       
-      osc.type = 'sine';
+      osc.type = 'square';
       osc.frequency.value = freq;
       
-      gain.gain.setValueAtTime(0, this.audioContext!.currentTime + i * 0.1);
+      gain.gain.setValueAtTime(0, this.audioContext!.currentTime + i * 0.08);
       gain.gain.linearRampToValueAtTime(
-        0.2,
-        this.audioContext!.currentTime + i * 0.1 + 0.05
+        0.15,
+        this.audioContext!.currentTime + i * 0.08 + 0.02
       );
       gain.gain.exponentialRampToValueAtTime(
         0.01,
-        this.audioContext!.currentTime + i * 0.1 + 0.3
+        this.audioContext!.currentTime + i * 0.08 + 0.15
       );
       
       osc.connect(gain);
       gain.connect(this.masterGain!);
       
-      osc.start(this.audioContext!.currentTime + i * 0.1);
-      osc.stop(this.audioContext!.currentTime + i * 0.1 + 0.3);
+      osc.start(this.audioContext!.currentTime + i * 0.08);
+      osc.stop(this.audioContext!.currentTime + i * 0.08 + 0.15);
     });
+  }
+
+  playLevelUp(): void {
+    if (!this.enabled || !this.audioContext || !this.masterGain) return;
+
+    // Classic arcade stage clear fanfare
+    const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51]; // C5, E5, G5, C6, E6
+    
+    notes.forEach((freq, i) => {
+      const osc = this.audioContext!.createOscillator();
+      const osc2 = this.audioContext!.createOscillator();
+      const gain = this.audioContext!.createGain();
+      
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      
+      osc2.type = 'triangle';
+      osc2.frequency.value = freq * 2;
+      
+      gain.gain.setValueAtTime(0, this.audioContext!.currentTime + i * 0.12);
+      gain.gain.linearRampToValueAtTime(
+        0.2,
+        this.audioContext!.currentTime + i * 0.12 + 0.05
+      );
+      gain.gain.exponentialRampToValueAtTime(
+        0.01,
+        this.audioContext!.currentTime + i * 0.12 + 0.4
+      );
+      
+      osc.connect(gain);
+      osc2.connect(gain);
+      gain.connect(this.masterGain!);
+      
+      osc.start(this.audioContext!.currentTime + i * 0.12);
+      osc2.start(this.audioContext!.currentTime + i * 0.12);
+      osc.stop(this.audioContext!.currentTime + i * 0.12 + 0.4);
+      osc2.stop(this.audioContext!.currentTime + i * 0.12 + 0.4);
+    });
+  }
+
+  playBossAppear(): void {
+    if (!this.enabled || !this.audioContext || !this.masterGain) return;
+
+    // Classic arcade boss warning sound
+    const osc = this.audioContext.createOscillator();
+    const gain = this.audioContext.createGain();
+    
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, this.audioContext.currentTime);
+    osc.frequency.linearRampToValueAtTime(
+      100,
+      this.audioContext.currentTime + 0.5
+    );
+    osc.frequency.linearRampToValueAtTime(
+      150,
+      this.audioContext.currentTime + 1.0
+    );
+    
+    gain.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+    gain.gain.setValueAtTime(0.3, this.audioContext.currentTime + 0.8);
+    gain.gain.exponentialRampToValueAtTime(
+      0.01,
+      this.audioContext.currentTime + 1.0
+    );
+    
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    
+    osc.start(this.audioContext.currentTime);
+    osc.stop(this.audioContext.currentTime + 1.0);
+
+    // Add warning beeps
+    for (let i = 0; i < 3; i++) {
+      const beep = this.audioContext.createOscillator();
+      const beepGain = this.audioContext.createGain();
+      
+      beep.type = 'square';
+      beep.frequency.value = 880;
+      
+      beepGain.gain.setValueAtTime(0, this.audioContext.currentTime + i * 0.3);
+      beepGain.gain.linearRampToValueAtTime(0.2, this.audioContext.currentTime + i * 0.3 + 0.05);
+      beepGain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + i * 0.3 + 0.2);
+      
+      beep.connect(beepGain);
+      beepGain.connect(this.masterGain);
+      
+      beep.start(this.audioContext.currentTime + i * 0.3);
+      beep.stop(this.audioContext.currentTime + i * 0.3 + 0.2);
+    }
+  }
+
+  playGameOver(): void {
+    if (!this.enabled || !this.audioContext || !this.masterGain) return;
+
+    // Classic arcade game over sound - descending notes
+    const notes = [783.99, 659.25, 523.25, 392.00, 261.63]; // G5, E5, C5, G4, C4
+    
+    notes.forEach((freq, i) => {
+      const osc = this.audioContext!.createOscillator();
+      const gain = this.audioContext!.createGain();
+      
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      
+      gain.gain.setValueAtTime(0, this.audioContext!.currentTime + i * 0.2);
+      gain.gain.linearRampToValueAtTime(
+        0.25,
+        this.audioContext!.currentTime + i * 0.2 + 0.05
+      );
+      gain.gain.exponentialRampToValueAtTime(
+        0.01,
+        this.audioContext!.currentTime + i * 0.2 + 0.4
+      );
+      
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      
+      osc.start(this.audioContext!.currentTime + i * 0.2);
+      osc.stop(this.audioContext!.currentTime + i * 0.2 + 0.4);
+    });
+  }
+
+  playBomb(): void {
+    if (!this.enabled || !this.audioContext || !this.masterGain) return;
+
+    // Classic arcade bomb sound - deep explosion
+    const bufferSize = this.audioContext.sampleRate * 1.0;
+    const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+    const data = buffer.getChannelData(0);
+    
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
+    }
+    
+    const noise = this.audioContext.createBufferSource();
+    noise.buffer = buffer;
+    
+    const filter = this.audioContext.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(3000, this.audioContext.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(
+      100,
+      this.audioContext.currentTime + 0.8
+    );
+    
+    const gain = this.audioContext.createGain();
+    gain.gain.setValueAtTime(0.6, this.audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(
+      0.01,
+      this.audioContext.currentTime + 0.8
+    );
+    
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+    
+    noise.start(this.audioContext.currentTime);
+
+    // Add deep bass
+    const osc = this.audioContext.createOscillator();
+    const oscGain = this.audioContext.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(80, this.audioContext.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(20, this.audioContext.currentTime + 0.6);
+    oscGain.gain.setValueAtTime(0.4, this.audioContext.currentTime);
+    oscGain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.6);
+    osc.connect(oscGain);
+    oscGain.connect(this.masterGain);
+    osc.start(this.audioContext.currentTime);
+    osc.stop(this.audioContext.currentTime + 0.6);
   }
 
   playCombo(comboLevel: number): void {
@@ -223,55 +393,7 @@ export class ProceduralAudioSystem {
     osc.stop(this.audioContext.currentTime + 0.5);
   }
 
-  playBossAppear(): void {
-    if (!this.enabled || !this.audioContext || !this.masterGain) return;
 
-    // Deep rumble
-    const osc1 = this.audioContext.createOscillator();
-    const gain1 = this.audioContext.createGain();
-    
-    osc1.type = 'sawtooth';
-    osc1.frequency.value = 50;
-    
-    gain1.gain.setValueAtTime(0.3, this.audioContext.currentTime);
-    gain1.gain.exponentialRampToValueAtTime(
-      0.01,
-      this.audioContext.currentTime + 1
-    );
-    
-    osc1.connect(gain1);
-    gain1.connect(this.masterGain);
-    
-    osc1.start(this.audioContext.currentTime);
-    osc1.stop(this.audioContext.currentTime + 1);
-
-    // High pitch alert
-    const osc2 = this.audioContext.createOscillator();
-    const gain2 = this.audioContext.createGain();
-    
-    osc2.type = 'square';
-    osc2.frequency.setValueAtTime(880, this.audioContext.currentTime);
-    osc2.frequency.setValueAtTime(
-      660,
-      this.audioContext.currentTime + 0.2
-    );
-    osc2.frequency.setValueAtTime(
-      880,
-      this.audioContext.currentTime + 0.4
-    );
-    
-    gain2.gain.setValueAtTime(0.15, this.audioContext.currentTime);
-    gain2.gain.exponentialRampToValueAtTime(
-      0.01,
-      this.audioContext.currentTime + 0.6
-    );
-    
-    osc2.connect(gain2);
-    gain2.connect(this.masterGain);
-    
-    osc2.start(this.audioContext.currentTime);
-    osc2.stop(this.audioContext.currentTime + 0.6);
-  }
 
   playDeath(): void {
     if (!this.enabled || !this.audioContext || !this.masterGain) return;
