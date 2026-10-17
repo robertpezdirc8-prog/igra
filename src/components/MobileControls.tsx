@@ -5,6 +5,7 @@ interface MobileControlsProps {
   onShoot: (active: boolean) => void;
   onDash: () => void;
   onSecondary: () => void;
+  onBomb: () => void;
   isVisible: boolean;
   joystickPosition?: { x: number; y: number };
   buttonSize?: 'small' | 'medium' | 'large';
@@ -15,6 +16,7 @@ export function MobileControls({
   onShoot, 
   onDash, 
   onSecondary, 
+  onBomb,
   isVisible,
   buttonSize = 'medium'
 }: MobileControlsProps) {
@@ -159,6 +161,14 @@ export function MobileControls({
         setDashCooldown(false);
       }, 1000); // 1 second cooldown
     }
+  };
+
+  // Bomb button (Raiden panic button) — short haptic, engine gates stock/cooldown
+  const handleBomb = (e: React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onBomb();
+    triggerHaptic([60, 40, 60]);
   };
 
   // Secondary weapon with cooldown
@@ -306,6 +316,18 @@ export function MobileControls({
                 <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-t-purple-400 border-r-transparent border-b-transparent border-l-transparent animate-spin" />
               </div>
             )}
+          </button>
+
+          {/* Bomb Button (Raiden style — clears the screen) */}
+          <button
+            onTouchStart={handleBomb}
+            className={`${buttonSizes.action} rounded-full border-4 transition-all duration-100 shadow-xl bg-red-500/30 border-red-400/70 shadow-red-500/40 active:bg-red-500/60 active:scale-95`}
+            style={{ touchAction: 'none' }}
+          >
+            <div className="flex flex-col items-center justify-center h-full">
+              <span className={`${buttonSizes.icon}`}>💥</span>
+              <span className={`${buttonSizes.text} text-white font-bold mt-1`}>BOMBA</span>
+            </div>
           </button>
         </div>
       </div>

@@ -49,6 +49,9 @@ interface Player {
   secondaryWeapon: 'none' | 'gravity' | 'chain' | 'temporal';
   secondaryCooldown: number;
   stasisActive: boolean; stasisTimer: number;
+  // Classic arcade stock (Raiden/Gradius style)
+  bombs: number; maxBombs: number;
+  options: number; // companion drones, max 2
   level: number;
   xp: number;
   xpToNextLevel: number;
@@ -60,7 +63,7 @@ interface Upgrade {
 }
 interface PowerOrb {
   x: number; y: number; vx: number; vy: number;
-  type: 'hp' | 'energy' | 'shield' | 'score' | 'advanced_powerup';
+  type: 'hp' | 'energy' | 'shield' | 'score' | 'advanced_powerup' | 'power' | 'speed' | 'bomb' | 'option';
   life: number; size: number;
   powerUpId?: string;
 }
@@ -138,6 +141,9 @@ export class GameEngine {
   private hitStop = 0;
   // Uniform spatial hash grid for enemy broadphase (rebuilt every frame).
   private enemyGrid: Map<number, Enemy[]> = new Map();
+  // Classic arcade timers
+  private bombCooldown = 0;
+  private optionTimer = 0;
   private upgrades: Upgrade[] = [];
   private highScore = 0;
   private animFrame = 0;
@@ -269,6 +275,8 @@ export class GameEngine {
       secondaryWeapon: 'none',
       secondaryCooldown: 0,
       stasisActive: false, stasisTimer: 0,
+      bombs: 2, maxBombs: 5,
+      options: 0,
       level: 1,
       xp: 0,
       xpToNextLevel: 100,
@@ -386,6 +394,69 @@ export class GameEngine {
     if (this.state === 'playing') this.tryDash();
   }
 
+  /** Mobile bomb trigger (Raiden-style panic button). */
+  mobileBomb() {
+    if (this.state === 'playing') this.useBomb();
+  }
+
+  /**
+   * Classic screen-clearing bomb (Raiden). Pressed while an enemy bullet is
+   * dangerously close it becomes a COUNTER BOMB (Strikers 1945): bigger
+   * blast, score bonus and every cleared bullet pays out.
+   */
+  useBomb() {
+    if (this.state !== 'playing') return;
+    const p = this.player;
+    if (p.bombs <= 0 || this.bombCooldown > 0) return;
+    p.bombs--;
+    this.bombCooldown = 1.2;
+
+    // Counter-bomb check: any enemy bullet within 80px of the ship
+    let counter = false;
+    for (const b of this.bullets) {
+      if (b.type !== 'enemy') continue;
+      const dx = b.x - p.x;
+      const dy = b.y - p.y;
+      if (dx * dx + dy * dy < 6400) { counter = true; break; }
+    }
+
+    const dmg = counter ? 260 : 130;
+    // Wipe every enemy bullet into a burst of light
+    for (let i = this.bullets.length - 1; i >= 0; i--) {
+      const b = this.bullets[i];
+      if (b.type !== 'enemy') continue;
+      this.particles.push({
+        x: b.x, y: b.y, vx: 0, vy: -1.5,
+        life: 0.4, maxLife: 0.4, size: 3,
+        color: counter ? '#ffdd66' : '#ffffff', type: 'energy'
+      });
+      this.bullets[i] = this.bullets[this.bullets.length - 1];
+      this.bullets.pop();
+    }
+    // Blast damage to every enemy on screen
+    for (const e of this.enemies) {
+      e.hp -= dmg;
+      e.hitFlash = 0.15;
+      this.totalDamageDealt += dmg;
+    }
+
+    // Triple shockwave rings + flash + shake + freeze
+    this.particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0.5, maxLife: 0.5, size: 240, color: '#ffffff', type: 'ring' });
+    this.particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0.8, maxLife: 0.8, size: 420, color: counter ? '#ffdd66' : '#ff66ff', type: 'ring' });
+    this.particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 1.1, maxLife: 1.1, size: 560, color: '#66ffff', type: 'ring' });
+    this.screenShake = 22;
+    this.hitStop = Math.max(this.hitStop, 0.1);
+    p.invincible = Math.max(p.invincible, 1.0);
+    if (counter) {
+      p.score += 500;
+      this.floatingTexts.push({ x: p.x, y: p.y - 40, text: 'COUNTER BOMB!', color: '#ffdd66', life: 1.4, maxLife: 1.4, vy: -1.2 });
+    } else {
+      this.floatingTexts.push({ x: p.x, y: p.y - 40, text: 'BOMBA!', color: '#ff8866', life: 1, maxLife: 1, vy: -1.2 });
+    }
+    this.audio.playExplosion();
+    this.proceduralAudio.playExplosion();
+  }
+
   mobileSecondary() {
     if (this.state === 'playing') this.useSecondaryWeapon();
   }
@@ -397,6 +468,10 @@ export class GameEngine {
     }
     if (key === ' ' && this.state === 'playing') {
       this.tryDash();
+    }
+    // Classic bomb (Raiden style) — X or B clears the screen in a pinch
+    if ((key.toLowerCase() === 'x' || key.toLowerCase() === 'b') && this.state === 'playing') {
+      this.useBomb();
     }
     // Temporal Stasis
     if (key.toLowerCase() === 'q' && this.state === 'playing' && this.player.secondaryWeapon === 'temporal') {
@@ -474,6 +549,8 @@ export class GameEngine {
     this.gameStartTime = Date.now();
     this.totalDamageDealt = 0;
     this.enemiesKilled = 0;
+    this.bombCooldown = 0;
+    this.optionTimer = 0;
     this.bossKills = 0;
     this.gold = 0;
     this.maxCombo = 1;
@@ -885,6 +962,7 @@ export class GameEngine {
     this.updatePlayer();
     this.updateEnemies();
     this.updateBullets();
+    this.updateOptions();
     this.updateParticles();
     this.updatePowerOrbs();
     this.updateCrystals();
@@ -938,6 +1016,7 @@ export class GameEngine {
     // Timers
     if (p.dashCooldown > 0) p.dashCooldown -= this.deltaTime;
     if (p.dashTimer > 0) p.dashTimer -= this.deltaTime;
+    if (this.bombCooldown > 0) this.bombCooldown -= this.deltaTime;
     if (p.invincible > 0) p.invincible -= this.deltaTime;
     if (p.secondaryCooldown > 0) p.secondaryCooldown -= this.deltaTime;
     if (p.comboTimer > 0) {
@@ -1514,6 +1593,28 @@ export class GameEngine {
       this.dropAdvancedPowerUp(e.x, e.y, e.type === 'boss');
     }
 
+    // Classic letter drops (Raiden/Truxton style): P = power, S = speed,
+    // B = bomb, O = option. Rare from grunts, meaningful from titans,
+    // guaranteed from bosses (Option first while drones are missing).
+    const letterDrop = (type: PowerOrb['type'], lx: number, ly: number) => {
+      this.powerOrbs.push({
+        x: lx, y: ly,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: -1 - Math.random(),
+        type, life: 14, size: 10
+      });
+    };
+    if (e.type === 'boss') {
+      letterDrop(this.player.options < 2 ? 'option' : 'bomb', e.x, e.y);
+    } else if (e.type === 'titan' && Math.random() < 0.55) {
+      letterDrop(Math.random() < 0.5 ? 'power' : 'bomb', e.x, e.y);
+    } else {
+      const roll = Math.random();
+      if (roll < 0.035) letterDrop('power', e.x, e.y);
+      else if (roll < 0.06) letterDrop('speed', e.x, e.y);
+      else if (roll < 0.075) letterDrop('bomb', e.x, e.y);
+    }
+
     if (e.type === 'boss') {
       this.bossActive = false;
       // Boss death: huge double shockwave ring
@@ -1885,6 +1986,122 @@ export class GameEngine {
     }
   }
 
+  /**
+   * Gradius-style Options: up to 2 drones orbit the ship and auto-fire at
+   * the nearest enemy (position is a pure function of time, so rendering
+   * and firing stay in perfect sync without storing state).
+   */
+  private updateOptions() {
+    const p = this.player;
+    if (p.options <= 0) return;
+    this.optionTimer -= this.deltaTime;
+    const fire = this.optionTimer <= 0;
+    if (fire) this.optionTimer = 0.28;
+    const dmgMul = this.skillBonuses.damageMul * (this.difficulty?.playerDamageMultiplier ?? 1);
+
+    for (let i = 0; i < p.options; i++) {
+      const ang = this.time * 1.6 + (Math.PI * 2 * i) / p.options;
+      const ox = p.x + Math.cos(ang) * 38;
+      const oy = p.y + Math.sin(ang) * 38;
+      if (!fire) continue;
+      // Auto-aim at the nearest enemy (Raiden option behaviour)
+      let bx = 0, by = -1, found = false;
+      let best = 340 * 340;
+      for (const e of this.enemies) {
+        const dx = e.x - ox;
+        const dy = e.y - oy;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < best) { best = d2; bx = dx; by = dy; found = true; }
+      }
+      if (!found) continue;
+      const d = Math.sqrt(best) || 1;
+      this.bullets.push({
+        x: ox, y: oy,
+        vx: (bx / d) * 10, vy: (by / d) * 10,
+        size: 3, color: '#66ffff', damage: 8 * dmgMul,
+        life: 1.6, type: 'player'
+      });
+    }
+  }
+
+  /** Draw the orbiting option drones (same orbit equation as firing). */
+  private renderOptions(ctx: CanvasRenderingContext2D) {
+    const p = this.player;
+    for (let i = 0; i < p.options; i++) {
+      const ang = this.time * 1.6 + (Math.PI * 2 * i) / p.options;
+      const ox = p.x + Math.cos(ang) * 38;
+      const oy = p.y + Math.sin(ang) * 38;
+      const pulse = 1 + Math.sin(this.time * 8 + i * 2) * 0.15;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const glow = ctx.createRadialGradient(ox, oy, 0, ox, oy, 12 * pulse);
+      glow.addColorStop(0, '#66ffffff');
+      glow.addColorStop(0.5, '#66ffaaaa');
+      glow.addColorStop(1, 'transparent');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(ox, oy, 12 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.beginPath();
+      ctx.arc(ox, oy, 5 * pulse, 0, Math.PI * 2);
+      ctx.fillStyle = '#66ffff';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(ox, oy, 2.2 * pulse, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  /** Bottom-right bomb stock + option counter (classic arcade HUD row). */
+  private renderRunIndicators(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    const p = this.player;
+    ctx.textAlign = 'right';
+    // Bomb stock (Raiden): filled ◉ for available, hollow ○ for spent
+    let bombStr = '';
+    for (let i = 0; i < p.maxBombs; i++) bombStr += i < p.bombs ? '\u25C9' : '\u25CB';
+    ctx.font = 'bold 15px monospace';
+    ctx.fillStyle = '#ff6644';
+    ctx.fillText(bombStr, w - 20, h - 22);
+    ctx.font = '9px monospace';
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillText('BOMBA [X]', w - 20, h - 10);
+    if (p.options > 0) {
+      ctx.font = 'bold 12px monospace';
+      ctx.fillStyle = '#66ffff';
+      let optStr = 'OPTION ';
+      for (let i = 0; i < p.options; i++) optStr += '\u25CF';
+      ctx.fillText(optStr, w - 20, h - 40);
+    }
+  }
+
+  /** Galaxy-Force-style warp streaks while a wave announcement is active. */
+  private renderWarpStreaks(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    const a = this.waveAnnouncement;
+    if (!a || a.timer <= 0) return;
+    const fade = Math.max(0, Math.min(1, a.timer));
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 26; i++) {
+      const seed = i * 137.508;
+      const x = (seed * 97.31) % w;
+      const speed = 900 + ((seed * 53.7) % 600);
+      const len = 60 + ((seed * 31.7) % 90);
+      const y = h - ((this.time * speed + seed * 211) % (h + len));
+      ctx.globalAlpha = 0.3 * fade;
+      const grad = ctx.createLinearGradient(x, y, x, y + len);
+      grad.addColorStop(0, 'rgba(120,220,255,0)');
+      grad.addColorStop(0.5, 'rgba(210,245,255,0.9)');
+      grad.addColorStop(1, 'rgba(120,220,255,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(x, y, 2, len);
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
   private updatePowerOrbs() {
     for (let i = this.powerOrbs.length - 1; i >= 0; i--) {
       const orb = this.powerOrbs[i];
@@ -1893,6 +2110,22 @@ export class GameEngine {
       orb.vx *= 0.95;
       orb.vy *= 0.95;
       orb.life -= this.deltaTime;
+
+      // Raiden-style magnet: orbs and letters drift toward the ship when
+      // close (letters get the strongest pull — they matter most).
+      {
+        const pdx = this.player.x - orb.x;
+        const pdy = this.player.y - orb.y;
+        const pd2 = pdx * pdx + pdy * pdy;
+        const isLetter = orb.type === 'power' || orb.type === 'speed' ||
+          orb.type === 'bomb' || orb.type === 'option';
+        const magnetR = isLetter ? 150 : 90;
+        if (pd2 < magnetR * magnetR && pd2 > 1) {
+          const pd = Math.sqrt(pd2);
+          orb.vx += (pdx / pd) * 0.9;
+          orb.vy += (pdy / pd) * 0.9;
+        }
+      }
 
       // Check player pickup
       const dx = orb.x - this.player.x;
@@ -1912,6 +2145,30 @@ export class GameEngine {
             break;
           case 'score': 
             this.player.score += 50; 
+            break;
+          case 'power':
+            // Letter P (Raiden/Truxton): instant weapon level
+            this.player.weaponLevel = Math.min(10, this.player.weaponLevel + 1);
+            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: 'POWER UP!', color: '#ffcc00', life: 1.2, maxLife: 1.2, vy: -1.5 });
+            break;
+          case 'speed':
+            // Letter S: movement speed boost (capped)
+            this.player.speed = Math.min(11, this.player.speed * 1.1);
+            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: 'SPEED UP!', color: '#00ffcc', life: 1.2, maxLife: 1.2, vy: -1.5 });
+            break;
+          case 'bomb':
+            // Letter B: +1 bomb stock
+            this.player.bombs = Math.min(this.player.maxBombs, this.player.bombs + 1);
+            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: '+1 BOMBA', color: '#ff6644', life: 1.2, maxLife: 1.2, vy: -1.5 });
+            break;
+          case 'option':
+            // Letter O (Gradius): companion drone, max 2
+            if (this.player.options < 2) {
+              this.player.options++;
+              this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: 'OPTION!', color: '#66ffff', life: 1.4, maxLife: 1.4, vy: -1.5 });
+            } else {
+              this.player.score += 200;
+            }
             break;
           case 'advanced_powerup':
             if (orb.powerUpId) {
@@ -2085,6 +2342,11 @@ export class GameEngine {
     // Background
     this.renderBackground(ctx, w, h);
 
+    // Warp streaks while a wave announcement is on screen (Galaxy Force feel)
+    if (this.state === 'playing') {
+      this.renderWarpStreaks(ctx, w, h);
+    }
+
     // Post-processing: edge glow effect
     if (this.state === 'playing' || this.state === 'levelup') {
       if (this.player.invincible > 0) {
@@ -2137,8 +2399,11 @@ export class GameEngine {
     this.renderBullets(ctx);
     this.renderEnemies(ctx);
     this.renderPlayer(ctx);
+    this.renderOptions(ctx);
     this.renderFloatingTexts(ctx);
     this.renderWeather(ctx);
+    // Classic arcade run indicators + warp streaks (drawn under the React UI)
+    this.renderRunIndicators(ctx, this.width, this.height);
     // NOTE: HUD and minimap are rendered by the React UI layer (App.tsx),
     // fed with real data via getGameStats() / getMinimapData().
   }
@@ -2272,7 +2537,11 @@ export class GameEngine {
         energy: '#ffaa00',
         shield: '#0088ff',
         score: '#ffff00',
-        advanced_powerup: '#ff00ff'
+        advanced_powerup: '#ff00ff',
+        power: '#ffcc00',
+        speed: '#00ffcc',
+        bomb: '#ff4444',
+        option: '#66ffff'
       };
       const color = colors[orb.type] || '#ffffff';
       const pulse = 1 + Math.sin(this.time * 6 + orb.x) * 0.3;
@@ -2334,7 +2603,11 @@ export class GameEngine {
         energy: 'E', 
         shield: 'S', 
         score: '$',
-        advanced_powerup: '★'
+        advanced_powerup: '★',
+        power: 'P',
+        speed: 'S',
+        bomb: 'B',
+        option: 'O'
       };
       ctx.fillText(icons[orb.type] || '?', orb.x, orb.y + 3);
     }

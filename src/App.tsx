@@ -1016,6 +1016,7 @@ export default function App() {
         onShoot={(active) => engineRef.current?.setMobileShooting(active)}
         onDash={() => engineRef.current?.mobileDash()}
         onSecondary={() => engineRef.current?.mobileSecondary()}
+        onBomb={() => engineRef.current?.mobileBomb()}
         isVisible={gameState === 'playing' && !showClassicArcade}
       />
 
