@@ -1017,6 +1017,9 @@ export default function App() {
         onDash={() => engineRef.current?.mobileDash()}
         onSecondary={() => engineRef.current?.mobileSecondary()}
         onBomb={() => engineRef.current?.mobileBomb()}
+        onWaveStart={() => engineRef.current?.mobileWaveStart()}
+        onWaveEnd={() => engineRef.current?.mobileWaveEnd()}
+        onGradius={() => engineRef.current?.mobileGradius()}
         isVisible={gameState === 'playing' && !showClassicArcade}
       />
 

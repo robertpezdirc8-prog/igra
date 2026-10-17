@@ -6,6 +6,9 @@ interface MobileControlsProps {
   onDash: () => void;
   onSecondary: () => void;
   onBomb: () => void;
+  onWaveStart: () => void;
+  onWaveEnd: () => void;
+  onGradius: () => void;
   isVisible: boolean;
   joystickPosition?: { x: number; y: number };
   buttonSize?: 'small' | 'medium' | 'large';
@@ -17,6 +20,9 @@ export function MobileControls({
   onDash, 
   onSecondary, 
   onBomb,
+  onWaveStart,
+  onWaveEnd,
+  onGradius,
   isVisible,
   buttonSize = 'medium'
 }: MobileControlsProps) {
@@ -169,6 +175,28 @@ export function MobileControls({
     e.stopPropagation();
     onBomb();
     triggerHaptic([60, 40, 60]);
+  };
+
+  // R-Type wave cannon: hold to charge, release to fire
+  const handleWaveStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onWaveStart();
+    triggerHaptic(15);
+  };
+  const handleWaveEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onWaveEnd();
+    triggerHaptic([40, 30, 40]);
+  };
+
+  // Gradius power meter: spend the lit capsule slot
+  const handleGradius = (e: React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onGradius();
+    triggerHaptic(25);
   };
 
   // Secondary weapon with cooldown
@@ -327,6 +355,33 @@ export function MobileControls({
             <div className="flex flex-col items-center justify-center h-full">
               <span className={`${buttonSizes.icon}`}>💥</span>
               <span className={`${buttonSizes.text} text-white font-bold mt-1`}>BOMBA</span>
+            </div>
+          </button>
+        </div>
+
+        {/* System 16 arcade row: R-Type wave cannon + Gradius meter */}
+        <div className="flex gap-3 sm:gap-4">
+          <button
+            onTouchStart={handleWaveStart}
+            onTouchEnd={handleWaveEnd}
+            onTouchCancel={handleWaveEnd}
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 transition-all duration-100 shadow-xl bg-amber-500/30 border-amber-400/70 shadow-amber-500/40 active:bg-amber-500/60 active:scale-95"
+            style={{ touchAction: 'none' }}
+          >
+            <div className="flex flex-col items-center justify-center h-full">
+              <span className="text-xl sm:text-2xl">🔆</span>
+              <span className="text-[8px] sm:text-[10px] text-white font-bold mt-0.5">VALOVEC</span>
+            </div>
+          </button>
+
+          <button
+            onTouchStart={handleGradius}
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 transition-all duration-100 shadow-xl bg-yellow-500/30 border-yellow-400/70 shadow-yellow-500/40 active:bg-yellow-500/60 active:scale-95"
+            style={{ touchAction: 'none' }}
+          >
+            <div className="flex flex-col items-center justify-center h-full">
+              <span className="text-xl sm:text-2xl">🟡</span>
+              <span className="text-[8px] sm:text-[10px] text-white font-bold mt-0.5">GRAD.</span>
             </div>
           </button>
         </div>

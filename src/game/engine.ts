@@ -22,6 +22,13 @@ interface Bullet {
   life: number; type: 'player' | 'enemy';
   chainLeft?: number; chainDamage?: number;
   grazed?: boolean;
+  // Homing steering strength (Raiden II plasma, Gradius missiles): the
+  // velocity bends toward the nearest living enemy every frame.
+  homing?: number;
+  // Piercing shots keep flying through enemies (Gradius LASER, wave cannon)
+  pierceLeft?: number; pierceHits?: Set<Enemy>;
+  // Elongated beam/missile rendering aligned to the travel direction
+  capsule?: boolean; wave?: boolean;
   // Danmaku sine-wave motion (optional): the bullet oscillates around its
   // base trajectory, producing the flowing "wave wall" look.
   waveAmp?: number; waveFreq?: number; wavePhase?: number;
@@ -51,7 +58,10 @@ interface Player {
   stasisActive: boolean; stasisTimer: number;
   // Classic arcade stock (Raiden/Gradius style)
   bombs: number; maxBombs: number;
-  options: number; // companion drones, max 2
+  options: number; // companion drones, max 3
+  // System 16 arcade systems: Gradius power meter (0..6 capsules) and the
+  // Gradius shield that fully absorbs 3 discrete hits.
+  gradiusMeter: number; arcadeShield: number;
   level: number;
   xp: number;
   xpToNextLevel: number;
@@ -63,7 +73,7 @@ interface Upgrade {
 }
 interface PowerOrb {
   x: number; y: number; vx: number; vy: number;
-  type: 'hp' | 'energy' | 'shield' | 'score' | 'advanced_powerup' | 'power' | 'speed' | 'bomb' | 'option';
+  type: 'hp' | 'energy' | 'shield' | 'score' | 'advanced_powerup' | 'power' | 'speed' | 'bomb' | 'option' | 'capsule' | 'plasma' | 'medal';
   life: number; size: number;
   powerUpId?: string;
 }
@@ -144,6 +154,19 @@ export class GameEngine {
   // Classic arcade timers
   private bombCooldown = 0;
   private optionTimer = 0;
+  // System 16 arcade legends II: R-Type wave cannon, Raiden II plasma,
+  // Gradius temporary slots, DoDonPachi medal chain.
+  private waveCharging = false;
+  private waveCharge = 0;
+  private plasmaTimer = 0;
+  private doubleTimer = 0;
+  private laserTimer = 0;
+  private missileTimer = 0;
+  private missileVolleyTimer = 0;
+  private medalChain = 0;
+  private medalChainTimer = 0;
+  private static readonly MEDAL_VALUES = [100, 200, 400, 800, 1600, 3200, 6400, 10000];
+  private static readonly GRADIUS_SLOTS: readonly string[] = ['HITRO', 'RAKETA', 'DVOJNIK', 'LASER', 'OPCIJA', 'ŠČIT'];
   private upgrades: Upgrade[] = [];
   private highScore = 0;
   private animFrame = 0;
@@ -277,6 +300,7 @@ export class GameEngine {
       stasisActive: false, stasisTimer: 0,
       bombs: 2, maxBombs: 5,
       options: 0,
+      gradiusMeter: 0, arcadeShield: 0,
       level: 1,
       xp: 0,
       xpToNextLevel: 100,
@@ -461,6 +485,170 @@ export class GameEngine {
     if (this.state === 'playing') this.useSecondaryWeapon();
   }
 
+  // ============= SYSTEM 16 ARCADE LEGENDS II =============
+
+  /** R-Type wave cannon: hold to charge (V key / VALOVEC button). */
+  mobileWaveStart() {
+    if (this.state === 'playing') this.waveCharging = true;
+  }
+
+  /** Release fires the charged wave cannon shot. */
+  mobileWaveEnd() {
+    this.releaseWaveCharge();
+  }
+
+  /** Gradius power meter: spend the lit slot (C key / GRAD button). */
+  mobileGradius() {
+    this.activateGradiusUpgrade();
+  }
+
+  private releaseWaveCharge() {
+    if (!this.waveCharging) return;
+    this.waveCharging = false;
+    const c = this.waveCharge;
+    this.waveCharge = 0;
+    if (c >= 0.2) {
+      this.fireWaveCannon(c);
+    } else if (this.state === 'playing') {
+      // Released too early: the charge fizzles out
+      this.floatingTexts.push({ x: this.player.x, y: this.player.y - 30, text: 'PREMALO NABOJA', color: '#8899aa', life: 0.7, maxLife: 0.7, vy: -1 });
+    }
+  }
+
+  /** R-Type wave cannon blast: piercing capsule beam that grows with charge. */
+  private fireWaveCannon(charge: number) {
+    const p = this.player;
+    const dx = this.mouse.x - p.x;
+    const dy = this.mouse.y - p.y;
+    const d = Math.sqrt(dx * dx + dy * dy) || 1;
+    const dmgMul = this.skillBonuses.damageMul * (this.difficulty?.playerDamageMultiplier ?? 1);
+    this.bullets.push({
+      x: p.x + (dx / d) * 24, y: p.y + (dy / d) * 24,
+      vx: (dx / d) * 15, vy: (dy / d) * 15,
+      size: 9 + 17 * charge, color: '#ffaa33',
+      damage: (40 + 130 * charge) * dmgMul,
+      life: 1.4, type: 'player',
+      pierceLeft: Math.round(2 + 6 * charge), pierceHits: new Set<Enemy>(),
+      wave: true, capsule: true
+    });
+    // Recoil sparks + shock ring + impact juice
+    for (let i = 0; i < 14; i++) {
+      const a = Math.atan2(dy, dx) + Math.PI + (Math.random() - 0.5) * 1.2;
+      const s = 3 + Math.random() * 5 * charge;
+      this.particles.push({
+        x: p.x, y: p.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        life: 0.35, maxLife: 0.35, size: 3, color: '#ffaa33', type: 'spark'
+      });
+    }
+    this.particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0.4, maxLife: 0.4, size: 60 + 90 * charge, color: '#ffaa33', type: 'ring' });
+    this.screenShake = 4 + 9 * charge;
+    this.hitStop = Math.max(this.hitStop, 0.03 + 0.05 * charge);
+    if (charge >= 0.98) {
+      this.floatingTexts.push({ x: p.x, y: p.y - 44, text: 'VALOVNI TOP!', color: '#ffdd66', life: 1.2, maxLife: 1.2, vy: -1.2 });
+      this.audio.playExplosion();
+      this.proceduralAudio.playExplosion();
+    }
+    this.audio.playShoot();
+    this.proceduralAudio.playShoot(0.5);
+  }
+
+  /** Gradius meter: activate the lit slot and reset the meter. */
+  private activateGradiusUpgrade() {
+    if (this.state !== 'playing') return;
+    const p = this.player;
+    if (p.gradiusMeter <= 0) {
+      this.floatingTexts.push({ x: p.x, y: p.y - 30, text: 'NI KAPSUL', color: '#8899aa', life: 0.8, maxLife: 0.8, vy: -1 });
+      return;
+    }
+    const slot = p.gradiusMeter - 1;
+    const name = GameEngine.GRADIUS_SLOTS[slot];
+    let color = '#ffcc22';
+    switch (slot) {
+      case 0: // HITRO
+        p.speed = Math.min(11, p.speed * 1.15);
+        color = '#00ffcc';
+        break;
+      case 1: // RAKETA
+        this.missileTimer = 15;
+        this.missileVolleyTimer = 0;
+        color = '#ff8844';
+        break;
+      case 2: // DVOJNIK
+        this.doubleTimer = 15;
+        color = '#ffff44';
+        break;
+      case 3: // LASER
+        this.laserTimer = 15;
+        color = '#ff44cc';
+        break;
+      case 4: // OPCIJA
+        if (p.options < 3) p.options++; else p.score += 300;
+        color = '#66ffff';
+        break;
+      case 5: // ŠČIT
+        p.arcadeShield = 3;
+        color = '#66ffcc';
+        break;
+    }
+    p.gradiusMeter = 0;
+    this.floatingTexts.push({ x: p.x, y: p.y - 40, text: name + '!', color, life: 1.3, maxLife: 1.3, vy: -1.3 });
+    this.particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0.45, maxLife: 0.45, size: 70, color, type: 'ring' });
+    this.audio.playPowerUp();
+    this.proceduralAudio.playPowerUp();
+  }
+
+  /** Homing missile volley (Gradius RAKETA slot). */
+  private spawnMissileVolley() {
+    const p = this.player;
+    const dmgMul = this.skillBonuses.damageMul * (this.difficulty?.playerDamageMultiplier ?? 1);
+    for (const side of [-1, 1]) {
+      this.bullets.push({
+        x: p.x + side * 14, y: p.y + 6,
+        vx: side * 2.5, vy: -6.5,
+        size: 4, color: '#ff8844',
+        damage: 14 * dmgMul,
+        life: 2.2, type: 'player',
+        homing: 0.14, capsule: true
+      });
+    }
+  }
+
+  /** Per-frame timers for the System 16 arcade systems. */
+  private updateArcadeSystems() {
+    const p = this.player;
+    if (this.plasmaTimer > 0) this.plasmaTimer -= this.deltaTime;
+    if (this.doubleTimer > 0) this.doubleTimer -= this.deltaTime;
+    if (this.laserTimer > 0) this.laserTimer -= this.deltaTime;
+    if (this.missileTimer > 0) {
+      this.missileTimer -= this.deltaTime;
+      this.missileVolleyTimer -= this.deltaTime;
+      if (this.missileVolleyTimer <= 0) {
+        this.missileVolleyTimer = 1.1;
+        this.spawnMissileVolley();
+      }
+    }
+    // DoDonPachi medal chain decay
+    if (this.medalChainTimer > 0) {
+      this.medalChainTimer -= this.deltaTime;
+      if (this.medalChainTimer <= 0) this.medalChain = 0;
+    }
+    // R-Type wave cannon charge build-up
+    if (this.waveCharging) {
+      this.waveCharge = Math.min(1, this.waveCharge + this.deltaTime / 1.15);
+      const dx = this.mouse.x - p.x;
+      const dy = this.mouse.y - p.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      const nx = p.x + (dx / d) * 24;
+      const ny = p.y + (dy / d) * 24;
+      this.particles.push({
+        x: nx + (Math.random() - 0.5) * 26, y: ny + (Math.random() - 0.5) * 26,
+        vx: 0, vy: 0, life: 0.16, maxLife: 0.16,
+        size: 2 + 5 * this.waveCharge,
+        color: this.waveCharge >= 1 ? '#ffffff' : '#ffaa33', type: 'energy'
+      });
+    }
+  }
+
   handleKeyDown(key: string) {
     this.keys.add(key.toLowerCase());
     if (key === 'Escape') {
@@ -477,10 +665,19 @@ export class GameEngine {
     if (key.toLowerCase() === 'q' && this.state === 'playing' && this.player.secondaryWeapon === 'temporal') {
       this.activateStasis();
     }
+    // R-Type wave cannon: hold V to charge (released on key-up)
+    if (key.toLowerCase() === 'v' && this.state === 'playing') {
+      this.mobileWaveStart();
+    }
+    // Gradius power meter: spend capsules with C
+    if (key.toLowerCase() === 'c' && this.state === 'playing') {
+      this.activateGradiusUpgrade();
+    }
   }
 
   handleKeyUp(key: string) {
     this.keys.delete(key.toLowerCase());
+    if (key.toLowerCase() === 'v') this.releaseWaveCharge();
   }
 
   handleMouseMove(x: number, y: number) {
@@ -551,6 +748,15 @@ export class GameEngine {
     this.enemiesKilled = 0;
     this.bombCooldown = 0;
     this.optionTimer = 0;
+    this.waveCharging = false;
+    this.waveCharge = 0;
+    this.plasmaTimer = 0;
+    this.doubleTimer = 0;
+    this.laserTimer = 0;
+    this.missileTimer = 0;
+    this.missileVolleyTimer = 0;
+    this.medalChain = 0;
+    this.medalChainTimer = 0;
     this.bossKills = 0;
     this.gold = 0;
     this.maxCombo = 1;
@@ -963,6 +1169,7 @@ export class GameEngine {
     this.updateEnemies();
     this.updateBullets();
     this.updateOptions();
+    this.updateArcadeSystems();
     this.updateParticles();
     this.updatePowerOrbs();
     this.updateCrystals();
@@ -1078,12 +1285,47 @@ export class GameEngine {
     this.shotsFired++;
     const dmgMul = this.skillBonuses.damageMul * (this.difficulty?.playerDamageMultiplier ?? 1);
 
+    // Raiden II "toothpaste" plasma: three homing segments that bend
+    // toward the nearest enemy.
+    if (this.plasmaTimer > 0) {
+      const baseAng = Math.atan2(dirY, dirX);
+      for (let i = 0; i < 3; i++) {
+        const ang = baseAng + (i - 1) * 0.22;
+        this.bullets.push({
+          x: p.x, y: p.y,
+          vx: Math.cos(ang) * 8, vy: Math.sin(ang) * 8,
+          size: 4.5, color: '#cc66ff',
+          damage: 7 * dmgMul,
+          life: 1.6, type: 'player',
+          homing: 0.09, capsule: true
+        });
+      }
+      for (let i = 0; i < 3; i++) {
+        this.particles.push({
+          x: p.x + dirX * 20, y: p.y + dirY * 20,
+          vx: (Math.random() - 0.5) * 3 + dirX * 2, vy: (Math.random() - 0.5) * 3 + dirY * 2,
+          life: 0.25, maxLife: 0.25, size: 3,
+          color: '#cc66ff', type: 'energy'
+        });
+      }
+      this.audio.playShoot();
+      this.proceduralAudio.playShoot(0.7 + Math.random() * 0.2);
+      return;
+    }
+
     // Overcharge skill: chance for an extra volley
     const volleys = Math.random() < this.skillBonuses.doubleShotChance ? 2 : 1;
+    const laser = this.laserTimer > 0;
 
     for (let v = 0; v < volleys; v++) {
-      this.fireVolley(p, dirX, dirY, speed, isCrit, dmgMul, v * 0.18);
+      this.fireVolley(p, dirX, dirY, speed, isCrit, dmgMul, v * 0.18, laser);
     }
+
+    // Gradius DOUBLE: a second stream angled off the aim direction
+    if (this.doubleTimer > 0) {
+      const da = Math.atan2(dirY, dirX) - 0.5;
+      this.fireVolley(p, Math.cos(da), Math.sin(da), speed, isCrit, dmgMul, 0, laser);
+   }
     
     // Muzzle flash effect
     const muzzleX = p.x + dirX * 20;
@@ -1105,22 +1347,25 @@ export class GameEngine {
 
   private fireVolley(
     p: Player, dirX: number, dirY: number, speed: number,
-    isCrit: boolean, dmgMul: number, spreadOffset: number
+    isCrit: boolean, dmgMul: number, spreadOffset: number, laser = false
   ) {
     const count = Math.min(p.weaponLevel, 5);
     for (let i = 0; i < count; i++) {
-      const spread = (i - (count - 1) / 2) * 0.15 + spreadOffset;
+      const spread = (i - (count - 1) / 2) * (laser ? 0.09 : 0.15) + spreadOffset;
       const cos = Math.cos(spread);
       const sin = Math.sin(spread);
       const bvx = (dirX * cos - dirY * sin) * speed;
       const bvy = (dirX * sin + dirY * cos) * speed;
       this.bullets.push({
         x: p.x, y: p.y, vx: bvx, vy: bvy,
-        size: isCrit ? 6 : 4, color: isCrit ? '#ffff00' : '#00ffff',
-        damage: (10 + p.weaponLevel * 3) * dmgMul * (isCrit ? p.critDmg : 1),
+        size: laser ? 5.5 : isCrit ? 6 : 4,
+        color: laser ? '#ff44cc' : isCrit ? '#ffff00' : '#00ffff',
+        damage: (10 + p.weaponLevel * 3) * dmgMul * (isCrit ? p.critDmg : 1) * (laser ? 1.25 : 1),
         life: 2, type: 'player',
         chainLeft: this.skillBonuses.chainCount,
-        chainDamage: this.skillBonuses.chainDamageMul
+        chainDamage: this.skillBonuses.chainDamageMul,
+        pierceLeft: laser ? 2 : undefined,
+        pierceHits: laser ? new Set<Enemy>() : undefined
       });
     }
   }
@@ -1605,14 +1850,23 @@ export class GameEngine {
       });
     };
     if (e.type === 'boss') {
-      letterDrop(this.player.options < 2 ? 'option' : 'bomb', e.x, e.y);
-    } else if (e.type === 'titan' && Math.random() < 0.55) {
-      letterDrop(Math.random() < 0.5 ? 'power' : 'bomb', e.x, e.y);
+      letterDrop(this.player.options < 3 ? 'option' : 'bomb', e.x, e.y);
+      letterDrop('capsule', e.x - 26, e.y);
+      letterDrop('medal', e.x + 26, e.y);
+    } else if (e.type === 'titan') {
+      const roll = Math.random();
+      if (roll < 0.35) letterDrop(Math.random() < 0.5 ? 'power' : 'bomb', e.x, e.y);
+      else if (roll < 0.55) letterDrop('capsule', e.x, e.y);
+      else if (roll < 0.68) letterDrop('plasma', e.x, e.y);
+      else if (roll < 0.95) letterDrop('medal', e.x, e.y);
     } else {
       const roll = Math.random();
-      if (roll < 0.035) letterDrop('power', e.x, e.y);
-      else if (roll < 0.06) letterDrop('speed', e.x, e.y);
-      else if (roll < 0.075) letterDrop('bomb', e.x, e.y);
+      if (roll < 0.03) letterDrop('power', e.x, e.y);
+      else if (roll < 0.05) letterDrop('speed', e.x, e.y);
+      else if (roll < 0.065) letterDrop('bomb', e.x, e.y);
+      else if (roll < 0.08) letterDrop('capsule', e.x, e.y);
+      else if (roll < 0.095) letterDrop('plasma', e.x, e.y);
+      else if (roll < 0.18) letterDrop('medal', e.x, e.y);
     }
 
     if (e.type === 'boss') {
@@ -1776,6 +2030,27 @@ export class GameEngine {
         b.vy = Math.sin(a) * speed;
       }
 
+      // Homing steering (Raiden II plasma, Gradius missiles): bend the
+      // velocity toward the nearest living enemy.
+      if (b.homing !== undefined) {
+        let best = Infinity, tx = 0, ty = 0;
+        let found = false;
+        for (const e of this.enemies) {
+          if (e.hp <= 0) continue;
+          const ex = e.x - b.x;
+          const ey = e.y - b.y;
+          const d2 = ex * ex + ey * ey;
+          if (d2 < best) { best = d2; tx = ex; ty = ey; found = true; }
+        }
+        if (found) {
+          const d = Math.sqrt(best) || 1;
+          const sp = Math.sqrt(b.vx * b.vx + b.vy * b.vy) || 1;
+          const t = Math.min(1, b.homing * this.deltaTime * 60);
+          b.vx += ((tx / d) * sp - b.vx) * t;
+          b.vy += ((ty / d) * sp - b.vy) * t;
+        }
+      }
+
       b.x += b.vx;
       b.y += b.vy;
       b.life -= this.deltaTime;
@@ -1816,6 +2091,13 @@ export class GameEngine {
           const dx = b.x - e.x;
           const dy = b.y - e.y;
           if (dx * dx + dy * dy < (e.size + b.size) * (e.size + b.size)) {
+            // Piercing shots (Gradius LASER, wave cannon) pass through —
+            // each enemy is only ever damaged once per bullet.
+            if (b.pierceLeft !== undefined && b.pierceLeft > 0) {
+              if (b.pierceHits && b.pierceHits.has(e)) continue;
+              b.pierceHits?.add(e);
+              b.pierceLeft--;
+            }
             e.hp -= b.damage;
             e.hitFlash = 0.09; // white hit flash for instant damage feedback
             this.totalDamageDealt += b.damage;
@@ -1839,6 +2121,10 @@ export class GameEngine {
                 life: 0.3, maxLife: 0.3, size: 2,
                 color: b.color, type: 'spark'
               });
+            }
+            // Piercing: keep flying while charges remain, else remove
+            if (b.pierceLeft !== undefined) {
+              return b.pierceLeft <= 0;
             }
             return true;
           }
@@ -1922,6 +2208,16 @@ export class GameEngine {
 
   private damagePlayer(amount: number) {
     const p = this.player;
+    // Gradius Shield (meter slot ŠČIT): fully absorbs discrete hits
+    if (p.arcadeShield > 0 && amount >= 0.5) {
+      p.arcadeShield--;
+      p.invincible = 0.8;
+      this.particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0.5, maxLife: 0.5, size: 70, color: '#66ffcc', type: 'ring' });
+      this.floatingTexts.push({ x: p.x, y: p.y - 34, text: 'ŠČIT!', color: '#66ffcc', life: 1, maxLife: 1, vy: -1.2 });
+      this.screenShake = 6;
+      this.audio.playHit();
+      return;
+    }
     // Skill tree damage reduction (capped at 75%)
     amount *= Math.max(0.25, 1 - this.skillBonuses.damageReduction);
     this.damageTaken += amount;
@@ -2055,7 +2351,7 @@ export class GameEngine {
     }
   }
 
-  /** Bottom-right bomb stock + option counter (classic arcade HUD row). */
+  /** Classic arcade HUD row: bomb stock, options, Gradius meter, timers. */
   private renderRunIndicators(ctx: CanvasRenderingContext2D, w: number, h: number) {
     const p = this.player;
     ctx.textAlign = 'right';
@@ -2074,6 +2370,60 @@ export class GameEngine {
       let optStr = 'OPTION ';
       for (let i = 0; i < p.options; i++) optStr += '\u25CF';
       ctx.fillText(optStr, w - 20, h - 40);
+    }
+    // Temporary arcade weapon timers (Raiden II plasma + Gradius slots)
+    const bars: Array<{ label: string; t: number; max: number; color: string }> = [];
+    if (this.plasmaTimer > 0) bars.push({ label: 'PLAZMA', t: this.plasmaTimer, max: 12, color: '#cc66ff' });
+    if (this.missileTimer > 0) bars.push({ label: 'RAKETA', t: this.missileTimer, max: 15, color: '#ff8844' });
+    if (this.doubleTimer > 0) bars.push({ label: 'DVOJNIK', t: this.doubleTimer, max: 15, color: '#ffff44' });
+    if (this.laserTimer > 0) bars.push({ label: 'LASER', t: this.laserTimer, max: 15, color: '#ff44cc' });
+    bars.forEach((bar, idx) => {
+      const y = h - 58 - idx * 16;
+      ctx.font = 'bold 9px monospace';
+      ctx.fillStyle = bar.color;
+      ctx.textAlign = 'right';
+      ctx.fillText(bar.label, w - 96, y + 8);
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(w - 92, y, 72, 8);
+      ctx.fillStyle = bar.color;
+      ctx.fillRect(w - 92, y, 72 * Math.max(0, bar.t / bar.max), 8);
+      ctx.strokeStyle = bar.color + 'aa';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(w - 92, y, 72, 8);
+    });
+    // Gradius power meter (Konami): capsules fill it, C spends the lit slot
+    const slotCols = ['#00ffcc', '#ff8844', '#ffff44', '#ff44cc', '#66ffff', '#66ffcc'];
+    const slotLabels = ['H', 'R', 'D', 'L', 'O', '\u0160'];
+    const meterW = 24, meterH = 8, gap = 3;
+    const mx = 20;
+    const my = h - 92;
+    for (let i = 0; i < 6; i++) {
+      const lit = i < p.gradiusMeter;
+      const full = p.gradiusMeter >= 6;
+      ctx.fillStyle = lit
+        ? (full ? `rgba(255,220,60,${(0.7 + Math.sin(this.time * 10) * 0.3).toFixed(2)})` : slotCols[i])
+        : 'rgba(0,0,0,0.5)';
+      ctx.fillRect(mx + i * (meterW + gap), my, meterW, meterH);
+      ctx.strokeStyle = lit ? slotCols[i] : 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(mx + i * (meterW + gap), my, meterW, meterH);
+      ctx.font = 'bold 8px monospace';
+      ctx.fillStyle = lit ? slotCols[i] : 'rgba(255,255,255,0.35)';
+      ctx.textAlign = 'center';
+      ctx.fillText(slotLabels[i], mx + i * (meterW + gap) + meterW / 2, my + meterH + 9);
+    }
+    ctx.font = '8px monospace';
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.textAlign = 'left';
+    ctx.fillText('GRADIUS [C]', mx, my - 4);
+    // DoDonPachi medal chain (top-right, below the wave number)
+    if (this.medalChain > 0 && this.medalChainTimer > 0) {
+      ctx.font = 'bold 14px monospace';
+      ctx.fillStyle = `rgba(255,215,0,${(0.55 + Math.sin(this.time * 8) * 0.35).toFixed(2)})`;
+      ctx.textAlign = 'right';
+      ctx.fillText(`VERIGA ×${this.medalChain + 1}`, w - 20, 72);
+      ctx.fillStyle = 'rgba(255,215,0,0.7)';
+      ctx.fillRect(w - 80, 78, 60 * Math.max(0, this.medalChainTimer / 2.4), 3);
     }
   }
 
@@ -2118,7 +2468,8 @@ export class GameEngine {
         const pdy = this.player.y - orb.y;
         const pd2 = pdx * pdx + pdy * pdy;
         const isLetter = orb.type === 'power' || orb.type === 'speed' ||
-          orb.type === 'bomb' || orb.type === 'option';
+          orb.type === 'bomb' || orb.type === 'option' ||
+          orb.type === 'capsule' || orb.type === 'plasma' || orb.type === 'medal';
         const magnetR = isLetter ? 150 : 90;
         if (pd2 < magnetR * magnetR && pd2 > 1) {
           const pd = Math.sqrt(pd2);
@@ -2162,14 +2513,37 @@ export class GameEngine {
             this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: '+1 BOMBA', color: '#ff6644', life: 1.2, maxLife: 1.2, vy: -1.5 });
             break;
           case 'option':
-            // Letter O (Gradius): companion drone, max 2
-            if (this.player.options < 2) {
+            // Letter O (Gradius): companion drone, max 3
+            if (this.player.options < 3) {
               this.player.options++;
               this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: 'OPTION!', color: '#66ffff', life: 1.4, maxLife: 1.4, vy: -1.5 });
             } else {
               this.player.score += 200;
             }
             break;
+          case 'capsule': {
+            // Gradius power capsule: fills the meter; C spends the lit slot
+            this.player.gradiusMeter = Math.min(6, this.player.gradiusMeter + 1);
+            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: `KAPSULA ${this.player.gradiusMeter}/6`, color: '#ffcc22', life: 1.2, maxLife: 1.2, vy: -1.5 });
+            break;
+          }
+          case 'plasma':
+            // Raiden II purple "toothpaste" plasma laser (temporary)
+            this.plasmaTimer = 12;
+            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: 'PLAZMA LASER!', color: '#cc66ff', life: 1.4, maxLife: 1.4, vy: -1.5 });
+            break;
+          case 'medal': {
+            // DoDonPachi medal chain: quick pickups multiply the value
+            this.medalChain = Math.min(this.medalChain + 1, GameEngine.MEDAL_VALUES.length - 1);
+            this.medalChainTimer = 2.4;
+            const medalValue = Math.round(GameEngine.MEDAL_VALUES[this.medalChain] * (this.difficulty?.scoreMultiplier ?? 1));
+            this.player.score += medalValue;
+            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: `+${medalValue}`, color: '#ffd700', life: 1.1, maxLife: 1.1, vy: -1.6 });
+            if (this.medalChain >= 2) {
+              this.floatingTexts.push({ x: this.player.x, y: this.player.y - 46, text: `VERIGA ×${this.medalChain + 1}`, color: '#ffd700', life: 1, maxLife: 1, vy: -1 });
+            }
+            break;
+          }
           case 'advanced_powerup':
             if (orb.powerUpId) {
               this.powerUpManager.addPowerUp(orb.powerUpId);
@@ -2541,7 +2915,10 @@ export class GameEngine {
         power: '#ffcc00',
         speed: '#00ffcc',
         bomb: '#ff4444',
-        option: '#66ffff'
+        option: '#66ffff',
+        capsule: '#ffcc22',
+        plasma: '#cc66ff',
+        medal: '#ffd700'
       };
       const color = colors[orb.type] || '#ffffff';
       const pulse = 1 + Math.sin(this.time * 6 + orb.x) * 0.3;
@@ -2607,7 +2984,10 @@ export class GameEngine {
         power: 'P',
         speed: 'S',
         bomb: 'B',
-        option: 'O'
+        option: 'O',
+        capsule: 'K',
+        plasma: 'L',
+        medal: 'Z'
       };
       ctx.fillText(icons[orb.type] || '?', orb.x, orb.y + 3);
     }
@@ -2651,6 +3031,41 @@ export class GameEngine {
     ctx.beginPath();
     ctx.arc(0, 0, glowSize, 0, Math.PI * 2);
     ctx.fill();
+
+    // Gradius shield barrier: segmented ring, one segment per remaining hit
+    if (p.arcadeShield > 0) {
+      const sa = 0.45 + Math.sin(this.time * 6) * 0.2;
+      ctx.strokeStyle = `rgba(102, 255, 204, ${sa.toFixed(2)})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 25, 0, Math.PI * 2);
+      ctx.stroke();
+      for (let i = 0; i < p.arcadeShield; i++) {
+        const a = -Math.PI / 2 + (Math.PI * 2 * i) / p.arcadeShield;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * 25, Math.sin(a) * 25, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#aaffdd';
+        ctx.fill();
+      }
+    }
+
+    // R-Type wave cannon charge ring around the ship
+    if (this.waveCharging) {
+      ctx.strokeStyle = this.waveCharge >= 1
+        ? `rgba(255,255,255,${(0.7 + Math.sin(this.time * 24) * 0.3).toFixed(2)})`
+        : '#ffaa33';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, 31, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * this.waveCharge);
+      ctx.stroke();
+      if (this.waveCharge >= 1) {
+        ctx.strokeStyle = `rgba(255,170,51,${(0.4 + Math.sin(this.time * 20) * 0.3).toFixed(2)})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, 37, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
 
     // Invincibility flash
     if (p.invincible > 0 && Math.sin(this.time * 30) > 0) {
@@ -2889,6 +3304,29 @@ export class GameEngine {
         ctx.beginPath();
         ctx.arc(0, 0, b.size + 2.2, 0, Math.PI * 2);
         ctx.stroke();
+      }
+
+      // Elongated beam/missile capsule (wave cannon, plasma, missiles):
+      // aligned to the travel direction with a bright leading core.
+      if (b.capsule) {
+        const ang = Math.atan2(b.vy, b.vx);
+        ctx.rotate(ang);
+        const len = b.size * 3.4;
+        const wid = b.size * 1.6;
+        const glow = ctx.createLinearGradient(-len / 2, 0, len / 2, 0);
+        glow.addColorStop(0, 'transparent');
+        glow.addColorStop(0.45, b.color);
+        glow.addColorStop(1, b.color + '55');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.roundRect(-len / 2, -wid / 2, len, wid, wid / 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(len * 0.18, 0, b.size * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.restore();
+        continue;
       }
 
       // Glow
