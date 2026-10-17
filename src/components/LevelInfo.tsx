@@ -6,6 +6,7 @@ interface LevelInfoProps {
 }
 
 export function LevelInfo({ level, playerLevel }: LevelInfoProps) {
+  // playerLevel is shown next to the level name (real engine data)
   return (
     <div className="fixed bottom-4 left-4 z-30">
       <div
@@ -39,6 +40,9 @@ export function LevelInfo({ level, playerLevel }: LevelInfoProps) {
             </p>
             <p className="text-gray-400 font-mono text-xs">
               {level.description}
+            </p>
+            <p className="text-gray-500 font-mono text-[10px]">
+              Igralec: nivo {playerLevel}
             </p>
           </div>
         </div>

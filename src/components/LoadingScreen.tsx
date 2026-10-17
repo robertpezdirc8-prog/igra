@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { pseudoRandom } from '../utils/pseudoRandom';
 
 interface LoadingScreenProps {
   onComplete: () => void;
@@ -41,10 +42,10 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
             key={i}
             className="absolute w-1 h-1 bg-cyan-400 rounded-full animate-pulse"
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 2}s`,
-              animationDuration: `${1 + Math.random() * 2}s`
+              left: `${pseudoRandom(i * 4 + 11) * 100}%`,
+              top: `${pseudoRandom(i * 4 + 12) * 100}%`,
+              animationDelay: `${pseudoRandom(i * 4 + 13) * 2}s`,
+              animationDuration: `${1 + pseudoRandom(i * 4 + 14) * 2}s`
             }}
           />
         ))}

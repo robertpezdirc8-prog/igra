@@ -14,9 +14,10 @@ interface SettingsMenuProps {
 }
 
 export function SettingsMenu({ isOpen, onClose, settings, onSettingsChange }: SettingsMenuProps) {
-  if (!isOpen) return null;
-
+  // Hooks must run unconditionally - never after an early return
   const [localSettings, setLocalSettings] = useState(settings);
+
+  if (!isOpen) return null;
 
   const handleSave = () => {
     onSettingsChange(localSettings);

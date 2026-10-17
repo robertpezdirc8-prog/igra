@@ -16,6 +16,7 @@ interface Bullet {
   x: number; y: number; vx: number; vy: number;
   size: number; color: string; damage: number;
   life: number; type: 'player' | 'enemy';
+  chainLeft?: number; chainDamage?: number;
 }
 interface Enemy {
   x: number; y: number; vx: number; vy: number;
@@ -207,7 +208,7 @@ export class GameEngine {
   private loadHighScore() {
     try {
       this.highScore = parseInt(localStorage.getItem('atheria_highscore') || '0');
-    } catch (e) { this.highScore = 0; }
+    } catch { this.highScore = 0; }
   }
 
   private saveHighScore() {
@@ -216,7 +217,7 @@ export class GameEngine {
         this.highScore = this.player.score;
         localStorage.setItem('atheria_highscore', this.highScore.toString());
       }
-    } catch (e) {}
+    } catch { /* ignore */ }
   }
 
   private createPlayer(): Player {
@@ -720,7 +721,8 @@ export class GameEngine {
       p.shootTimer -= this.deltaTime;
       if (p.shootTimer <= 0) {
         this.playerShoot();
-        p.shootTimer = 0.12 / p.weaponLevel;
+        // Rapid Fire skill increases fire rate
+        p.shootTimer = 0.12 / (p.weaponLevel * this.skillBonuses.fireRateMul);
       }
     }
 
@@ -750,18 +752,11 @@ export class GameEngine {
     this.shotsFired++;
     const dmgMul = this.skillBonuses.damageMul * (this.difficulty?.playerDamageMultiplier ?? 1);
 
-    for (let i = 0; i < Math.min(p.weaponLevel, 5); i++) {
-      const spread = (i - (Math.min(p.weaponLevel, 5) - 1) / 2) * 0.15;
-      const cos = Math.cos(spread);
-      const sin = Math.sin(spread);
-      const bvx = (dirX * cos - dirY * sin) * speed;
-      const bvy = (dirX * sin + dirY * cos) * speed;
-      this.bullets.push({
-        x: p.x, y: p.y, vx: bvx, vy: bvy,
-        size: isCrit ? 6 : 4, color: isCrit ? '#ffff00' : '#00ffff',
-        damage: (10 + p.weaponLevel * 3) * dmgMul * (isCrit ? p.critDmg : 1),
-        life: 2, type: 'player'
-      });
+    // Overcharge skill: chance for an extra volley
+    const volleys = Math.random() < this.skillBonuses.doubleShotChance ? 2 : 1;
+
+    for (let v = 0; v < volleys; v++) {
+      this.fireVolley(p, dirX, dirY, speed, isCrit, dmgMul, v * 0.18);
     }
     
     // Muzzle flash effect
@@ -779,6 +774,28 @@ export class GameEngine {
     }
     
     this.audio.playShoot();
+  }
+
+  private fireVolley(
+    p: Player, dirX: number, dirY: number, speed: number,
+    isCrit: boolean, dmgMul: number, spreadOffset: number
+  ) {
+    const count = Math.min(p.weaponLevel, 5);
+    for (let i = 0; i < count; i++) {
+      const spread = (i - (count - 1) / 2) * 0.15 + spreadOffset;
+      const cos = Math.cos(spread);
+      const sin = Math.sin(spread);
+      const bvx = (dirX * cos - dirY * sin) * speed;
+      const bvy = (dirX * sin + dirY * cos) * speed;
+      this.bullets.push({
+        x: p.x, y: p.y, vx: bvx, vy: bvy,
+        size: isCrit ? 6 : 4, color: isCrit ? '#ffff00' : '#00ffff',
+        damage: (10 + p.weaponLevel * 3) * dmgMul * (isCrit ? p.critDmg : 1),
+        life: 2, type: 'player',
+        chainLeft: this.skillBonuses.chainCount,
+        chainDamage: this.skillBonuses.chainDamageMul
+      });
+    }
   }
 
   private updateEnemies() {
@@ -976,6 +993,39 @@ export class GameEngine {
     }
   }
 
+  /** Chain Reaction skill: zap the nearest enemy from the hit position. */
+  private applyChain(source: Bullet, fromX: number, fromY: number) {
+    let nearest: Enemy | null = null;
+    let nearestDist = 250 * 250; // squared range
+    for (const e of this.enemies) {
+      const dx = e.x - fromX;
+      const dy = e.y - fromY;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < nearestDist) {
+        nearestDist = d2;
+        nearest = e;
+      }
+    }
+    if (!nearest) return;
+
+    const dmg = source.damage * source.chainDamage!;
+    nearest.hp -= dmg;
+    this.totalDamageDealt += dmg;
+    this.hitsLanded++;
+
+    // Lightning arc visual
+    for (let i = 0; i < 8; i++) {
+      const t = i / 8;
+      this.particles.push({
+        x: fromX + (nearest.x - fromX) * t + (Math.random() - 0.5) * 12,
+        y: fromY + (nearest.y - fromY) * t + (Math.random() - 0.5) * 12,
+        vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
+        life: 0.25, maxLife: 0.25, size: 2.5,
+        color: '#ffff00', type: 'spark'
+      });
+    }
+  }
+
   private onEnemyDeath(e: Enemy) {
     const scoreMul = this.difficulty?.scoreMultiplier ?? 1;
     const baseScore = (e.type === 'boss' ? 1000 : e.type === 'titan' ? 100 : 25) * scoreMul;
@@ -1170,6 +1220,10 @@ export class GameEngine {
             this.totalDamageDealt += b.damage;
             this.hitsLanded++;
             this.bullets.splice(i, 1);
+            // Chain Reaction skill: bullet arcs to the nearest other enemy
+            if (b.chainLeft && b.chainLeft > 0 && b.chainDamage) {
+              this.applyChain(b, e.x, e.y);
+            }
             // Floating damage number
             this.floatingTexts.push({
               x: b.x, y: b.y,
@@ -1405,10 +1459,10 @@ export class GameEngine {
       this.renderParticles(ctx);
       this.renderGameOver(ctx, w, h);
     } else if (this.state === 'levelup') {
-      this.renderGame(ctx, w, h);
+      this.renderGame(ctx);
       this.renderLevelUp(ctx, w, h);
     } else {
-      this.renderGame(ctx, w, h);
+      this.renderGame(ctx);
     }
 
     // Wave / level announcements (drawn on top of the game)
@@ -1426,7 +1480,7 @@ export class GameEngine {
     renderEnvironment(ctx, w, h, envConfig, this.time);
   }
 
-  private renderGame(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  private renderGame(ctx: CanvasRenderingContext2D) {
     this.renderCrystals(ctx);
     this.renderPowerOrbs(ctx);
     

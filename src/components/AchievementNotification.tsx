@@ -17,12 +17,15 @@ export function AchievementNotification({ achievement, onClose }: AchievementNot
   const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
-    setIsVisible(true);
+    const raf = requestAnimationFrame(() => setIsVisible(true));
     const timer = setTimeout(() => {
       setIsExiting(true);
       setTimeout(onClose, 500);
     }, 4000);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
   }, [onClose]);
 
   return (

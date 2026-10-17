@@ -6,21 +6,21 @@ interface ComboDisplayProps {
 }
 
 export function ComboDisplay({ combo, multiplier }: ComboDisplayProps) {
-  const [isVisible, setIsVisible] = useState(false);
   const [animate, setAnimate] = useState(false);
 
   useEffect(() => {
     if (combo > 1) {
-      setIsVisible(true);
-      setAnimate(true);
+      const raf = requestAnimationFrame(() => setAnimate(true));
       const timer = setTimeout(() => setAnimate(false), 300);
-      return () => clearTimeout(timer);
-    } else {
-      setIsVisible(false);
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(timer);
+      };
     }
   }, [combo]);
 
-  if (!isVisible) return null;
+  // Derived from props - no extra state needed
+  if (combo <= 1) return null;
 
   const getComboColor = () => {
     if (combo >= 20) return 'text-red-400';

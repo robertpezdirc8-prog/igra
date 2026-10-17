@@ -14,9 +14,13 @@ export function StatsLeaderboardUI({ isOpen, onClose }: StatsLeaderboardUIProps)
 
   useEffect(() => {
     if (isOpen) {
-      setStats(getGameStats());
-      setLeaderboard(getLeaderboard());
-      setPlayerRank(getPlayerRank());
+      // localStorage is an external system - sync it asynchronously
+      const raf = requestAnimationFrame(() => {
+        setStats(getGameStats());
+        setLeaderboard(getLeaderboard());
+        setPlayerRank(getPlayerRank());
+      });
+      return () => cancelAnimationFrame(raf);
     }
   }, [isOpen]);
 

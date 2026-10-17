@@ -11,9 +11,12 @@ export function Crosshair({ x, y, isActive }: CrosshairProps) {
 
   useEffect(() => {
     if (isActive) {
-      setIsShooting(true);
+      const raf = requestAnimationFrame(() => setIsShooting(true));
       const timer = setTimeout(() => setIsShooting(false), 100);
-      return () => clearTimeout(timer);
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(timer);
+      };
     }
   }, [isActive]);
 

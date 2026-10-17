@@ -4,7 +4,6 @@
 // truth for positions); the GPU accelerates the rendering of up to 10k
 // particles.
 declare const GPUBufferUsage: any;
-declare const GPUMapMode: any;
 
 type GPUDevice = any;
 type GPUCanvasContext = any;

@@ -12,10 +12,15 @@ export function LevelDisplay({ level, xp, xpToNext }: LevelDisplayProps) {
 
   useEffect(() => {
     if (level > prevLevel) {
-      setShowLevelUp(true);
+      const raf = requestAnimationFrame(() => {
+        setShowLevelUp(true);
+        setPrevLevel(level);
+      });
       const timer = setTimeout(() => setShowLevelUp(false), 2000);
-      setPrevLevel(level);
-      return () => clearTimeout(timer);
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(timer);
+      };
     }
   }, [level, prevLevel]);
 

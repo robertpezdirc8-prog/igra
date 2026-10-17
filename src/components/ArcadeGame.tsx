@@ -19,6 +19,14 @@ export function ArcadeGame({ isOpen, onClose, onComplete }: ArcadeGameProps) {
     }
   }, [isOpen]);
 
+  function resetGame() {
+    setScore(0);
+    setTimeLeft(30);
+    setTargets([]);
+    setIsPlaying(false);
+    setGameOver(false);
+  }
+
   useEffect(() => {
     if (!isPlaying || gameOver) return;
 
@@ -27,7 +35,6 @@ export function ArcadeGame({ isOpen, onClose, onComplete }: ArcadeGameProps) {
         if (prev <= 1) {
           setGameOver(true);
           setIsPlaying(false);
-          onComplete(score);
           return 0;
         }
         return prev - 1;
@@ -65,13 +72,12 @@ export function ArcadeGame({ isOpen, onClose, onComplete }: ArcadeGameProps) {
     return () => clearInterval(removeInterval);
   }, [isPlaying, gameOver]);
 
-  const resetGame = () => {
-    setScore(0);
-    setTimeLeft(30);
-    setTargets([]);
-    setIsPlaying(false);
-    setGameOver(false);
-  };
+  // Fire onComplete once when the arcade run ends (not inside a state updater)
+  useEffect(() => {
+    if (gameOver) {
+      onComplete(score);
+    }
+  }, [gameOver, score, onComplete]);
 
   const startGame = () => {
     resetGame();

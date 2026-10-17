@@ -45,7 +45,6 @@ import {
 } from './game/saveSystem';
 import { getLevelForPlayer } from './game/levels';
 import {
-  SKILL_TREE,
   findSkill,
   getSkillCost,
   canUnlockSkill,
@@ -55,6 +54,7 @@ import {
 import { DIFFICULTY_MODES, DifficultyMode } from './game/difficulty';
 import { ALL_ACHIEVEMENTS, checkAchievements, Achievement } from './game/achievements';
 import { CosmeticItem, canAffordCosmetic } from './game/cosmetics';
+import { updateGameStats, addToLeaderboard } from './game/statsSystem';
 
 type GameState = 'loading' | 'menu' | 'playing' | 'paused' | 'levelup' | 'levelchoice' | 'gameover';
 
@@ -83,6 +83,21 @@ const emptyStats: GameStats = {
   webgpuSupported: false, playerLevel: 1, playerXp: 0, xpToNext: 100
 };
 
+// Module-level loaders keep impure reads (localStorage, Date) out of render.
+function loadInitialSave(): SaveData {
+  let data = loadGame();
+  if (!data) {
+    data = createDefaultSaveData();
+    saveGame(data);
+  }
+  return data;
+}
+
+function getTodayChallenges(data: SaveData): string[] {
+  const today = new Date().toISOString().slice(0, 10);
+  return data.completedChallenges[today] ?? [];
+}
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const webgpuCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -90,13 +105,9 @@ export default function App() {
   const saveDataRef = useRef<SaveData | null>(null);
 
   const [gameState, setGameState] = useState<GameState>('loading');
-  const [saveData, setSaveData] = useState<SaveData | null>(null);
-  const [settings, setSettings] = useState<Settings>({
-    musicVolume: 0.5,
-    sfxVolume: 0.6,
-    showFPS: true,
-    particles: 'high'
-  });
+  // Lazy initializers: the save file is read exactly once, synchronously
+  const [saveData, setSaveData] = useState<SaveData>(loadInitialSave);
+  const [settings, setSettings] = useState<Settings>(() => ({ ...saveData.settings }));
   const [webgpuSupported, setWebgpuSupported] = useState(false);
   const [stats, setStats] = useState<GameStats>(emptyStats);
   const [player, setPlayer] = useState({
@@ -133,10 +144,10 @@ export default function App() {
   const [showDifficultySelect, setShowDifficultySelect] = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
 
-  // Persistent meta derived from saveData
-  const [skillPoints, setSkillPoints] = useState(0);
-  const [skillTree, setSkillTree] = useState<SkillTree>(SKILL_TREE);
-  const [completedChallenges, setCompletedChallenges] = useState<string[]>([]);
+  // Persistent meta derived from saveData (initialized lazily from the save)
+  const [skillPoints, setSkillPoints] = useState(() => saveData.skillPoints);
+  const [skillTree, setSkillTree] = useState<SkillTree>(() => loadSkillTreeFromSave(saveData));
+  const [completedChallenges, setCompletedChallenges] = useState<string[]>(() => getTodayChallenges(saveData));
   const [newAchievements, setNewAchievements] = useState<Achievement[]>([]);
   // Snapshot of final stats for the game-over screen
   const [finalStats, setFinalStats] = useState<GameStats | null>(null);
@@ -162,24 +173,14 @@ export default function App() {
     saveGame(updated);
   }, []);
 
-  // Load save data on mount
+  // Sync the ref mirror + engine high-score key once on mount (no setState)
   useEffect(() => {
-    let data = loadGame();
-    if (!data) {
-      data = createDefaultSaveData();
-      saveGame(data);
-    }
-    saveDataRef.current = data;
-    setSaveData(data);
-    setSettings({ ...data.settings });
-    setSkillPoints(data.skillPoints);
-    setSkillTree(loadSkillTreeFromSave(data));
-    const today = new Date().toISOString().slice(0, 10);
-    setCompletedChallenges(data.completedChallenges[today] ?? []);
-    // Keep the engine's own high score key in sync with the save file
+    saveDataRef.current = saveData;
     try {
-      localStorage.setItem('atheria_highscore', String(data.player.highScore));
+      localStorage.setItem('atheria_highscore', String(saveData.player.highScore));
     } catch { /* ignore */ }
+    // Runs exactly once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ============= ENGINE LIFECYCLE =============
@@ -208,6 +209,27 @@ export default function App() {
     if (state === 'gameover') {
       const runStats = engine.getGameStats();
       setFinalStats(runStats);
+
+      // Aggregated lifetime statistics + leaderboard (statsSystem localStorage)
+      updateGameStats({
+        score: runStats.score,
+        playTime: runStats.survivalTime,
+        enemiesKilled: runStats.enemiesKilled,
+        bossKills: runStats.bossKills,
+        wave: runStats.wave,
+        level: runStats.playerLevel,
+        maxCombo: runStats.maxCombo,
+        damageDealt: runStats.totalDamage,
+        damageTaken: runStats.damageTaken,
+        itemsCollected: runStats.itemsCollected
+      });
+      addToLeaderboard({
+        name: 'Ti',
+        score: runStats.score,
+        wave: runStats.wave,
+        level: runStats.playerLevel,
+        date: new Date().toISOString().split('T')[0]
+      });
 
       persistSave(data => {
         let updated = updateSaveWithGameStats(data, {
@@ -267,12 +289,6 @@ export default function App() {
 
     engine.startLoop();
     engine.start();
-
-    // Load high score
-    try {
-      const saved = localStorage.getItem('atheria_highscore');
-      if (saved) setStats(prev => ({ ...prev }));
-    } catch { /* ignore */ }
 
     const isGameKey = (key: string) => GAME_KEYS.has(key.toLowerCase());
 
@@ -408,12 +424,6 @@ export default function App() {
 
   const handleChooseUpgrade = useCallback((index: number) => {
     engineRef.current?.chooseUpgrade(index);
-  }, []);
-
-  const handleChooseLevelChoice = useCallback(() => {
-    // LevelUpChoiceScreen passes a mapped choice; the engine keeps its own
-    // ordered list, so we pick by the position in our rendered choices.
-    engineRef.current?.chooseUpgrade(0);
   }, []);
 
   // ============= SKILL TREE (persistent, no module mutation) =============
@@ -689,7 +699,7 @@ export default function App() {
           />
 
           <GameTimer
-            startTime={stats.gameStartTime || Date.now()}
+            startTime={stats.gameStartTime}
             isPaused={false}
           />
 

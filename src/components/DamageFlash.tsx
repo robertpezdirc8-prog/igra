@@ -10,9 +10,12 @@ export function DamageFlash({ isActive, intensity }: DamageFlashProps) {
 
   useEffect(() => {
     if (isActive) {
-      setIsVisible(true);
+      const raf = requestAnimationFrame(() => setIsVisible(true));
       const timer = setTimeout(() => setIsVisible(false), 300);
-      return () => clearTimeout(timer);
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(timer);
+      };
     }
   }, [isActive]);
 

@@ -29,13 +29,8 @@ export function DailyRewardsUI({ isOpen, onClose, onClaim }: DailyRewardsUIProps
   const [currentDay, setCurrentDay] = useState(1);
   const [canClaim, setCanClaim] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      loadRewards();
-    }
-  }, [isOpen]);
-
-  const loadRewards = () => {
+  // Declared before the effect that references it
+  function loadRewards() {
     const saved = localStorage.getItem('daily_rewards');
     if (saved) {
       const data = JSON.parse(saved);
@@ -43,7 +38,7 @@ export function DailyRewardsUI({ isOpen, onClose, onClaim }: DailyRewardsUIProps
       setCurrentDay(data.currentDay);
       setCanClaim(data.canClaim);
     } else {
-      const initial = REWARDS.map((r, i) => ({
+      const initial = REWARDS.map((r) => ({
         ...r,
         claimed: false
       }));
@@ -52,6 +47,14 @@ export function DailyRewardsUI({ isOpen, onClose, onClaim }: DailyRewardsUIProps
       setCanClaim(true);
     }
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      // localStorage read + state sync, deferred out of the effect body
+      const raf = requestAnimationFrame(() => loadRewards());
+      return () => cancelAnimationFrame(raf);
+    }
+  }, [isOpen]);
 
   const saveRewards = (newRewards: DailyReward[], day: number, claim: boolean) => {
     localStorage.setItem('daily_rewards', JSON.stringify({

@@ -24,7 +24,7 @@ export class AudioEngine {
       this.sfxGain.connect(this.masterGain);
 
       this.isInitialized = true;
-    } catch (e) {
+    } catch {
       console.warn('Audio not available');
     }
   }
@@ -299,7 +299,7 @@ export class AudioEngine {
 
   stopMusic() {
     this.musicPlaying = false;
-    this.musicOscillators.forEach(o => { try { o.stop(); } catch(e) {} });
+    this.musicOscillators.forEach(o => { try { o.stop(); } catch { /* already stopped */ } });
     this.musicOscillators = [];
   }
 

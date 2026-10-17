@@ -12,12 +12,15 @@ export function Notification({ message, type, duration = 3000, onClose }: Notifi
   const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
-    setIsVisible(true);
+    const raf = requestAnimationFrame(() => setIsVisible(true));
     const timer = setTimeout(() => {
       setIsExiting(true);
       setTimeout(onClose, 300);
     }, duration);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
   }, [duration, onClose]);
 
   const typeClasses = {

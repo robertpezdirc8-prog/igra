@@ -290,6 +290,9 @@ export interface SkillBonuses {
   damageReduction: number; // 0..0.75 incoming damage reduction
   stasisDurationMul: number; // temporal stasis duration multiplier
   energyCostMul: number;   // ability energy cost multiplier (<1 = cheaper)
+  doubleShotChance: number; // 0..0.5 chance for an extra volley (overcharge)
+  chainCount: number;      // 0 = no chain, N = bullets chain to N enemies
+  chainDamageMul: number;  // chain damage as a fraction of bullet damage
 }
 
 export function defaultSkillBonuses(): SkillBonuses {
@@ -307,7 +310,10 @@ export function defaultSkillBonuses(): SkillBonuses {
     shieldRegenMul: 1,
     damageReduction: 0,
     stasisDurationMul: 1,
-    energyCostMul: 1
+    energyCostMul: 1,
+    doubleShotChance: 0,
+    chainCount: 0,
+    chainDamageMul: 0
   };
 }
 
@@ -335,6 +341,13 @@ export function computeSkillBonuses(tree: SkillTree): SkillBonuses {
         break;
       case 'rapid_fire':
         b.fireRateMul *= 1 + 0.15 * lvl;
+        break;
+      case 'chain_reaction':
+        b.chainCount = 2 * lvl;
+        b.chainDamageMul = 0.5;
+        break;
+      case 'overcharge':
+        b.doubleShotChance = clamp(0.10 * lvl, 0, 0.5);
         break;
       case 'reinforced_hull':
         b.maxHp += 20 * lvl;
@@ -366,7 +379,7 @@ export function computeSkillBonuses(tree: SkillTree): SkillBonuses {
       case 'temporal_mastery':
         b.stasisDurationMul *= 1 + 0.25 * lvl;
         break;
-      // chain_reaction & overcharge are not yet wired into gameplay
+      // (all skills are wired into gameplay via these bonuses)
       default:
         break;
     }

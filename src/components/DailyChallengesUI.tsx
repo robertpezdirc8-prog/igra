@@ -21,16 +21,19 @@ export function DailyChallengesUI({
 
   useEffect(() => {
     if (isOpen) {
-      setChallenges(generateDailyChallenges());
-      
-      const updateTimer = () => {
+      const raf = requestAnimationFrame(() => {
+        setChallenges(generateDailyChallenges());
         setTimeUntilReset(getTimeUntilReset());
+      });
+      
+      const interval = setInterval(() => {
+        setTimeUntilReset(getTimeUntilReset());
+      }, 60000); // Update every minute
+      
+      return () => {
+        cancelAnimationFrame(raf);
+        clearInterval(interval);
       };
-      
-      updateTimer();
-      const interval = setInterval(updateTimer, 60000); // Update every minute
-      
-      return () => clearInterval(interval);
     }
   }, [isOpen]);
 

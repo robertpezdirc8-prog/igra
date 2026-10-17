@@ -1,5 +1,26 @@
+# Dependencies
 node_modules/
-.next/
+
+# Build output
 dist/
 build/
+.next/
+
+# Environment & secrets - NEVER commit tokens or API keys
+.env
+.env.*
+!.env.example
+
+# Logs
 *.log
+npm-debug.log*
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Cache
+.vite/
+*.tsbuildinfo

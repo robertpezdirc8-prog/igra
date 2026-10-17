@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './Button';
+import { pseudoRandom } from '../utils/pseudoRandom';
+
 
 interface GameOverScreenProps {
   score: number;
@@ -34,9 +36,12 @@ export function GameOverScreen({
   const [showStats, setShowStats] = useState(false);
 
   useEffect(() => {
-    setIsVisible(true);
+    const raf = requestAnimationFrame(() => setIsVisible(true));
     const timer = setTimeout(() => setShowStats(true), 500);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
   }, []);
 
   const stats = [
@@ -46,7 +51,8 @@ export function GameOverScreen({
     { label: 'Sovražniki ubiti', value: enemiesKilled.toString(), color: '#ff4444' },
     { label: 'Skupna škoda', value: Math.floor(totalDamage).toLocaleString(), color: '#ffff00' },
     { label: 'Čas preživetja', value: `${Math.floor(survivalTime)}s`, color: '#00ff88' },
-    { label: 'Največji combo', value: `${maxCombo}x`, color: '#ff00ff' }
+    { label: 'Največji combo', value: `${maxCombo}x`, color: '#ff00ff' },
+    { label: 'Osebni rekord', value: highScore.toLocaleString(), color: '#ffffff' }
   ];
 
   return (
@@ -65,10 +71,10 @@ export function GameOverScreen({
             key={i}
             className="absolute w-1 h-1 bg-red-500 rounded-full animate-ping"
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 2}s`,
-              animationDuration: `${2 + Math.random() * 2}s`
+              left: `${pseudoRandom(i * 4 + 1) * 100}%`,
+              top: `${pseudoRandom(i * 4 + 2) * 100}%`,
+              animationDelay: `${pseudoRandom(i * 4 + 3) * 2}s`,
+              animationDuration: `${2 + pseudoRandom(i * 4 + 4) * 2}s`
             }}
           />
         ))}
