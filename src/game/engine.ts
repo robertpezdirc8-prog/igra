@@ -1,4 +1,5 @@
 import { AudioEngine } from './audio';
+import { ProceduralAudioSystem, ProceduralMusicGenerator } from './audioSystem';
 import { WebGPURenderer } from './webgpu-renderer';
 import { getLevelForPlayer } from './levels';
 import { getEnvironmentForLevel, renderEnvironment } from './environment';
@@ -98,6 +99,8 @@ export class GameEngine {
   private width = 0;
   private height = 0;
   private audio: AudioEngine;
+  private proceduralAudio: ProceduralAudioSystem;
+  private proceduralMusic: ProceduralMusicGenerator;
   private state: GameState = 'menu';
   private player: Player;
   private enemies: Enemy[] = [];
@@ -161,6 +164,8 @@ export class GameEngine {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
     this.audio = new AudioEngine();
+    this.proceduralAudio = new ProceduralAudioSystem();
+    this.proceduralMusic = new ProceduralMusicGenerator();
     this.onStateChange = onStateChange;
     this.player = this.createPlayer();
     // WebGPU renders on a dedicated overlay canvas. A canvas can only host a
@@ -423,6 +428,7 @@ export class GameEngine {
     this.state = 'playing';
     this.onStateChange(this.state);
     this.audio.startMusic();
+    this.proceduralMusic.start(1);
     this.generateSeed();
     this.spawnCrystals();
     // Apply starting XP from persistent rewards (may trigger a level-up)
@@ -774,6 +780,7 @@ export class GameEngine {
     }
     
     this.audio.playShoot();
+    this.proceduralAudio.playShoot(1 + Math.random() * 0.2);
   }
 
   private fireVolley(
@@ -1035,6 +1042,7 @@ export class GameEngine {
     this.maxCombo = Math.max(this.maxCombo, this.player.combo);
     this.screenShake = e.type === 'boss' ? 20 : 5;
     this.audio.playExplosion();
+    this.proceduralAudio.playExplosion();
     this.enemiesKilled++;
     if (e.type === 'boss') this.bossKills++;
 
@@ -1148,6 +1156,7 @@ export class GameEngine {
     // Visual effects
     this.screenShake = 15;
     this.audio.playPowerUp();
+    this.proceduralAudio.playLevelUp();
 
     // Level up particle explosion - golden spiral
     for (let i = 0; i < 80; i++) {
@@ -1321,6 +1330,8 @@ export class GameEngine {
     this.onStateChange(this.state);
     this.saveHighScore();
     this.audio.stopMusic();
+    this.proceduralMusic.stop();
+    this.proceduralAudio.playDeath();
     // Death explosion
     for (let i = 0; i < 100; i++) {
       const angle = Math.random() * Math.PI * 2;

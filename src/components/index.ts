@@ -15,6 +15,7 @@ export { LevelUpScreen } from './LevelUpScreen';
 export { LevelUpChoiceScreen } from './LevelUpChoiceScreen';
 export { SettingsMenu } from './SettingsMenu';
 export { TutorialOverlay } from './TutorialOverlay';
+export { InteractiveTutorial } from './InteractiveTutorial';
 
 // Feedback
 export { AchievementNotification } from './AchievementNotification';
@@ -44,3 +45,17 @@ export { ArcadeGame } from './ArcadeGame';
 export { DailyRewardsUI } from './DailyRewardsUI';
 export { ShopUI } from './ShopUI';
 export { DifficultySelectUI } from './DifficultySelectUI';
+export { MetaProgressionUI } from './MetaProgressionUI';
+
+// Advanced systems UI (merged from webgpu-online-games-51d72)
+export { AchievementUI } from './AchievementUI';
+export { ActivePowerUpsDisplay, ActiveCombosDisplay, PowerUpNotification } from './ActivePowerUpsDisplay';
+export { EnemyAIDisplay, AIBehaviorLegend } from './EnemyAIDisplay';
+export { EnemyVisualEffects } from './EnemyVisualEffects';
+export { FormationVisualization, FormationSelector } from './FormationVisualization';
+export { WeatherDisplay, WeatherSelector } from './WeatherDisplay';
+
+// Decorative in-game overlays (merged from webgpu-online-games-51d72)
+export { BloomEffect } from './BloomEffect';
+export { ParticleOverlay } from './ParticleOverlay';
+export { ChromaticAberration } from './ChromaticAberration';

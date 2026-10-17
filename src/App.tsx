@@ -32,7 +32,12 @@ import {
   DailyRewardsUI,
   ShopUI,
   DifficultySelectUI,
-  AchievementPanel
+  AchievementPanel,
+  MetaProgressionUI,
+  BloomEffect,
+  ParticleOverlay,
+  ChromaticAberration,
+  InteractiveTutorial
 } from './components';
 import {
   loadGame,
@@ -143,6 +148,8 @@ export default function App() {
   const [showShop, setShowShop] = useState(false);
   const [showDifficultySelect, setShowDifficultySelect] = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
+  const [showMetaProgression, setShowMetaProgression] = useState(false);
+  const [showInteractiveTutorial, setShowInteractiveTutorial] = useState(false);
 
   // Persistent meta derived from saveData (initialized lazily from the save)
   const [skillPoints, setSkillPoints] = useState(() => saveData.skillPoints);
@@ -621,6 +628,8 @@ export default function App() {
           onShowDailyRewards={() => setShowDailyRewards(true)}
           onShowShop={() => setShowShop(true)}
           onShowDifficulty={() => setShowDifficultySelect(true)}
+          onShowMetaProgression={() => setShowMetaProgression(true)}
+          onShowInteractiveTutorial={() => setShowInteractiveTutorial(true)}
           highScore={saveData?.player.highScore ?? 0}
           webgpuSupported={webgpuSupported}
         />
@@ -868,6 +877,31 @@ export default function App() {
         currentDifficulty={currentDifficulty}
       />
 
+      {/* Meta Progression (real run stats + persistent gem wallet) */}
+      <MetaProgressionUI
+        isOpen={showMetaProgression}
+        onClose={() => setShowMetaProgression(false)}
+        playerStats={{
+          level: stats.playerLevel,
+          maxCombo: stats.maxCombo,
+          highestWave: stats.wave,
+          bossKills: stats.bossKills
+        }}
+        currency={saveData?.currency.gems ?? 0}
+        onUnlock={(nodeId) => {
+          addNotification(`Odklenjeno: ${nodeId}`, 'success');
+        }}
+      />
+
+      {/* Interactive Tutorial */}
+      <InteractiveTutorial
+        isOpen={showInteractiveTutorial}
+        onClose={() => setShowInteractiveTutorial(false)}
+        onComplete={() => {
+          addNotification('Vodnik končan!', 'success');
+        }}
+      />
+
       {/* Settings Menu (persistent + applied to engine) */}
       <SettingsMenu
         isOpen={showSettings}
@@ -920,6 +954,20 @@ export default function App() {
         onSecondary={() => engineRef.current?.mobileSecondary()}
         isVisible={gameState === 'playing'}
       />
+
+      {/* Visual Effects */}
+      {gameState === 'playing' && (
+        <>
+          {/* Bloom Effect */}
+          <BloomEffect intensity={1.2} threshold={0.8} />
+
+          {/* Particle Overlay */}
+          <ParticleOverlay isActive={true} />
+
+          {/* Chromatic Aberration */}
+          <ChromaticAberration intensity={2} isActive={true} />
+        </>
+      )}
 
       {/* Scanline effect */}
       <div
