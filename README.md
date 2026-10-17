@@ -1,90 +1,133 @@
 # 🚀 ATHERIA: VOID BREAKER
 
-> **WebGPU cosmic-horror rogue-lite arena shooter** — preživi valove Voida, izboljšuj svojo ladjo in potopi se v praznino.
+> **WebGPU vertikalni vesoljski strelec z rogue-lite napredovanjem** — leti naprej skozi poimenovane sektorje, se izogibaj asteroidom, preživi WARNING in potopi bossa v praznino.
 
 [![Deploy](https://github.com/robertpezdirc8-prog/igra/actions/workflows/deploy.yml/badge.svg)](https://github.com/robertpezdirc8-prog/igra/actions/workflows/deploy.yml)
-![Igraj zdaj](https://img.shields.io/badge/igraj-robertpezdirc8-prog.github.io%2Figra-00ffff)
+![Igraj zdaj](https://img.shields.io/badge/igraj-robertpezdirc8--prog.github.io%2Figra-00ffff)
+![WebGPU](https://img.shields.io/badge/render-WebGPU%20%2B%20bloom-ff66ff)
 
 **🎮 Igraj v brskalniku:** https://robertpezdirc8-prog.github.io/igra/
+
+| ![Glavni meni](docs/screenshots/menu.png) |
+|:---:|
+| *Glavni meni* |
+
+| ![Igranje](docs/screenshots/gameplay.png) |
+|:---:|
+| *Napredujoči polet: plastna ladja, pravi asteroidi, GRADIUS merilec, minimapa* |
 
 ---
 
 ## 📖 O igri
 
-ATHERIA: VOID BREAKER je twin-stick arena shooter z rogue-lite napredovanjem, ki teče v celoti v brskalniku.
-Igralec upravlja vesoljsko ladjo ujeto v praznino (Void), kjer se v valovih prebujajo vesoljske grozote.
-Vsak peti val prinese **bossa** (Void Titan), vsak dosežen nivo pa izbiro med tremi naključnimi nadgradnjami.
+ATHERIA: VOID BREAKER je **vertikalni scroller shoot 'em up** v duhu arcade klasik
+(Gradius, Raiden, Truxton, DoDonPachi), zgrajen z modernim tehnološkim kupom.
+Ladja vedno leti naprej — svet se premika pod njo, asteroidni pasovi plavajo proti njej,
+sovražniki izvajajo strafe-run lete od zgoraj, vsak peti val pa prinese
+**WARNING klakson** in bossa z lastno vektorsko podobo in imenovano HP litico.
 
-- **Igralna zanka:** preživi → pobiraj XP → izbiraj nadgradnje → odklepaj veščine → ponovi, le bolje
-- **Permadeath s progresijo:** smrt konča tek, ampak zlato, veščine in dosežki ostanejo
-- **Proceduralni zvok:** vsa glasba in efekti so sintetizirani v realnem času (WebAudio, brez zvočnih datotek)
-- **GPU pospešeno:** delci se rišejo prek WebGPU (do 10 000 instanc), z avtomatskim fallbackom na Canvas2D
+- **Igralna zanka:** leti → izogibaj se kamnom → jasi valove → pobiraj medalje in črke → WARNING → boss → SEKTOR JASEN tally → ponovi, težje
+- **Permadeath s progresijo:** smrt konča tek, zlato, veščine, dosežki in dvorana slavnih ostanejo
+- **Prilagodljiva plastna glasba:** soundtrack je sintetiziran v realnem času (WebAudio) in *raste z akcijo* — bobni se prižgejo v boju, boss dobi lasten disonantni sloj
+- **GPU pospešeno:** delci prek WebGPU (do 10 000 instanc, 1 draw call) + **bloom post-processing**, samodejni fallback na Canvas2D
 
 ---
 
 ## 🎮 Kontrole
 
-| Dejanje | Namizje | Mobilno |
-|---|---|---|
-| Premikanje | `W A S D` / puščice | virtualna palica (levi spodaj) |
-| Namerjanje | miška | — |
-| Streljanje | levi klik (drži) | rdeči gumb (drži) |
-| Dash (i-frames) | `SPACE` | cyan gumb |
-| Sekundarno orožje | desni klik | vijolični gumb |
-| Temporal Stasis | `Q` | — |
-| Pavza | `ESC` | — |
+| Dejanje | Namizje | Gamepad | Mobilno |
+|---|---|---|---|
+| Premikanje | `W A S D` / puščice | leva palica / D-pad | virtualna palica |
+| Namerjanje + streljanje | miška (drži) | samodejno + gumbi | rdeči gumb |
+| Dash (i-frames) | `SPACE` | A / X | cyan gumb |
+| Bomba (počisti izstrelke) | `B` | B / krožni gumb | BOMBA gumb |
+| Gradius izbor | `V` | Y / trikotnik | GRAD gumb |
+| Sekundarno orožje | desni klik | RB / R1 | vijolični gumb |
+| Temporal Stasis | `Q` | LB / L1 | — |
+| Pavza | `ESC` | START/OPCIJE | gumb ☰ |
 
-> 💡 `preventDefault` velja izključno za igralne tipke med igranjem — F5, Tab in Ctrl+R delujejo normalno.
+> 💡 Gamepad se zazna samodejno (hot-plug) — poveži in igraj. `preventDefault` velja
+> izključno za igralne tipke med igranjem, zato F5/Tab/Ctrl+R delujejo normalno.
 
 ---
 
-## ⚔️ Igralni sistemi
+## 🗺️ Sektorska struktura (Gradius šola)
 
-### Valovi in sovražniki
-- Neprekinjeni valovi s tresočim se številom sovražnikov (`3 + val × 2`)
-- **Swarmer** (rdeča) — hitri, mnogi, šibki
-- **Sniper** (oranžna) — drži razdaljo,izstreli trojčke
-- **Titan** (vijolična) — počasen, oklepljen, krožne salve
-- **Void Titan (boss)** vsak 5. val — 4 napadalni vzorci (spiralni, Lissajous, logaritemski spiralni, križni) in **adaptivna AI**, ki analizira tvoje potegom bega in prilagodi merjenje
+Igra je razdeljena na **poimenovane sektorje** po 5 valovih, vsak z lastno barvno identiteto:
 
-### XP, nivoji in nadgradnje
-- Ubijanje sovražnikov daje XP; nivo sproži izbiro **3 naključnih nadgradenj** iz bazena 10
-- Vsak 3. val dodatna nadgradnja (wave milestone)
-- Nadgradnje: Plasma Overcharge, Neural Reflexes, Void Shield, Critical Matrix, Split Plasma,
-  Gravity Well / Chain Lightning / Temporal Stasis (odklepijo sekundarno orožje) …
+| Sektor | Ime | Atmosfera |
+|---|---|---|
+| 1 | **OUTPOST GATE** | mejna patrulja, turizna |
+| 2 | **ASTEROID FIELDS** | gosen pas kamnov, oranžna |
+| 3 | **NEBULA VEIL** | ionska nevihta, vijolična |
+| 4 | **SCRAP FLEET** | armada razbitin, rdeča |
+| 5 | **VOID CITADEL** | sovražna trdnjava, magenta |
 
-### Skill tree (trajna progresija)
-- **3 veje × 5 veščin**: Ofenziva ⚡, Defenziva 🛡️, Uporabnost 💨
-- Skill točke (~1 na igralčev nivo + dnevne nagrade)
-- Vse 15 veščin **dejansko vpliva na igro** prek `computeSkillBonuses()` — primeri:
-  - Plasma Mastery → +10 % škode / nivo
-  - Chain Reaction → izstrelki se ob zadetku razvejijo na najbližega sovražnika
-  - Overcharge → možnost dvojnega salva
-  - Reinforced Hull → +20 HP / nivo
-  - Energy Shield → do −75 % prejete škode
+- Vsak sektor se začne s **stage-card** uvodnim napisom in konča z bossom
+- Ozadje dobi sektorsko barvno pranji (klasični arcade premik palete)
 
-### Težavnost (5 stopenj)
-`Easy → Normal → Hard → Nightmare → Impossible` — množniki za HP/škodo/hitrost sovražnikov
-in za škodo/XP/zlato/rezultat igralca. Višje stopnje se odklenejo z doseženim nivojem.
-Izbira se trajno shrani.
+## 👹 Bossi (rotirajoča zaseda)
 
-### Ekonomija in trgovina
-- Sovražniki odpuščajo **zlato** (swarmer 10 / titan 25 / boss 250 × množnik težavnosti)
-- Trgovina ponuja 18 kozmetičnih predmetov (sledi, avre, okvirji, ladje, efekti) z redkostmi
-  in nivojskimi odklepi; predmeti nad tvojim nivojem so vidni, ampak 🔒 zaklenjeni
-- Nakup je validiran (stanje + nivo) — negativna stanja niso možna
+Vsak 5. val: **3,5 s WARNING faza** — utripajoč rdeč napis, animirani nevarnostni
+trakovi, zračna klakson sirena. Šele nato vstopi boss:
 
-### Dnevni izzivi in nagrade
-- **3 dnevni izzivi** (seed-generirani po datumu, enaki za vse igralce na napravi)
-- **7-dnevni cikel nagrad**: zlato, XP za naslednji tek, skill točke, dragulji
+- 🌌 **Cosmic Horror** — magenta grozota, spiralni in krožni vzorci
+- 💀 **Mehanska lobanja** (Truxton poklon) — oranžna, laserski in homing vzorci
+- 🛰️ **Void postaja** — turizna trdnjava, valovni in burst vzorci
 
-### Dosežki
-15 dosežkov (nivojski, bojni, preživetveni) s preverjanjem ob koncu teka,
-toast obvestili in trajno shranjevanjem.
+Bossi imajo imenovane HP litice, več faz, adaptivno AI, ki analizira tvoje begove —
+in **koreografirano smrt**: 1,6 s verižnih eksplozij po trupu (slow-motion + glasbeno
+dušenje), nato končni megablast z nagradami.
 
-### Statistika in leaderboard
-Vsak konec teka posodobi življenjsko statistiko (čas, ubijenci, škoda, combo …)
-in vpiše rezultat na lokalni leaderboard (top 100, z rankom igralca).
+## ⚖️ Poštena težavnost
+
+- **Proračun po sektorjih** s trdimi kapicami: HP +12 %/sektor (do 2,2×),
+  hitrost izstrelkov +6 %/sektor (**do 1,35×** — vzorci ostanejo berljivi),
+  hitrost streljanja +5 %/sektor (do 1,3×)
+- **Nevidna adaptivna pomoč:** 4+ zadetki v 15 s gladko ublažijo izstrelke (do 0,88×),
+  neutakana igra se vrne na 1,0× — igralec le čuti »to je pošteno«
+- 5 izbirnih stopenj: `Easy → Normal → Hard → Nightmare → Impossible`
+
+## 🏆 Nagradne zanke (Raiden / DoDonPachi šola)
+
+- **Medalje z verigo:** hitro pobiranje gradi verigo (do ×8 vrednosti)
+- **Medaljna serija:** zaporedne medalje brez zadetka do **2× vrednosti**; udarec ponastavi
+- **Popoln val:** brez zadetka skozi cel val → bonus `BREZ ZADETKOV`
+- **SEKTOR JASEN tally panel** po bossu — vrstica za vrstico: osnova,
+  BREZ ZADETKOV (5000×sektor), MEDALJE ×n, SKUPAJ
+- **Val jasen bonus** vsak val + **črke**: `P` moč, `S` hitrost, `B` bomba, `O` opcija
+- **Offline dvorana slavnih:** top 10 tekov z statistiko
+
+## 🔫 Klasični arcade sistemi
+
+| Sistem | Vir | Kaj dela |
+|---|---|---|
+| GRADIUS merilec + ŠČIT + OPCIJE | Gradius | kapsule polnijo merilec; ščit absorbira udarce; do 3 dronov |
+| Bomba + protibomba | Raiden | počisti izstrelke; protibomba reši pri zadetku |
+| Wave cannon | R-Type | drži za naboj, spusti za žarek |
+| Plazma laser | Raiden II | začasna vijolična »toothpaste« |
+| Danmaku sine izstrelki | DoDonPachi | sniper trojčki se prepletajo stransko |
+| Medalje + verige | Raiden/DoDonPachi | glej zgoraj |
+
+---
+
+## 🎵 Prilagodljivi soundtrack
+
+```
+intenzivnost 0        1                 2                 BOSS
+           │          │                 │                  │
+  bas ▂▂▂────────────────────────────────────────────────────  (vedno)
+  pad ▂▂▂────────────────────────────────────────────────────  (vedno)
+  bobni            ▂▂▂─────────────────────────────────────  (boj)
+  arp lead                           ▂▂▂───────────────────  (vroče)
+  boss sloj                                           ▂▂▂▂▂  (double-kick +
+                                                              snare + disonanca)
+```
+
+- 16-stopenjski lookahead sequencer (AudioContext ura = natančnost), **132 BPM, A frigijska**
+- Akordna zanka Am → F → G → Em; boss sloj = minor-sekundno trepetanje (klasična »boss tema«)
+- `duck()` ob boss smrti: lowpass sweep — svet upočasni, glasba zaduši
+- Vsi SFX sintetizirani (0 zvočnih datotek): klakson, laserski FM, eksplozije z sub-bass
 
 ---
 
@@ -93,27 +136,29 @@ in vpiše rezultat na lokalni leaderboard (top 100, z rankom igralca).
 ```
 ┌─────────────────────────────────────────────┐
 │  canvas #1 (2D)                             │  ozadje, sovražniki, projektili,
-│  → CanvasRenderingContext2D                 │  igralec, lebdeči teksti, meni
+│  → CanvasRenderingContext2D                 │  ladja, bossi, tally, WARNING
 ├─────────────────────────────────────────────┤
-│  canvas #2 (WebGPU overlay, prosojen)       │  delci: instancirani kvadratki,
-│  → GPUCanvasContext + render pipeline       │  1 draw call za do 10 000 delcev
+│  canvas #2 (WebGPU overlay, prosojen)       │  delci: instancirani kvadratki
+│  → GPUCanvasContext + pipeline + BLOOM      │  1 draw call do 10 000 delcev
 ├─────────────────────────────────────────────┤
 │  React UI (DOM)                             │  HUD, meniji, skill tree, trgovina
 └─────────────────────────────────────────────┘
 ```
 
-**Zakaj dva canvasa?** HTML canvas lahko gosti samo **en** tip contexta. Ko je enkrat
-pridobljen `2d` context, `getContext('webgpu')` vrne `null`. Zato WebGPU dobi svojo
-prosojno platno (premultiplificirano alfo, blend `one / one-minus-src-alpha`), ki se
-samo prekrije nad 2D platnom.
+- **Bloom v3:** prag 0,45, ločljivi Gaussian v polovični resoluciji — sijaj brez mehčanja
+- CPU pakuje delce v 48 B/delec → staging buffer → instancirani izris
+- **Parallax zvezdnato nebo:** 3 sloji, vertikalni smear = občutek hitrosti
+- Brez WebGPU → samodejni Canvas2D fallback (isti vizualni rezultat)
 
-**Cevovod (pipeline):**
-- CPU pakuje delce v strukturo 48 B/delec (pozicija, hitrost, življenjska doba, velikost, RGBA)
-- Nalaganje prek staging bufferja → `copyBufferToBuffer` → instancirani vertex buffer
-- Vertex shader izbere pozicijo/velikost/barvo per instanco (stepMode: `instance`),
-  fragment shader upošteva premultiplificirano alfo (fade-out)
-- Barve se razčlenijo iz hex/rgb nizov z cache-em (max 512 vnosov)
-- Če WebGPU ni na voljo → samodejni fallback na Canvas2D (isti vizualni rezultat)
+## ⛰️ Svet, ki leti naprej
+
+- **Vertikalni svetovni scroll** (70 → 160 px/s z valovi) — nič več stojanja na mestu
+- **Pravi asteroidi:** nepravilne silhuete (9–12 točk), radialska sencenje s kraterji,
+  5 sivkino-rjavih palet; vsak kamen ima lastno hitrost (0,55–1,45× × stopnja)
+- **Zalet se = škoda** (dash i-frames in Gradius ščit so štejeta) — izogibanje je veščina
+- **Sovražniki izvajajo lete:** formacije pridejo od zgoraj, posamezniki se potopijo
+  v strafe-run in se vrnejo s zgornjega roba (pošteno omejeno število hkratnih potopov)
+- **Per-tip oblikovanje ladij:** dart/marksman/gunship imajo vsak svojo vektorsko podobo
 
 ---
 
@@ -121,23 +166,18 @@ samo prekrije nad 2D platnom.
 
 ### Ključno načelo: **engine je enoten vir resnice**
 
-React UI **ne vodi vzporednega stanja igre**. Vse spremembe stanja gredo skozi javni API
-engine-ja, UI pa bere realne podatke prek getterjev. Tako ne more priti do klasičnega
-desync-a (npr. zamrznjen zaslon po kliku na »Nadaljuj«).
+React UI **ne vodi vzporednega stanja igre**. Vse spremembe gredo skozi javni API
+engine-ja, UI pa bere realne podatke prek getterjev (fingerprint sync ~10 Hz,
+re-render samo ob dejanski spremembi).
 
 ```
-React (App.tsx)                       GameEngine (engine.ts)
-─────────────────                     ──────────────────────
-onStartGame  ── setSkillBonuses ──▶   startGame()      vir resnice za:
-              ── setDifficulty  ──▶                    'menu' | 'playing' | 'paused'
-              ── setStartingXp ──▶                     | 'levelup' | 'levelchoice'
-              ── restart()      ──▶                    | 'gameover'
-onResume     ────── resume()    ──▶
-onRestart    ────── restart()   ──▶   onStateChange ──▶ React re-render
-onMainMenu   ────── goToMenu()  ──▶
-izbira nadgradnje ─ chooseUpgrade(i) ─▶
-
-UI ◀── getGameStats() / getMinimapData() / getLevelChoices() / getPlayer() (branje)
+React (App.tsx)          GameEngine (engine.ts)          Sistemi
+──────────────           ─────────────────────           ───────
+startGame ──────────▶    zanka, fizika, kolizije   ◀───  MusicEngine (glasba)
+chooseUpgrade ──────▶    valovi, sektorji, bossi   ◀───  BossAI (vzorci)
+pause/resume ───────▶    WARNING, tally, medalje   ◀───  AdvancedEnemyAI
+gamepad poll ───────▶    XP, zlato, statistika     ◀───  WebGPURenderer (+bloom)
+UI ◀── getGameStats() / getMinimapData() / getPlayer()    SaveSystem / Meta
 ```
 
 ### Struktura projekta
@@ -148,48 +188,33 @@ UI ◀── getGameStats() / getMinimapData() / getLevelChoices() / getPlayer()
 ├── eslint.config.js            # flat config (js + ts + react-hooks)
 ├── .github/workflows/
 │   └── deploy.yml              # typecheck → build → Pages deploy
+├── docs/screenshots/           # prave slike zaslona (menu, gameplay)
 └── src/
-    ├── main.tsx                # React root
-    ├── App.tsx                 # UI orkestracija; sync ~10 Hz s spremembno-detekcijo
-    ├── index.css               # Tailwind 4
+    ├── App.tsx                 # UI orkestracija; sync ~10 Hz s fingerprint-detekcijo
     ├── game/
-    │   ├── engine.ts           # GameEngine: zanka, fizika, valovi, boss, XP, orožje,
-    │   │                       #   kolizije, delci, sekundarno orožje, težavnost,
-    │   │                       #   skill bonusi, gold, statistika teka
-    │   ├── webgpu-renderer.ts  # WebGPU instancirano renderiranje delcev
-    │   ├── audio.ts            # proceduralni WebAudio (pad, arpeggio, SFX sinteza)
-    │   ├── skillTree.ts        # definicije veščin + computeSkillBonuses (čista fn)
+    │   ├── engine.ts           # GameEngine: zanka, sektorji, bossi, WARNING, tally,
+    │   │                       #   orožja, medalje, gamepad, kolizije, delci, HUD
+    │   ├── musicEngine.ts      # prilagodljivi plastni soundtrack (lookahead sequencer)
+    │   ├── webgpu-renderer.ts  # WebGPU instancirani delci + bloom v3
+    │   ├── audio.ts / audioSystem.ts  # sintetizirani SFX (klakson, FM laser, …)
+    │   ├── enemyAI.ts          # AdvancedEnemyAI + BossAI (vzorci po fazah)
+    │   ├── difficulty.ts       # 5 stopenj (množniki) + unlocki
+    │   ├── skillTree.ts        # 3 veje × 5 veščin → computeSkillBonuses()
     │   ├── saveSystem.ts       # save v2.0.0 + migracija v1→v2
-    │   ├── statsSystem.ts      # življenjska statistika + leaderboard (localStorage)
-    │   ├── achievements.ts     # definicije + checkAchievements()
-    │   ├── dailyChallenges.ts  # seed-generirani dnevni izzivi
-    │   ├── difficulty.ts       # 5 težavnostnih stopenj (množniki)
-    │   ├── cosmetics.ts        # 18 kozmetičnih predmetov + helperji
-    │   ├── levels.ts           # nivojske stopnje okolja
-    │   └── environment.ts      # risanje ozadja po nivoju
-    ├── components/             # 34 React komponent (brez mrtev kode)
-    │   ├── index.ts            # javni izvoz
-    │   ├── MainMenu / PauseMenu / GameOverScreen / LevelUp* / LoadingScreen …
-    │   └── HealthBar / ScoreDisplay / MiniMap / WaveInfo / ComboDisplay … (realni podatki)
-    └── utils/
-        └── pseudoRandom.ts     # determinističen PRNG (čisti render efekti)
+    │   ├── statsSystem.ts      # življenjska statistika + dvorana slavnih (top 10)
+    │   ├── achievements.ts / dailyChallenges.ts / cosmetics.ts
+    │   ├── classicShooter.ts / classicEnemySystem.ts / classicArcadeEngine.ts
+    │   ├── advancedPowerups.ts / podSystem.ts / weatherSystem.ts
+    │   ├── destructibleEnvironment.ts / levels.ts / environment.ts
+    │   └── metaProgression.ts / verticalScroller.ts / systems.ts
+    ├── components/             # 60+ React komponent (meniji, HUD, paneli)
+    └── utils/pseudoRandom.ts   # determinističen PRNG (čisti render efekti)
 ```
-
-### Sinhronizacija UI ↔ engine (brez 60×/s re-renderjev)
-
-- `requestAnimationFrame` zanka vzorca engine **~10×/s** (throttle 100 ms)
-- Vsak vzorec se serializira v *fingerprint* (stanje + rezultat + HP + pozicija …);
-  React se posodobi **samo, če se je kaj spremenilo**
-- Kritični vizual (križ, minimapa) teče na 10 Hz — dovolj gladko, brez povoja React drevesa
-- Prejšnja implementacija je klicala `setState` 60×/s in re-renderjala celoten HUD
 
 ### Type-safe in čisti render
 
-- TypeScript **strict** (`tsc --noEmit` v CI)
-- ESLint flat config: `@eslint/js` + `typescript-eslint` + `eslint-plugin-react-hooks`
-  (vključno z react-compiler pravili čistosti renderja)
-- `Math.random()` / `Date.now()` ne sobivajo v renderju → `pseudoRandom(seed)` in
-  lazy `useState` initializerji; `preventDefault` samo za igralne tipke
+- TypeScript **strict** (`tsc --noEmit` v CI) + ESLint flat config (react-hooks + react-compiler pravila)
+- `Math.random()` / `Date.now()` ne sobivajo v renderju → `pseudoRandom(seed)`
 
 ---
 
@@ -199,18 +224,17 @@ En JSON v `localStorage` (`atheria_save_data`), verzioniran z **migracijo v1 →
 
 | Sekcija | Vsebina |
 |---|---|
-| `player` | high score, skupni čas, odigrane igre, ubijenci, boss kills, najvišji val/nivo, max combo |
-| `skillTree` | nivoji vseh 15 veščin po vejah (`offense/defense/utility`) |
+| `player` | high score, čas, tekmi, ubijenci, boss kills, najvišji val/nivo, max combo |
+| `skillTree` | nivoji vseh 15 veščin (`offense/defense/utility`) |
 | `skillPoints` | neporabljene skill točke |
-| `difficulty` | izbrana težavnost (`null` = neizbrana) |
-| `achievements` | ID-ji odklenjenih dosežkov |
-| `completedChallenges` | `{ [datum]: challengeId[] }` |
-| `settings` | glasnost glasbe/SFX, FPS prikaz, kakovost delcev |
-| `cosmetics` | lastni predmeti + opremljeni (sled/aura/okvir) |
-| `currency` | zlato, dragulji, XP za naslednji tek (dnevna nagrada) |
+| `difficulty` | izbrana težavnost |
+| `achievements` | odklenjeni dosežki (15) |
+| `completedChallenges` | dnevni izzivi po datumu (seed-generirani, 7-dnevne nagrade) |
+| `settings` | glasnost glasbe/SFX, FPS, kakovost delcev |
+| `cosmetics` | 18 predmetov (sledi, avre, okvirji) + opremljeni |
+| `currency` | zlato, dragulji, XP za naslednji tek |
 
-Ločeno še: `atheria_highscore` (za canvas meni), `atheria_game_stats` (statistika),
-`atheria_leaderboard` (top 100), `daily_rewards` (7-dnevni cikel).
+Ločeno: `atheria_leaderboard` (dvorana slavnih top 10), dnevne nagrade, visoka rezultata.
 
 ---
 
@@ -229,29 +253,21 @@ npm run dev
 
 # 3. Kakovost kode
 npm run typecheck     # TypeScript strict
-npm run lint          # ESLint (js + ts + react-hooks)
+npm run lint          # ESLint
 
 # 4. Produkcija
 npm run build         # izhod v dist/
-npm run preview       # lokalni predogled produkcijskega builda
+npm run preview       # lokalni predogled
 ```
 
-> **WebGPU** zahteva Chrome/Edge 113+, Firefox 141+ ali drug brskalnik z omogočenim WebGPU.
-> Brez njega igra samodejno teče v Canvas2D načinu — funkcionalnost je identična.
-
----
+> **WebGPU** zahteva Chrome/Edge 113+, Firefox 141+ ali Safari 26+. Brez njega igra
+> samodejno teče v Canvas2D načinu — funkcionalnost je identična.
 
 ## 🌍 Deployment (GitHub Pages)
 
 Workflow `.github/workflows/deploy.yml` ob vsakem pushu na `main`:
-
-1. `npm ci` → `npm run typecheck` → `npm run build`
-2. Objavi `dist/` prek `actions/deploy-pages@v4`
-
-Repo mora imeti **Settings → Pages → Source = GitHub Actions** (nastavljeno).
-Stran je dosegljiva na `/igra/` (nastavljeno v `vite.config.js` kot `base`).
-
----
+`npm ci` → `npm run typecheck` → `npm run build` → `actions/deploy-pages@v4`.
+Repo: **Settings → Pages → Source = GitHub Actions**. Stran: `/igra/` (base v `vite.config.js`).
 
 ## 🔧 Tehnične odločitve (zakaj tako?)
 
@@ -259,23 +275,24 @@ Stran je dosegljiva na `/igra/` (nastavljeno v `vite.config.js` kot `base`).
 |---|---|
 | Engine kot enoten vir resnice | Odpravi desync zamrznitve (pavza/restart/level-up) |
 | 2 platna (2D + WebGPU) | Canvas dopušča samo en context type |
-| CPU fizika delcev, GPU izris | Readback iz GPU je drag; CPU ostane vir resnice za pozicije |
+| CPU fizika, GPU izris + bloom | Readback iz GPU je drag; CPU ostane vir resnice |
 | UI sync 10 Hz + fingerprint | 60×/s setState je povozil React in jemlje FPS |
-| `pseudoRandom()` namesto `Math.random()` v renderju | Stabilni efekti + React čistost pravila |
+| Lookahead glasbeni sequencer | setInterval ne more timingati — AudioContext ura je natančna |
+| Kapice na težavnostnih rampah | Danmaku mora ostati berljiv — pošteno > težko |
+| Nevidna adaptivna pomoč | Moderni standard (God of War, Celeste assist) |
 | Proceduralni WebAudio | 0 zvočnih datotek, instant nalaganje, nič licenc |
-| Brez UI knjižnic | react + react-dom edini runtime odvisnosti (~90 KB gzip) |
-| Skill bonusi kot čista funkcija | Veščine testabilne, brez mutacij modulov |
-
----
 
 ## 🗺️ Roadmap
 
-- [ ] Weapon evolution (kombiniranje nadgradenj v nove orožje)
+- [x] Vertikalni scroller + pravi asteroidi + leti sovražnikov
+- [x] Gamepad podpora (palica + D-pad + gumbi)
+- [x] Rotirajoča boss zaseda z WARNING fazo in koreografirano smrtjo
+- [x] Prilagodljiva plastna glasba (boss sloj, duck)
+- [x] Sektorska struktura + pošten težavnostni proračun + nagradne zanke
+- [ ] Weapon evolution (kombiniranje nadgradenj)
 - [ ] Elitne različice sovražnikov (afiksi)
-- [ ] Dodatni bossi (Void Titan je prvi iz družine)
-- [ ] Online leaderboard (Supabase) — localStorage je pripravljen za zamenjavo
-- [ ] Glow/bloom post-processing v WebGPU cevovodu
-- [ ] Lokalizacija (EN/SI preklopnik (EN/SI))
+- [ ] Online leaderboard (Supabase) — dvorana slavnih je pripravljena na zamenjavo
+- [ ] Lokalizacija EN/SI preklopnik
 
 ## 🤝 Sodelovanje
 
@@ -287,4 +304,4 @@ npm run typecheck && npm run lint && npm run build
 
 ## 📄 Licenca
 
- [MIT](./LICENSE) © robertpezdirc8-prog
+[MIT](./LICENSE) © robertpezdirc8-prog
