@@ -115,6 +115,8 @@ export class GameEngine {
   private totalDamageDealt = 0;
   private enemiesKilled = 0;
   private floatingTexts: FloatingText[] = [];
+  private isMobile = false;
+  private autoAimEnabled = true;
   
   // Advanced systems
   private weatherSystem: WeatherSystem;
@@ -274,6 +276,41 @@ export class GameEngine {
       this.mouseDown = false;
     } else if (button === 2) {
       this.rightMouseDown = false;
+    }
+  }
+
+  // Mobile touch controls
+  setMobileMovement(x: number, y: number) {
+    // x and y are normalized from -1 to 1
+    const speed = 5;
+    const vx = x * speed;
+    const vy = y * speed;
+    
+    // Simulate keyboard input
+    this.keys.delete('w');
+    this.keys.delete('a');
+    this.keys.delete('s');
+    this.keys.delete('d');
+    
+    if (vy < -0.3) this.keys.add('w');
+    if (vx < -0.3) this.keys.add('a');
+    if (vy > 0.3) this.keys.add('s');
+    if (vx > 0.3) this.keys.add('d');
+  }
+
+  setMobileShooting(active: boolean) {
+    this.mouseDown = active;
+  }
+
+  triggerMobileDash() {
+    if (this.player.dashCooldown <= 0 && this.player.energy >= 20) {
+      this.tryDash();
+    }
+  }
+
+  triggerMobileSecondary() {
+    if (this.player.secondaryCooldown <= 0 && this.player.energy >= 25) {
+      this.useSecondaryWeapon();
     }
   }
 

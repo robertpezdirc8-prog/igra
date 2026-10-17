@@ -54,3 +54,4 @@ export { BossHealthBar, BossPhaseInfo, BossAttackIndicator } from './BossHealthB
 export { EnemyAIDisplay, AIBehaviorLegend } from './EnemyAIDisplay';
 export { EnemyVisualEffects } from './EnemyVisualEffects';
 export { WeatherDisplay, WeatherSelector } from './WeatherDisplay';
+export { OrientationWarning } from './OrientationWarning';

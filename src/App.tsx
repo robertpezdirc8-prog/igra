@@ -46,7 +46,8 @@ import {
   ChromaticAberration,
   InteractiveTutorial,
   WeatherDisplay,
-  ActivePowerUpsDisplay
+  ActivePowerUpsDisplay,
+  OrientationWarning
 } from './components';
 import { loadGame, saveGame, createDefaultSaveData, SaveData } from './game/saveSystem';
 import { getLevelForPlayer } from './game/levels';
@@ -770,10 +771,26 @@ export default function App() {
 
       {/* Mobile Controls */}
       <MobileControls
-        onMove={(x, y) => {}}
-        onShoot={() => {}}
-        onDash={() => {}}
-        onSecondary={() => {}}
+        onMove={(x, y) => {
+          if (engineRef.current) {
+            engineRef.current.setMobileMovement(x, y);
+          }
+        }}
+        onShoot={(active) => {
+          if (engineRef.current) {
+            engineRef.current.setMobileShooting(active);
+          }
+        }}
+        onDash={() => {
+          if (engineRef.current) {
+            engineRef.current.triggerMobileDash();
+          }
+        }}
+        onSecondary={() => {
+          if (engineRef.current) {
+            engineRef.current.triggerMobileSecondary();
+          }
+        }}
         isVisible={gameState === 'playing'}
       />
 
@@ -806,6 +823,9 @@ export default function App() {
           background: 'radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.6) 100%)'
         }}
       />
+
+      {/* Orientation Warning for Mobile */}
+      <OrientationWarning />
     </div>
   );
 }
