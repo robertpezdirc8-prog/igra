@@ -657,9 +657,10 @@ export class GameEngine {
   /** R-Type wave cannon blast: piercing capsule beam that grows with charge. */
   private fireWaveCannon(charge: number) {
     const p = this.player;
-    const dx = this.mouse.x - p.x;
-    const dy = this.mouse.y - p.y;
-    const d = Math.sqrt(dx * dx + dy * dy) || 1;
+    // Wave cannon fires straight up, same fixed battery as the main gun.
+    const dx = 0;
+    const dy = -1;
+    const d = 1;
     const dmgMul = this.skillBonuses.damageMul * (this.difficulty?.playerDamageMultiplier ?? 1);
     this.bullets.push({
       x: p.x + (dx / d) * 24, y: p.y + (dy / d) * 24,
@@ -743,7 +744,7 @@ export class GameEngine {
     for (const side of [-1, 1]) {
       this.bullets.push({
         x: p.x + side * 14, y: p.y + 6,
-        vx: side * 2.5, vy: -6.5,
+        vx: 0, vy: -7,
         size: 4.5, color: '#ffb060',
         damage: 15 * dmgMul,
         life: 2.4, type: 'player',
@@ -774,11 +775,9 @@ export class GameEngine {
     // R-Type wave cannon charge build-up
     if (this.waveCharging) {
       this.waveCharge = Math.min(1, this.waveCharge + this.deltaTime / 1.15);
-      const dx = this.mouse.x - p.x;
-      const dy = this.mouse.y - p.y;
-      const d = Math.sqrt(dx * dx + dy * dy) || 1;
-      const nx = p.x + (dx / d) * 24;
-      const ny = p.y + (dy / d) * 24;
+      // Charge glow builds at the nose, straight above the cockpit.
+      const nx = p.x;
+      const ny = p.y - 24;
       this.particles.push({
         x: nx + (Math.random() - 0.5) * 26, y: ny + (Math.random() - 0.5) * 26,
         vx: 0, vy: 0, life: 0.16, maxLife: 0.16,
@@ -1709,11 +1708,10 @@ export class GameEngine {
 
   private playerShoot() {
     const p = this.player;
-    const dx = this.mouse.x - p.x;
-    const dy = this.mouse.y - p.y;
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-    const dirX = dx / dist;
-    const dirY = dy / dist;
+    // Fixed forward battery: every shot travels straight up the screen.
+    // No cursor tracking, no left/right angling — classic shmup aim.
+    const dirX = 0;
+    const dirY = -1;
     const speed = 12;
     const isCrit = Math.random() < p.critRate;
     this.shotsFired++;
@@ -1722,12 +1720,12 @@ export class GameEngine {
     // Raiden II "toothpaste" plasma: three homing segments that bend
     // toward the nearest enemy.
     if (this.plasmaTimer > 0) {
-      const baseAng = Math.atan2(dirY, dirX);
+      // Three parallel plasma segments straight ahead (homing still
+      // bends them onto targets once they are in flight).
       for (let i = 0; i < 3; i++) {
-        const ang = baseAng + (i - 1) * 0.22;
         this.bullets.push({
-          x: p.x, y: p.y,
-          vx: Math.cos(ang) * 8, vy: Math.sin(ang) * 8,
+          x: p.x + (i - 1) * 9, y: p.y,
+          vx: dirX * 8, vy: dirY * 8,
           size: 4.5, color: '#cc66ff',
           damage: 7 * dmgMul,
           life: 1.6, type: 'player',
@@ -1752,13 +1750,12 @@ export class GameEngine {
     const laser = this.laserTimer > 0;
 
     for (let v = 0; v < volleys; v++) {
-      this.fireVolley(p, dirX, dirY, speed, isCrit, dmgMul, v * 0.18, laser);
+      this.fireVolley(p, dirX, dirY, speed, isCrit, dmgMul, v * 5, laser);
     }
 
-    // Gradius DOUBLE: a second stream angled off the aim direction
+    // Gradius DOUBLE: a second parallel stream one lane to the left
     if (this.doubleTimer > 0) {
-      const da = Math.atan2(dirY, dirX) - 0.5;
-      this.fireVolley(p, Math.cos(da), Math.sin(da), speed, isCrit, dmgMul, 0, laser);
+      this.fireVolley(p, dirX, dirY, speed, isCrit, dmgMul, -13, laser);
    }
     
     // Muzzle flash effect
@@ -1785,14 +1782,15 @@ export class GameEngine {
   ) {
     // VOID RIFT evolution: two extra barrels and hotter damage.
     const count = Math.min(p.weaponEvolved ? p.weaponLevel + 2 : p.weaponLevel, 8);
+    // Parallel straight streams: lanes side by side, zero angular fan —
+    // every bullet flies exactly along (dirX, dirY). spreadOffset acts
+    // as a lateral lane shift in pixels, not an angle.
+    const spacing = laser ? 12 : 10;
     for (let i = 0; i < count; i++) {
-      const spread = (i - (count - 1) / 2) * (laser ? 0.09 : 0.15) + spreadOffset;
-      const cos = Math.cos(spread);
-      const sin = Math.sin(spread);
-      const bvx = (dirX * cos - dirY * sin) * speed;
-      const bvy = (dirX * sin + dirY * cos) * speed;
+      const lane = (i - (count - 1) / 2) * spacing + spreadOffset;
       this.bullets.push({
-        x: p.x, y: p.y, vx: bvx, vy: bvy,
+        x: p.x - dirY * lane, y: p.y + dirX * lane,
+        vx: dirX * speed, vy: dirY * speed,
         size: laser ? 5.5 : isCrit ? 6 : 4,
         color: laser ? '#ff44cc' : isCrit ? '#ffff00' : p.weaponEvolved ? '#ff7bff' : '#00ffff',
         damage: (10 + p.weaponLevel * 3) * dmgMul * (isCrit ? p.critDmg : 1)
@@ -3058,9 +3056,9 @@ export class GameEngine {
     });
   }
 
-  /** Gradius-style Options: up to 2 drones orbit the ship and auto-fire at
-   * the nearest enemy (position is a pure function of time, so rendering
-   * and firing stay in perfect sync without storing state).
+  /** Gradius-style Options: up to 2 drones orbit the ship and fire straight
+   * up in sync with the ship's fixed battery (position is a pure function
+   * of time, so rendering and firing stay in perfect sync).
    */
   private updateOptions() {
     const p = this.player;
@@ -3075,20 +3073,10 @@ export class GameEngine {
       const ox = p.x + Math.cos(ang) * 38;
       const oy = p.y + Math.sin(ang) * 38;
       if (!fire) continue;
-      // Auto-aim at the nearest enemy (Raiden option behaviour)
-      let bx = 0, by = -1, found = false;
-      let best = 340 * 340;
-      for (const e of this.enemies) {
-        const dx = e.x - ox;
-        const dy = e.y - oy;
-        const d2 = dx * dx + dy * dy;
-        if (d2 < best) { best = d2; bx = dx; by = dy; found = true; }
-      }
-      if (!found) continue;
-      const d = Math.sqrt(best) || 1;
+      // Straight up — same fixed battery as the ship, no auto-aim.
       this.bullets.push({
         x: ox, y: oy,
-        vx: (bx / d) * 10, vy: (by / d) * 10,
+        vx: 0, vy: -10,
         size: 3, color: '#66ffff', damage: 8 * dmgMul,
         life: 1.6, type: 'player'
       });
@@ -4055,10 +4043,10 @@ export class GameEngine {
     }
 
     // Ship body — layered fighter (wings → hull → spine → lights → canopy → engines)
-    const angle = Math.atan2(this.mouse.y - p.y, this.mouse.x - p.x);
-    // Slight bank into lateral movement for a sense of weight
+    // Nose always points up the screen; slight bank into lateral movement
+    // keeps a sense of weight without ever angling the battery.
     const bank = Math.max(-0.35, Math.min(0.35, p.vx * 0.03));
-    ctx.rotate(angle + bank);
+    ctx.rotate(-Math.PI / 2 + bank);
 
     // Wing spars (rear swept blades)
     ctx.beginPath();
@@ -4157,34 +4145,8 @@ export class GameEngine {
     }
 
     // Auto-aim indicator for mobile
-    if (this.isMobile && this.autoAimEnabled && this.mouseDown) {
-      ctx.save();
-      ctx.strokeStyle = 'rgba(255, 100, 100, 0.5)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 5]);
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-      ctx.lineTo(this.mouse.x, this.mouse.y);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      
-      // Target circle
-      ctx.strokeStyle = 'rgba(255, 100, 100, 0.7)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(this.mouse.x, this.mouse.y, 15, 0, Math.PI * 2);
-      ctx.stroke();
-      
-      // Crosshair
-      ctx.beginPath();
-      ctx.moveTo(this.mouse.x - 20, this.mouse.y);
-      ctx.lineTo(this.mouse.x + 20, this.mouse.y);
-      ctx.moveTo(this.mouse.x, this.mouse.y - 20);
-      ctx.lineTo(this.mouse.x, this.mouse.y + 20);
-      ctx.stroke();
-      
-      ctx.restore();
-    }
+    // Straight-fire battery: no aim line or target reticle — shots always
+    // travel up the screen, so there is nothing to point at the cursor.
   }
 
   private renderEnemies(ctx: CanvasRenderingContext2D) {
