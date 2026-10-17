@@ -43,3 +43,5 @@ export { SaveLoadUI } from './SaveLoadUI';
 export { StatsLeaderboardUI } from './StatsLeaderboardUI';
 export { ArcadeGame } from './ArcadeGame';
 export { DailyRewardsUI } from './DailyRewardsUI';
+export { ShopUI } from './ShopUI';
+export { DifficultySelectUI } from './DifficultySelectUI';
