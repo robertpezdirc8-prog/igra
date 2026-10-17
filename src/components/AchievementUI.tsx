@@ -26,6 +26,7 @@ export function AchievementUI({ achievements, unlockedIds, onUnlock, playerStats
     for (const achievement of achievements) {
       if (!unlockedIds.includes(achievement.id) && achievement.condition(playerStats)) {
         onUnlock(achievement.id);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- unlock is derived from a prop change (engine stats), not a user event; component not yet wired into App
         setShowNotification(achievement);
         
         // Hide notification after 3 seconds

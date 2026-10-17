@@ -61,8 +61,10 @@ export const FormationVisualization: React.FC<FormationVisualizationProps> = ({
 
       case 'random':
         for (let i = 0; i < enemyCount; i++) {
-          const x = (Math.random() - 0.5) * 200 * scale;
-          const y = (Math.random() - 0.5) * 200 * scale;
+          // Deterministic pseudo-random (pure) - Math.random() during render is impure
+          const jitter = (n: number) => Math.abs(Math.sin(n * 127.1 + 311.7) * 43758.5453) % 1;
+          const x = (jitter(i * 2 + 1) - 0.5) * 200 * scale;
+          const y = (jitter(i * 2 + 2) - 0.5) * 200 * scale;
           positions.push({ x, y });
         }
         break;

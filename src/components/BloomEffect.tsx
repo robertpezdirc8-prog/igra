@@ -3,7 +3,7 @@ interface BloomEffectProps {
   threshold: number;
 }
 
-export function BloomEffect({ intensity, threshold }: BloomEffectProps) {
+export function BloomEffect({ intensity }: BloomEffectProps) {
   return (
     <div
       className="fixed inset-0 pointer-events-none z-20"

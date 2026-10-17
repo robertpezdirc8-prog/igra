@@ -100,14 +100,15 @@ export class AdvancedEnemyAI {
     let attackAngle = 0;
 
     switch (this.state.currentBehavior) {
-      case 'idle':
+      case 'idle': {
         if (distance < 400 && this.personality.aggression > 0.3) {
           this.state.currentBehavior = 'chase';
           this.state.stateTimer = 0;
         }
         break;
+      }
 
-      case 'patrol':
+      case 'patrol': {
         // Move towards target
         const patrolDx = this.state.targetX - enemyX;
         const patrolDy = this.state.targetY - enemyY;
@@ -128,8 +129,9 @@ export class AdvancedEnemyAI {
           this.state.stateTimer = 0;
         }
         break;
+      }
 
-      case 'chase':
+      case 'chase': {
         // Move towards predicted player position
         if (distance > 100) {
           moveX = dx / distance;
@@ -154,8 +156,9 @@ export class AdvancedEnemyAI {
           this.state.stateTimer = 0;
         }
         break;
+      }
 
-      case 'attack':
+      case 'attack': {
         // Aim at predicted position
         attackAngle = Math.atan2(dy, dx);
         
@@ -178,8 +181,9 @@ export class AdvancedEnemyAI {
           this.state.stateTimer = 0;
         }
         break;
+      }
 
-      case 'circle':
+      case 'circle': {
         // Circle around player
         const circleAngle = Math.atan2(dy, dx) + Math.PI / 2;
         moveX = Math.cos(circleAngle);
@@ -200,8 +204,9 @@ export class AdvancedEnemyAI {
           this.state.stateTimer = 0;
         }
         break;
+      }
 
-      case 'flee':
+      case 'flee': {
         // Move away from player
         if (distance > 0) {
           moveX = -dx / distance;
@@ -214,6 +219,7 @@ export class AdvancedEnemyAI {
           this.state.stateTimer = 0;
         }
         break;
+      }
     }
 
     // Low health behavior
@@ -333,7 +339,7 @@ export class BossAI {
     let moveY = 0;
 
     switch (this.movementPattern) {
-      case 'hover':
+      case 'hover': {
         // Hover in place with slight movement
         moveX = Math.sin(this.movementTimer * 0.5) * 0.2;
         moveY = Math.cos(this.movementTimer * 0.3) * 0.2;
@@ -345,8 +351,9 @@ export class BossAI {
           this.movementTimer = 0;
         }
         break;
+      }
 
-      case 'circle':
+      case 'circle': {
         // Circle around player
         const angle = this.movementTimer * 0.5;
         const radius = 200;
@@ -366,8 +373,9 @@ export class BossAI {
           this.movementTimer = 0;
         }
         break;
+      }
 
-      case 'figure8':
+      case 'figure8': {
         // Figure 8 pattern
         const t = this.movementTimer * 0.3;
         const fig8X = Math.sin(t) * 150;
@@ -388,8 +396,9 @@ export class BossAI {
           this.movementTimer = 0;
         }
         break;
+      }
 
-      case 'random':
+      case 'random': {
         // Random movement
         if (this.movementTimer > 2) {
           moveX = (Math.random() - 0.5) * 2;
@@ -402,8 +411,9 @@ export class BossAI {
           this.movementTimer = 0;
         }
         break;
+      }
 
-      case 'chase':
+      case 'chase': {
         // Chase player
         const chaseDx = playerX - bossX;
         const chaseDy = playerY - bossY;
@@ -419,6 +429,7 @@ export class BossAI {
           this.movementTimer = 0;
         }
         break;
+      }
     }
 
     return { moveX, moveY, attackPattern, shouldAttack };
@@ -480,35 +491,40 @@ export class FormationSystem {
     let y = 0;
 
     switch (this.formationType) {
-      case 'line':
+      case 'line': {
         x = (index - totalEnemies / 2) * 50 * this.scale;
         y = 0;
         break;
+      }
 
-      case 'circle':
+      case 'circle': {
         const angle = (index / totalEnemies) * Math.PI * 2;
         const radius = 100 * this.scale;
         x = Math.cos(angle) * radius;
         y = Math.sin(angle) * radius;
         break;
+      }
 
-      case 'vshape':
+      case 'vshape': {
         const vIndex = index - totalEnemies / 2;
         x = vIndex * 40 * this.scale;
         y = Math.abs(vIndex) * 30 * this.scale;
         break;
+      }
 
-      case 'random':
+      case 'random': {
         x = (Math.random() - 0.5) * 200 * this.scale;
         y = (Math.random() - 0.5) * 200 * this.scale;
         break;
+      }
 
-      case 'spiral':
+      case 'spiral': {
         const spiralAngle = (index / totalEnemies) * Math.PI * 4;
         const spiralRadius = (index / totalEnemies) * 150 * this.scale;
         x = Math.cos(spiralAngle) * spiralRadius;
         y = Math.sin(spiralAngle) * spiralRadius;
         break;
+      }
     }
 
     // Apply rotation

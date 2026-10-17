@@ -14,7 +14,7 @@ export class ProceduralAudioSystem {
       this.masterGain = this.audioContext.createGain();
       this.masterGain.gain.value = 0.3;
       this.masterGain.connect(this.audioContext.destination);
-    } catch (e) {
+    } catch {
       console.warn('Audio context not available');
       this.enabled = false;
     }
@@ -330,7 +330,7 @@ export class ProceduralMusicGenerator {
       this.masterGain = this.audioContext.createGain();
       this.masterGain.gain.value = 0.1;
       this.masterGain.connect(this.audioContext.destination);
-    } catch (e) {
+    } catch {
       console.warn('Audio context not available for music');
     }
   }
@@ -400,7 +400,7 @@ export class ProceduralMusicGenerator {
     this.oscillators.forEach(osc => {
       try {
         osc.stop();
-      } catch (e) {
+      } catch {
         // Already stopped
       }
     });

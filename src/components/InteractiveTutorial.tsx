@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 interface InteractiveTutorialProps {
   isOpen: boolean;
@@ -8,7 +8,10 @@ interface InteractiveTutorialProps {
 
 export function InteractiveTutorial({ isOpen, onClose, onComplete }: InteractiveTutorialProps) {
   const [currentStep, setCurrentStep] = useState(0);
-  const [completed, setCompleted] = useState(false);
+  const [, setCompleted] = useState(false);
+
+  // Reset progress when the tutorial closes (render-time state adjustment -
+  // the documented React pattern instead of a synchronous setState in an effect)
 
   const steps = [
     {
@@ -62,12 +65,14 @@ export function InteractiveTutorial({ isOpen, onClose, onComplete }: Interactive
     }
   ];
 
-  useEffect(() => {
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
     if (!isOpen) {
       setCurrentStep(0);
       setCompleted(false);
     }
-  }, [isOpen]);
+  }
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {

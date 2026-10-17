@@ -1,5 +1,3 @@
-import { ComboSystem, ScreenShake } from './systems';
-
 // Advanced Particle System with GPU-like behavior
 export interface Particle {
   x: number;

@@ -18,9 +18,18 @@ interface ParticleOverlayProps {
 export function ParticleOverlay({ isActive }: ParticleOverlayProps) {
   const [particles, setParticles] = useState<Particle[]>([]);
 
-  useEffect(() => {
+  // Clear particles when deactivating (render-time state adjustment -
+  // the documented React pattern instead of a synchronous setState in an effect)
+  const [prevActive, setPrevActive] = useState(isActive);
+  if (prevActive !== isActive) {
+    setPrevActive(isActive);
     if (!isActive) {
       setParticles([]);
+    }
+  }
+
+  useEffect(() => {
+    if (!isActive) {
       return;
     }
 

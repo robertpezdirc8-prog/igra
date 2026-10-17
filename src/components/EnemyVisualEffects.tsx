@@ -17,9 +17,7 @@ export const EnemyVisualEffects: React.FC<EnemyVisualEffectsProps> = ({
   y,
   size,
   isElite = false,
-  isBoss = false,
-  health,
-  maxHealth
+  isBoss = false
 }) => {
   const getEnemyEffects = () => {
     switch (enemyType) {
@@ -393,8 +391,9 @@ export const EnemyVisualEffects: React.FC<EnemyVisualEffectsProps> = ({
         <g>
           {/* Teleport effect */}
           {Array.from({ length: 6 }).map((_, i) => {
+            // Deterministic phase (pure) - Date.now() during render is impure
             const angle = (i / 6) * Math.PI * 2;
-            const distance = size * (1 + Math.sin(Date.now() / 500 + i) * 0.5);
+            const distance = size * (1 + Math.sin(i * (Math.PI / 3)) * 0.5);
             const portalX = x + Math.cos(angle) * distance;
             const portalY = y + Math.sin(angle) * distance;
             return (

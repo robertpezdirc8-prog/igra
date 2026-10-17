@@ -170,7 +170,7 @@ export class WeatherSystem {
 
     switch (this.currentWeather?.type) {
       case 'rain':
-      case 'storm':
+      case 'storm': {
         particle.x = Math.random() * screenWidth;
         particle.y = -10;
         particle.vx = (Math.random() - 0.5) * 100;
@@ -178,8 +178,9 @@ export class WeatherSystem {
         particle.maxLife = 2;
         particle.life = particle.maxLife;
         break;
+      }
       
-      case 'snow':
+      case 'snow': {
         particle.x = Math.random() * screenWidth;
         particle.y = -10;
         particle.vx = (Math.random() - 0.5) * 50;
@@ -187,8 +188,9 @@ export class WeatherSystem {
         particle.maxLife = 10;
         particle.life = particle.maxLife;
         break;
+      }
       
-      case 'fog':
+      case 'fog': {
         particle.x = Math.random() * screenWidth;
         particle.y = Math.random() * screenHeight;
         particle.vx = config.particleSpeed * (Math.random() - 0.5);
@@ -196,8 +198,9 @@ export class WeatherSystem {
         particle.maxLife = 5;
         particle.life = particle.maxLife;
         break;
+      }
       
-      case 'sandstorm':
+      case 'sandstorm': {
         particle.x = -10;
         particle.y = Math.random() * screenHeight;
         particle.vx = config.particleSpeed * (0.8 + Math.random() * 0.4);
@@ -205,8 +208,9 @@ export class WeatherSystem {
         particle.maxLife = 3;
         particle.life = particle.maxLife;
         break;
+      }
       
-      case 'meteor':
+      case 'meteor': {
         particle.x = Math.random() * screenWidth;
         particle.y = -50;
         particle.vx = (Math.random() - 0.5) * 200;
@@ -214,6 +218,7 @@ export class WeatherSystem {
         particle.maxLife = 2;
         particle.life = particle.maxLife;
         break;
+      }
     }
 
     return particle;
@@ -236,7 +241,7 @@ export class WeatherSystem {
       
       switch (this.currentWeather?.type) {
         case 'rain':
-        case 'storm':
+        case 'storm': {
           ctx.strokeStyle = this.currentWeather.type === 'storm' ? '#aaccff' : '#88aacc';
           ctx.lineWidth = particle.size;
           ctx.globalAlpha = particle.opacity * lifeRatio;
@@ -245,16 +250,18 @@ export class WeatherSystem {
           ctx.lineTo(particle.x - particle.vx * 0.02, particle.y - particle.vy * 0.02);
           ctx.stroke();
           break;
+        }
         
-        case 'snow':
+        case 'snow': {
           ctx.fillStyle = '#ffffff';
           ctx.globalAlpha = particle.opacity * lifeRatio;
           ctx.beginPath();
           ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
           ctx.fill();
           break;
+        }
         
-        case 'fog':
+        case 'fog': {
           const gradient = ctx.createRadialGradient(
             particle.x, particle.y, 0,
             particle.x, particle.y, particle.size
@@ -267,16 +274,18 @@ export class WeatherSystem {
           ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
           ctx.fill();
           break;
+        }
         
-        case 'sandstorm':
+        case 'sandstorm': {
           ctx.fillStyle = '#aa8844';
           ctx.globalAlpha = particle.opacity * lifeRatio;
           ctx.beginPath();
           ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
           ctx.fill();
           break;
+        }
         
-        case 'meteor':
+        case 'meteor': {
           // Meteor trail
           ctx.strokeStyle = '#ff8800';
           ctx.lineWidth = particle.size;
@@ -292,6 +301,7 @@ export class WeatherSystem {
           ctx.arc(particle.x, particle.y, particle.size * 1.5, 0, Math.PI * 2);
           ctx.fill();
           break;
+        }
       }
       
       ctx.globalAlpha = 1;
@@ -418,7 +428,7 @@ export class EnvironmentalHazardsSystem {
       const lifeRatio = hazard.timer / hazard.duration;
 
       switch (hazard.type) {
-        case 'toxic_cloud':
+        case 'toxic_cloud': {
           const toxicGradient = ctx.createRadialGradient(
             hazard.x, hazard.y, 0,
             hazard.x, hazard.y, hazard.radius
@@ -432,8 +442,9 @@ export class EnvironmentalHazardsSystem {
           ctx.arc(hazard.x, hazard.y, hazard.radius, 0, Math.PI * 2);
           ctx.fill();
           break;
+        }
 
-        case 'electric_field':
+        case 'electric_field': {
           ctx.strokeStyle = '#00ffff';
           ctx.lineWidth = 2;
           ctx.globalAlpha = lifeRatio * 0.6;
@@ -453,8 +464,9 @@ export class EnvironmentalHazardsSystem {
             ctx.stroke();
           }
           break;
+        }
 
-        case 'fire_zone':
+        case 'fire_zone': {
           const fireGradient = ctx.createRadialGradient(
             hazard.x, hazard.y, 0,
             hazard.x, hazard.y, hazard.radius
@@ -468,8 +480,9 @@ export class EnvironmentalHazardsSystem {
           ctx.arc(hazard.x, hazard.y, hazard.radius, 0, Math.PI * 2);
           ctx.fill();
           break;
+        }
 
-        case 'ice_zone':
+        case 'ice_zone': {
           const iceGradient = ctx.createRadialGradient(
             hazard.x, hazard.y, 0,
             hazard.x, hazard.y, hazard.radius
@@ -483,8 +496,9 @@ export class EnvironmentalHazardsSystem {
           ctx.arc(hazard.x, hazard.y, hazard.radius, 0, Math.PI * 2);
           ctx.fill();
           break;
+        }
 
-        case 'gravity_well':
+        case 'gravity_well': {
           ctx.strokeStyle = '#8800ff';
           ctx.lineWidth = 3;
           ctx.globalAlpha = lifeRatio * 0.5;
@@ -502,6 +516,7 @@ export class EnvironmentalHazardsSystem {
             ctx.stroke();
           }
           break;
+        }
       }
 
       ctx.globalAlpha = 1;
