@@ -3,6 +3,9 @@ import { ProceduralAudioSystem, ProceduralMusicGenerator } from './audioSystem';
 import { WebGPURenderer } from './webgpu-renderer';
 import { getLevelForPlayer } from './levels';
 import { getEnvironmentForLevel, renderEnvironment } from './environment';
+import { WeatherSystem, EnvironmentalHazardsSystem, WeatherType } from './weatherSystem';
+import { AdvancedEnemyAI, BossAI, FormationSystem } from './enemyAI';
+import { PowerUpManager, ADVANCED_POWERUPS, POWERUP_COMBOS } from './advancedPowerups';
 
 // ============= TYPES =============
 interface Vec2 { x: number; y: number; }
@@ -111,6 +114,14 @@ export class GameEngine {
   private totalDamageDealt = 0;
   private enemiesKilled = 0;
   private floatingTexts: FloatingText[] = [];
+  
+  // Advanced systems
+  private weatherSystem: WeatherSystem;
+  private hazardsSystem: EnvironmentalHazardsSystem;
+  private powerUpManager: PowerUpManager;
+  private enemyAIs: Map<string, AdvancedEnemyAI> = new Map();
+  private bossAI: BossAI | null = null;
+  private formationSystem: FormationSystem | null = null;
 
   constructor(canvas: HTMLCanvasElement, onStateChange: (state: GameState) => void) {
     this.canvas = canvas;
@@ -120,6 +131,12 @@ export class GameEngine {
     this.proceduralMusic = new ProceduralMusicGenerator();
     this.onStateChange = onStateChange;
     this.player = this.createPlayer();
+    
+    // Initialize advanced systems
+    this.weatherSystem = new WeatherSystem();
+    this.hazardsSystem = new EnvironmentalHazardsSystem();
+    this.powerUpManager = new PowerUpManager();
+    
     this.initWebGPU();
     this.initStars();
     this.loadHighScore();
@@ -459,6 +476,47 @@ export class GameEngine {
     if (this.wave % 5 === 0) {
       this.spawnBoss();
     }
+    
+    // Spawn environmental hazards on certain waves
+    if (this.wave >= 3 && this.wave % 2 === 0) {
+      this.spawnEnvironmentalHazards();
+    }
+    
+    // Change weather on certain waves
+    if (this.wave >= 5 && this.wave % 4 === 0) {
+      this.changeWeatherForWave();
+    }
+  }
+  
+  private spawnEnvironmentalHazards() {
+    const hazardTypes: Array<'toxic_cloud' | 'electric_field' | 'fire_zone' | 'ice_zone' | 'gravity_well'> = 
+      ['toxic_cloud', 'electric_field', 'fire_zone', 'ice_zone', 'gravity_well'];
+    
+    const hazardCount = Math.min(3, Math.floor(this.wave / 3));
+    
+    for (let i = 0; i < hazardCount; i++) {
+      const type = hazardTypes[Math.floor(Math.random() * hazardTypes.length)];
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 200 + Math.random() * 300;
+      const x = this.player.x + Math.cos(angle) * dist;
+      const y = this.player.y + Math.sin(angle) * dist;
+      const radius = 80 + Math.random() * 60;
+      const damage = 10 + this.wave * 2;
+      const duration = 15 + Math.random() * 10;
+      
+      this.hazardsSystem.addHazard(type, x, y, radius, damage, duration);
+    }
+  }
+  
+  private changeWeatherForWave() {
+    const weathers: Array<'rain' | 'snow' | 'storm' | 'fog' | 'sandstorm' | 'meteor'> = 
+      ['rain', 'snow', 'storm', 'fog', 'sandstorm', 'meteor'];
+    
+    const weather = weathers[Math.floor(Math.random() * weathers.length)];
+    const intensity = 0.5 + Math.random() * 0.5;
+    const duration = 20 + Math.random() * 20;
+    
+    this.weatherSystem.setWeather(weather, intensity, duration);
   }
 
   private spawnBoss() {
@@ -504,6 +562,9 @@ export class GameEngine {
     this.updateParticles();
     this.updatePowerOrbs();
     this.updateCrystals();
+    this.updateWeather();
+    this.updateHazards();
+    this.updatePowerUps();
     this.updateFloatingTexts();
     this.updateWave();
     this.render();
@@ -1189,6 +1250,30 @@ export class GameEngine {
     }
   }
 
+  private updateWeather() {
+    this.weatherSystem.update(this.deltaTime, this.width, this.height);
+  }
+
+  private updateHazards() {
+    this.hazardsSystem.update(this.deltaTime);
+    
+    // Check player collision with hazards
+    const collision = this.hazardsSystem.checkCollision(
+      this.player.x,
+      this.player.y,
+      20 // player radius
+    );
+    
+    if (collision.hazard && collision.damage > 0) {
+      this.damagePlayer(collision.damage * this.deltaTime);
+    }
+  }
+
+  private updatePowerUps() {
+    // Power-up effects are applied through the manager
+    // This method handles any per-frame updates needed
+  }
+
   private updateFloatingTexts() {
     for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
       const ft = this.floatingTexts[i];
@@ -1273,6 +1358,7 @@ export class GameEngine {
 
   private renderGame(ctx: CanvasRenderingContext2D, w: number, h: number) {
     this.renderCrystals(ctx);
+    this.renderHazards(ctx);
     this.renderPowerOrbs(ctx);
     
     // Use WebGPU for particles if available
@@ -1288,6 +1374,7 @@ export class GameEngine {
     this.renderFloatingTexts(ctx);
     this.renderHUD(ctx, w, h);
     this.renderMinimap(ctx, w, h);
+    this.renderWeather(ctx);
   }
 
   private renderFloatingTexts(ctx: CanvasRenderingContext2D) {
@@ -1379,6 +1466,14 @@ export class GameEngine {
 
       ctx.restore();
     }
+  }
+
+  private renderHazards(ctx: CanvasRenderingContext2D) {
+    this.hazardsSystem.render(ctx);
+  }
+
+  private renderWeather(ctx: CanvasRenderingContext2D) {
+    this.weatherSystem.render(ctx);
   }
 
   private renderPowerOrbs(ctx: CanvasRenderingContext2D) {
@@ -2130,6 +2225,30 @@ export class GameEngine {
   getPlayerLevel(): number { return this.player.level; }
   getPlayerXP(): number { return this.player.xp; }
   getPlayerXPToNext(): number { return this.player.xpToNextLevel; }
+  
+  // Advanced system getters
+  getWeatherSystem(): WeatherSystem { return this.weatherSystem; }
+  getHazardsSystem(): EnvironmentalHazardsSystem { return this.hazardsSystem; }
+  getPowerUpManager(): PowerUpManager { return this.powerUpManager; }
+  
+  setWeather(type: WeatherType, intensity: number = 1.0, duration: number = 60): void {
+    this.weatherSystem.setWeather(type, intensity, duration);
+  }
+  
+  addHazard(
+    type: 'toxic_cloud' | 'electric_field' | 'fire_zone' | 'ice_zone' | 'gravity_well',
+    x: number,
+    y: number,
+    radius: number,
+    damage: number,
+    duration: number
+  ): string {
+    return this.hazardsSystem.addHazard(type, x, y, radius, damage, duration);
+  }
+  
+  addPowerUp(powerUpId: string): void {
+    this.powerUpManager.addPowerUp(powerUpId);
+  }
 
   destroy() {
     this.stopLoop();

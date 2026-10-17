@@ -44,7 +44,9 @@ import {
   VignetteOverlay,
   ParticleOverlay,
   ChromaticAberration,
-  InteractiveTutorial
+  InteractiveTutorial,
+  WeatherDisplay,
+  ActivePowerUpsDisplay
 } from './components';
 import { loadGame, saveGame, createDefaultSaveData, SaveData } from './game/saveSystem';
 import { getLevelForPlayer } from './game/levels';
@@ -86,6 +88,12 @@ export default function App() {
   const [gems, setGems] = useState(0);
   const [ownedCosmetics, setOwnedCosmetics] = useState<string[]>(['default']);
   const [equippedCosmetics, setEquippedCosmetics] = useState<{ [key: string]: string | null }>({});
+  const [currentWeather, setCurrentWeather] = useState<{ type: string; intensity: number; timeRemaining: number }>({
+    type: 'clear',
+    intensity: 1.0,
+    timeRemaining: -1
+  });
+  const [activePowerUps, setActivePowerUps] = useState<any[]>([]);
 
   // Load save data on mount
   useEffect(() => {
@@ -167,6 +175,18 @@ export default function App() {
             xp: engineRef.current.getPlayerXP(),
             xpToNextLevel: engineRef.current.getPlayerXPToNext()
           });
+          
+          // Update weather info
+          const weatherSystem = engineRef.current.getWeatherSystem();
+          setCurrentWeather({
+            type: weatherSystem.getCurrentWeather(),
+            intensity: weatherSystem.getWeatherIntensity(),
+            timeRemaining: weatherSystem.getWeatherTimeRemaining()
+          });
+          
+          // Update active power-ups
+          const powerUpManager = engineRef.current.getPowerUpManager();
+          setActivePowerUps(powerUpManager.getActivePowerUps());
         }
       }
       requestAnimationFrame(updateUI);
@@ -454,6 +474,26 @@ export default function App() {
             🎯 IZZIVI
           </button>
 
+          {/* Weather Change Button (Debug) */}
+          <button
+            onClick={() => {
+              if (engineRef.current) {
+                const weathers: Array<'clear' | 'rain' | 'snow' | 'storm' | 'fog' | 'sandstorm' | 'meteor'> = 
+                  ['clear', 'rain', 'snow', 'storm', 'fog', 'sandstorm', 'meteor'];
+                const current = engineRef.current.getWeatherSystem().getCurrentWeather();
+                const currentIndex = weathers.indexOf(current);
+                const nextWeather = weathers[(currentIndex + 1) % weathers.length];
+                engineRef.current.setWeather(nextWeather, 1.0, 30);
+              }
+            }}
+            className="fixed top-4 right-96 z-40 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-mono rounded transition-all hover:scale-110"
+            style={{
+              boxShadow: '0 0 15px rgba(59, 130, 246, 0.5)'
+            }}
+          >
+            🌦️ VREME
+          </button>
+
           {/* Combo Display */}
           <ComboDisplay
             combo={playerStats.combo}
@@ -467,6 +507,21 @@ export default function App() {
             startTime={Date.now()}
             isPaused={false}
           />
+
+          {/* Weather Display */}
+          <WeatherDisplay
+            currentWeather={currentWeather.type as any}
+            intensity={currentWeather.intensity}
+            timeRemaining={currentWeather.timeRemaining}
+          />
+
+          {/* Active Power-ups */}
+          {engineRef.current && (
+            <ActivePowerUpsDisplay
+              powerUpManager={engineRef.current.getPowerUpManager()}
+              updateInterval={100}
+            />
+          )}
         </>
       )}
 
