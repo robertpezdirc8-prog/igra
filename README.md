@@ -38,17 +38,36 @@ vektorsko podobo in imenovano HP litico.
 
 | Dejanje | Namizje | Gamepad | Mobilno |
 |---|---|---|---|
-| Premikanje | `W A S D` / puščice | leva palica / D-pad | virtualna palica |
-| Namerjanje + streljanje | miška (drži) | samodejno + gumbi | rdeči gumb |
-| Dash (i-frames) | `SPACE` | A / X | cyan gumb |
-| Bomba (počisti izstrelke) | `B` | B / krožni gumb | BOMBA gumb |
-| Gradius izbor | `V` | Y / trikotnik | GRAD gumb |
-| Sekundarno orožje | desni klik | RB / R1 | vijolični gumb |
+| Premikanje | `W A S D` / puščice | leva palica / D-pad | povleci levo polovico (duh-palica) |
+| Streljanje | miška (drži) | samodejno + gumbi | **AVTOMATICNO** (Sky Force standard) |
+| Dash (i-frames) | `SPACE` | A / X | ⚡ duh-gumb |
+| Bomba (počisti izstrelke) | `B` | B / krožni gumb | 💥 velik rdeči gumb |
+| Gradius izbor | `V` | Y / trikotnik | 🟡 duh-gumb |
+| Valovni top | desni klik (drži) | RB / R1 | 🔆 duh-gumb |
+| Sekundarno orožje | desni klik | RB / R1 | 🌀 duh-gumb |
 | Temporal Stasis | `Q` | LB / L1 | — |
-| Pavza | `ESC` | START/OPCIJE | gumb ☰ |
+| Skills / izzivi / dosežki | tipke HUD | — | ☰ razporejni meni |
+| Pavza | `ESC` | START/OPCIJE | ⏸ gumb |
 
 > 💡 Gamepad se zazna samodejno (hot-plug) — poveži in igraj. `preventDefault` velja
 > izključno za igralne tipke med igranjem, zato F5/Tab/Ctrl+R delujejo normalno.
+
+### 📱 Mobilni način (raziskava industrijskih standardov)
+
+Po vzoru Sky Force / Phoenix II / Danmaku Unlimited mobilnih verzij:
+
+- **AVTO-ognje** — ladja strelja sama skozi celotno runo ("auto-fire odstrani
+  vnos, ki ne dodaja nobene odločitve"); STRELJAJ gumb je odstranjen,
+  pozornost igralca pripada izogibanju
+- **Čist HUD** — samo zdravje/ščit/energija, rezultat + val + nivo/XP,
+  Val-info in combo; skriti so minimapa, tipkovne Namigi, crosshair,
+  vremenska plošča, FPS/seed, debug vremenski gumb
+- **Kompaktni gumbi** — 💥 (56px) + 4 duh-gumbi (46px, brez besedil,
+  pol-prosojni) ob desnem robu, izven igrališča
+- **Duh-palica** — pojavi se tam, kjer palec pristane (leva polovica),
+  skromna vizualika; "povleci za let" Namig izgine po prvem dotiku
+- **⏸ + ☰** — pavza in razporejni meni (SKILLS/IZZIVI/DOSEŽKI) zgoraj desno;
+  nič funkcionalnosti ne izgubi
 
 ---
 

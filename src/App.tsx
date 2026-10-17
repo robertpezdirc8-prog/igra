@@ -114,6 +114,17 @@ export default function App() {
   const saveDataRef = useRef<SaveData | null>(null);
 
   const [gameState, setGameState] = useState<GameState>('loading');
+  // Mobile detection: coarse pointer or narrow viewport → clean HUD mode
+  // (auto-fire controls, no minimap/keyboard hints/debug widgets).
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: coarse), (max-width: 767px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener?.('change', update);
+    return () => mq.removeEventListener?.('change', update);
+  }, []);
   // Lazy initializers: the save file is read exactly once, synchronously
   const [saveData, setSaveData] = useState<SaveData>(loadInitialSave);
   const [settings, setSettings] = useState<Settings>(() => ({ ...saveData.settings }));
@@ -671,16 +682,22 @@ export default function App() {
       {/* In-Game UI (fed with REAL engine data) */}
       {gameState === 'playing' && (
         <>
-          <LevelDisplay
-            level={stats.playerLevel}
-            xp={stats.playerXp}
-            xpToNext={stats.xpToNext}
-          />
+          {/* Mobile: the centered XP bar collides with the health block,
+              so level info joins the compact score readout instead. */}
+          {!isMobile && (
+            <LevelDisplay
+              level={stats.playerLevel}
+              xp={stats.playerXp}
+              xpToNext={stats.xpToNext}
+            />
+          )}
 
-          <LevelInfo
-            level={getLevelForPlayer(stats.playerLevel)}
-            playerLevel={stats.playerLevel}
-          />
+          {!isMobile && (
+            <LevelInfo
+              level={getLevelForPlayer(stats.playerLevel)}
+              playerLevel={stats.playerLevel}
+            />
+          )}
 
           <HealthBar
             hp={player.hp}
@@ -691,37 +708,58 @@ export default function App() {
             maxEnergy={player.maxEnergy}
           />
 
-          <ScoreDisplay
-            score={stats.score}
-            wave={stats.wave}
-            combo={stats.combo}
-            fps={stats.fps}
-            seed={stats.seed}
-            webgpuSupported={stats.webgpuSupported}
-          />
+          {/* Score: desktop gets the full panel; mobile a one-line readout
+              (industry HUD practice — only what changes decisions). */}
+          {!isMobile ? (
+            <ScoreDisplay
+              score={stats.score}
+              wave={stats.wave}
+              combo={stats.combo}
+              fps={stats.fps}
+              seed={stats.seed}
+              webgpuSupported={stats.webgpuSupported}
+            />
+          ) : (
+            <div className="fixed top-[118px] left-4 z-30 font-mono">
+              <p
+                className="text-xl font-bold"
+                style={{ color: '#00ffff', textShadow: '0 0 10px rgba(0,255,255,0.5)' }}
+              >
+                {stats.score.toLocaleString()}
+              </p>
+              <p className="text-[11px] text-orange-300">VAL {stats.wave}</p>
+              <p className="text-[10px] text-purple-300">NIVO {stats.playerLevel} · XP {stats.playerXp}/{stats.xpToNext}</p>
+            </div>
+          )}
 
-          <WeaponIndicator
-            weaponLevel={player.weaponLevel}
-            secondaryWeapon={player.secondaryWeapon}
-            secondaryCooldown={player.secondaryCooldown}
-            dashCooldown={player.dashCooldown}
-          />
+          {!isMobile && (
+            <WeaponIndicator
+              weaponLevel={player.weaponLevel}
+              secondaryWeapon={player.secondaryWeapon}
+              secondaryCooldown={player.secondaryCooldown}
+              dashCooldown={player.dashCooldown}
+            />
+          )}
 
-          <MiniMap
-            playerX={minimap.playerX}
-            playerY={minimap.playerY}
-            enemies={minimap.enemies}
-            worldWidth={minimap.worldWidth || window.innerWidth}
-            worldHeight={minimap.worldHeight || window.innerHeight}
-          />
+          {!isMobile && (
+            <MiniMap
+              playerX={minimap.playerX}
+              playerY={minimap.playerY}
+              enemies={minimap.enemies}
+              worldWidth={minimap.worldWidth || window.innerWidth}
+              worldHeight={minimap.worldHeight || window.innerHeight}
+            />
+          )}
 
-          <Crosshair
-            x={mousePos.x}
-            y={mousePos.y}
-            isActive={isShooting}
-          />
+          {!isMobile && (
+            <Crosshair
+              x={mousePos.x}
+              y={mousePos.y}
+              isActive={isShooting}
+            />
+          )}
 
-          <KeyboardHints />
+          {!isMobile && <KeyboardHints />}
 
           <DamageFlash
             isActive={damageFlash}
@@ -735,7 +773,50 @@ export default function App() {
             isBossWave={stats.isBossWave}
           />
 
-          {/* Meta buttons */}
+          {/* Meta buttons: desktop shows all chips; mobile collapses to a
+              pause + overflow menu so the playfield stays clear. */}
+          {isMobile ? (
+            <div className="fixed top-4 right-4 z-40 flex flex-col items-end gap-2">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => engineRef.current?.togglePause()}
+                  aria-label="Pavza"
+                  className="w-11 h-11 flex items-center justify-center bg-black/60 border border-white/25 text-white font-mono text-lg rounded-lg backdrop-blur-sm active:scale-95"
+                >
+                  ⏸
+                </button>
+                <button
+                  onClick={() => setShowMobileMenu(v => !v)}
+                  aria-label="Meni"
+                  className="w-11 h-11 flex items-center justify-center bg-black/60 border border-white/25 text-white font-mono text-lg rounded-lg backdrop-blur-sm active:scale-95"
+                >
+                  {showMobileMenu ? '✕' : '☰'}
+                </button>
+              </div>
+              {showMobileMenu && (
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => { setShowSkillTree(true); setShowMobileMenu(false); }}
+                    className="px-3 py-2 bg-black/70 border border-purple-400/50 text-white font-mono text-xs rounded-lg backdrop-blur-sm"
+                  >
+                    🌳 SKILLS ({skillPoints})
+                  </button>
+                  <button
+                    onClick={() => { setShowDailyChallenges(true); setShowMobileMenu(false); }}
+                    className="px-3 py-2 bg-black/70 border border-pink-400/50 text-white font-mono text-xs rounded-lg backdrop-blur-sm"
+                  >
+                    🎯 IZZIVI
+                  </button>
+                  <button
+                    onClick={() => { setShowAchievements(true); setShowMobileMenu(false); }}
+                    className="px-3 py-2 bg-black/70 border border-amber-400/50 text-white font-mono text-xs rounded-lg backdrop-blur-sm"
+                  >
+                    🏆 DOSEŽKI
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
           <div className="fixed top-4 right-4 z-40 flex gap-2">
             <button
               onClick={() => setShowSkillTree(true)}
@@ -776,23 +857,29 @@ export default function App() {
               🌦️
             </button>
           </div>
+          )}
 
           <ComboDisplay
             combo={player.combo}
             multiplier={1 + player.combo * 0.1}
           />
 
-          <GameTimer
-            startTime={stats.gameStartTime}
-            isPaused={false}
-          />
+          {!isMobile && (
+            <GameTimer
+              startTime={stats.gameStartTime}
+              isPaused={false}
+            />
+          )}
 
-          {/* Weather Display (engine-synced) */}
-          <WeatherDisplay
-            currentWeather={currentWeather.type}
-            intensity={currentWeather.intensity}
-            timeRemaining={currentWeather.timeRemaining}
-          />
+          {/* Weather Display (engine-synced) — desktop only; on mobile the
+              weather is felt, not read. */}
+          {!isMobile && (
+            <WeatherDisplay
+              currentWeather={currentWeather.type}
+              intensity={currentWeather.intensity}
+              timeRemaining={currentWeather.timeRemaining}
+            />
+          )}
 
           {/* Active Power-ups (self-polling from the engine manager) */}
           {powerUpManager && (
