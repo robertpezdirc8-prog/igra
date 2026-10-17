@@ -9,6 +9,7 @@ interface SettingsMenuProps {
     sfxVolume: number;
     showFPS: boolean;
     particles: 'low' | 'medium' | 'high';
+    autoAim?: boolean;
   };
   onSettingsChange: (settings: any) => void;
 }
@@ -99,6 +100,26 @@ export function SettingsMenu({ isOpen, onClose, settings, onSettingsChange }: Se
               <div
                 className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${
                   localSettings.showFPS ? 'left-8' : 'left-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Auto-Aim for Mobile */}
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-mono text-gray-400">AUTO-AIM</label>
+              <p className="text-xs font-mono text-gray-500 mt-1">Samodejno namerjanje za mobilne naprave</p>
+            </div>
+            <button
+              onClick={() => setLocalSettings({ ...localSettings, autoAim: !localSettings.autoAim })}
+              className={`relative w-14 h-7 rounded-full transition-all ${
+                localSettings.autoAim !== false ? 'bg-cyan-500' : 'bg-gray-700'
+              }`}
+            >
+              <div
+                className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${
+                  localSettings.autoAim !== false ? 'left-8' : 'left-1'
                 }`}
               />
             </button>

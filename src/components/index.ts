@@ -59,3 +59,5 @@ export { WeatherDisplay, WeatherSelector } from './WeatherDisplay';
 export { BloomEffect } from './BloomEffect';
 export { ParticleOverlay } from './ParticleOverlay';
 export { ChromaticAberration } from './ChromaticAberration';
+export { OrientationWarning } from './OrientationWarning';
+export { ClassicArcadeMode } from './ClassicArcadeMode';

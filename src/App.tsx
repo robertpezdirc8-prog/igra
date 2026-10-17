@@ -39,7 +39,8 @@ import {
   ChromaticAberration,
   InteractiveTutorial,
   WeatherDisplay,
-  ActivePowerUpsDisplay
+  ActivePowerUpsDisplay,
+  ClassicArcadeMode
 } from './components';
 import {
   loadGame,
@@ -153,6 +154,8 @@ export default function App() {
   const [showAchievements, setShowAchievements] = useState(false);
   const [showMetaProgression, setShowMetaProgression] = useState(false);
   const [showInteractiveTutorial, setShowInteractiveTutorial] = useState(false);
+  // Klasiki arkadni način (merged from webgpu-online-games-51d72)
+  const [showClassicArcade, setShowClassicArcade] = useState(false);
   // Weather state (synced from engine at ~1 Hz via the throttled UI loop)
   const [currentWeather, setCurrentWeather] = useState<{ type: WeatherType; intensity: number; timeRemaining: number }>({
     type: 'clear',
@@ -654,9 +657,15 @@ export default function App() {
           onShowDifficulty={() => setShowDifficultySelect(true)}
           onShowMetaProgression={() => setShowMetaProgression(true)}
           onShowInteractiveTutorial={() => setShowInteractiveTutorial(true)}
+          onShowClassicArcade={() => setShowClassicArcade(true)}
           highScore={saveData?.player.highScore ?? 0}
           webgpuSupported={webgpuSupported}
         />
+      )}
+
+      {/* Klasiki arkadni način — fullscreen overlay nad glavno igro */}
+      {showClassicArcade && (
+        <ClassicArcadeMode onExit={() => setShowClassicArcade(false)} />
       )}
 
       {/* In-Game UI (fed with REAL engine data) */}
@@ -1004,11 +1013,10 @@ export default function App() {
       {/* Mobile Controls (wired to the engine) */}
       <MobileControls
         onMove={(x, y) => engineRef.current?.setMobileMove(x, y)}
-        onShootStart={() => engineRef.current?.setMobileShooting(true)}
-        onShootEnd={() => engineRef.current?.setMobileShooting(false)}
+        onShoot={(active) => engineRef.current?.setMobileShooting(active)}
         onDash={() => engineRef.current?.mobileDash()}
         onSecondary={() => engineRef.current?.mobileSecondary()}
-        isVisible={gameState === 'playing'}
+        isVisible={gameState === 'playing' && !showClassicArcade}
       />
 
       {/* Visual Effects */}
