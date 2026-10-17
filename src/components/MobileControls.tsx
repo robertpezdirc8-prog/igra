@@ -12,7 +12,16 @@ import { useState, useRef, useEffect } from 'react';
  * 3. One panic button (BOMBA) + a compact ghost stack of utility icons —
  *    no labels, ~46px touch targets, tucked against the right edge so
  *    the playfield stays clear.
+ *
+ * IMPORTANT IMPLEMENTATION NOTE: the joystick listens on `window` with
+ * NATIVE listeners (not React onTouch* on this layer) because this layer
+ * is `pointer-events-none` — the browser never makes it a hit-test target,
+ * so synthetic handlers on it would never fire for playfield touches.
+ * Window-level listeners + touch-identifier tracking make it multi-touch
+ * safe: left thumb steers while the right thumb presses buttons.
  */
+
+const JOY_RADIUS = 60;
 
 interface MobileControlsProps {
   onMove: (x: number, y: number) => void;
@@ -77,43 +86,85 @@ export function MobileControls({
     }, 500);
   };
 
-  // Dynamic joystick — appears where the thumb lands on the left half
-  const handleJoystickStart = (e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    if (touch.clientX < window.innerWidth / 2) {
-      e.stopPropagation();
-      setJoystickActive(true);
-      setJoystickOrigin({ x: touch.clientX, y: touch.clientY });
-      setJoystickPos({ x: 0, y: 0 });
-      setHasMovedOnce(true);
-      triggerHaptic(8);
-    }
-  };
+  // ── Dynamic joystick — native window listeners, multi-touch safe ──
+  const joyIdRef = useRef<number | null>(null);
+  const originRef = useRef({ x: 0, y: 0 });
+  const moveRef = useRef(onMove);
+  useEffect(() => {
+    moveRef.current = onMove;
+  }, [onMove]);
 
-  const handleJoystickMove = (e: React.TouchEvent) => {
-    if (!joystickActive) return;
-    e.preventDefault();
-    const touch = e.touches[0];
-    const deltaX = touch.clientX - joystickOrigin.x;
-    const deltaY = touch.clientY - joystickOrigin.y;
-    const maxDistance = 60;
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-    let moveX = deltaX;
-    let moveY = deltaY;
-    if (distance > maxDistance) {
-      const ratio = maxDistance / distance;
-      moveX = deltaX * ratio;
-      moveY = deltaY * ratio;
+  useEffect(() => {
+    if (!isVisible) {
+      // Controls hidden → release any active drag instantly.
+      if (joyIdRef.current !== null) {
+        joyIdRef.current = null;
+        setJoystickActive(false);
+        setJoystickPos({ x: 0, y: 0 });
+        moveRef.current(0, 0);
+      }
+      return;
     }
-    setJoystickPos({ x: moveX, y: moveY });
-    onMove(moveX / maxDistance, moveY / maxDistance);
-  };
 
-  const handleJoystickEnd = () => {
-    setJoystickActive(false);
-    setJoystickPos({ x: 0, y: 0 });
-    onMove(0, 0);
-  };
+    const isInteractive = (el: EventTarget | null): boolean =>
+      el instanceof Element && !!el.closest('button, input, a, select, textarea, [role="button"]');
+
+    const handleTouchStart = (e: TouchEvent) => {
+      for (const t of Array.from(e.changedTouches)) {
+        // Only one joystick finger at a time; right half belongs to buttons.
+        if (joyIdRef.current !== null) break;
+        if (t.clientX >= window.innerWidth / 2) continue;
+        if (isInteractive(t.target)) continue;
+        joyIdRef.current = t.identifier;
+        originRef.current = { x: t.clientX, y: t.clientY };
+        setJoystickOrigin({ x: t.clientX, y: t.clientY });
+        setJoystickPos({ x: 0, y: 0 });
+        setJoystickActive(true);
+        setHasMovedOnce(true);
+        triggerHaptic(8);
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (joyIdRef.current === null) return;
+      const t = Array.from(e.touches).find(x => x.identifier === joyIdRef.current);
+      if (!t) return;
+      // Steering finger → suppress browser pan/zoom gestures.
+      e.preventDefault();
+      let dx = t.clientX - originRef.current.x;
+      let dy = t.clientY - originRef.current.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > JOY_RADIUS) {
+        dx = (dx / dist) * JOY_RADIUS;
+        dy = (dy / dist) * JOY_RADIUS;
+      }
+      setJoystickPos({ x: dx, y: dy });
+      moveRef.current(dx / JOY_RADIUS, dy / JOY_RADIUS);
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (joyIdRef.current === null) return;
+      for (const t of Array.from(e.changedTouches)) {
+        if (t.identifier === joyIdRef.current) {
+          joyIdRef.current = null;
+          setJoystickActive(false);
+          setJoystickPos({ x: 0, y: 0 });
+          moveRef.current(0, 0);
+        }
+      }
+    };
+
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [isVisible]);
 
   const handleDash = (e: React.TouchEvent) => {
     e.preventDefault();
@@ -174,13 +225,7 @@ export function MobileControls({
     'active:scale-90 active:bg-white/25';
 
   return (
-    <div
-      className="fixed inset-0 z-50 pointer-events-none md:hidden"
-      onTouchStart={handleJoystickStart}
-      onTouchMove={handleJoystickMove}
-      onTouchEnd={handleJoystickEnd}
-      style={{ touchAction: 'none' }}
-    >
+    <div className="fixed inset-0 z-50 pointer-events-none md:hidden">
       {/* Dynamic ghost joystick — only while the thumb is down */}
       {joystickActive && (
         <div
