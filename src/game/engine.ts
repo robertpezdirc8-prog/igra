@@ -54,6 +54,17 @@ interface Enemy {
   // fighting and burns through a chain of explosions before the final blast.
   dying?: number;
   deathTick?: number;
+  // Elite affix (Vampire Survivors style): a few non-boss enemies spawn
+  // modified — bigger, meaner and far more rewarding.
+  elite?: EliteAffix;
+}
+
+type EliteAffix = 'armored' | 'swift' | 'menace' | 'gilded' | 'elder';
+interface EliteAffixDef {
+  tag: string;      // displayed spawn tag (icon + Slovenian name)
+  color: string;    // aura + tag color
+  hpMul: number; speedMul: number; fireMul: number; goldMul: number;
+  minSector: number; // gated by sector for a fair ramp
 }
 interface Player {
   x: number; y: number; vx: number; vy: number;
@@ -62,6 +73,9 @@ interface Player {
   speed: number; dashCooldown: number; dashTimer: number;
   invincible: number; shootTimer: number;
   weaponLevel: number; critRate: number; critDmg: number;
+  // Weapon evolution: at level 8+ the primary weapon once transforms into
+  // its VOID RIFT form (extra barrels, hotter damage, magenta profile).
+  weaponEvolved: boolean;
   score: number; combo: number; comboTimer: number;
   secondaryWeapon: 'none' | 'gravity' | 'chain' | 'temporal';
   secondaryCooldown: number;
@@ -213,6 +227,16 @@ export class GameEngine {
     { name: 'SCRAP FLEET', subtitle: 'derelict armada', tint: 'rgba(255,110,110,0.05)' },
     { name: 'VOID CITADEL', subtitle: 'enemy stronghold', tint: 'rgba(255,60,130,0.055)' },
   ];
+  // Elite affix table (Vampire Survivors / 10 Minutes Till Dawn lesson:
+  // rare modified enemies create spike moments and jackpot rewards).
+  private static readonly ELITE_AFFIXES: Readonly<Record<EliteAffix, EliteAffixDef>> = {
+    armored: { tag: '🛡 OKLEPEN',  color: '#d8e8ff', hpMul: 1.8, speedMul: 0.85, fireMul: 1.0, goldMul: 3, minSector: 1 },
+    swift:   { tag: '⚡ HITRI',    color: '#66ffff', hpMul: 1.2, speedMul: 1.35, fireMul: 1.0, goldMul: 2.5, minSector: 1 },
+    menace:  { tag: '💀 NEVAREN', color: '#ff5566', hpMul: 1.3, speedMul: 1.0,  fireMul: 1.6, goldMul: 2.5, minSector: 2 },
+    gilded:  { tag: '💎 ZLATEN',  color: '#ffd700', hpMul: 1.15, speedMul: 1.0, fireMul: 1.0, goldMul: 6, minSector: 2 },
+    elder:   { tag: '👁 STAREŠINA', color: '#cc66ff', hpMul: 2.2, speedMul: 0.95, fireMul: 1.2, goldMul: 4, minSector: 3 },
+  };
+  private elitesThisWave = 0;
   private static readonly GRADIUS_SLOTS: readonly string[] = ['HITRO', 'RAKETA', 'DVOJNIK', 'LASER', 'OPCIJA', 'ŠČIT'];
   private upgrades: Upgrade[] = [];
   private highScore = 0;
@@ -370,6 +394,7 @@ export class GameEngine {
       speed: 5 * b.speedMul, dashCooldown: 0, dashTimer: 0,
       invincible: 0, shootTimer: 0,
       weaponLevel: 1, critRate: 0.05 + b.critRateBonus, critDmg: 2 * b.critDmgMul,
+      weaponEvolved: false,
       score: 0, combo: 1, comboTimer: 0,
       secondaryWeapon: 'none',
       secondaryCooldown: 0,
@@ -449,11 +474,32 @@ export class GameEngine {
   }
 
   /** Apply the upgrade at the given index of the current level-up choices. */
+  /** Weapon evolution (rogue-lite milestone): the moment the primary
+   *  weapon reaches level 8 it once transforms into its VOID RIFT form —
+   *  permanent extra barrels + hotter damage, with a proper reveal. */
+  private checkWeaponEvolution() {
+    const p = this.player;
+    if (p.weaponEvolved || p.weaponLevel < 8) return;
+    p.weaponEvolved = true;
+    this.floatingTexts.push({
+      x: p.x, y: p.y - 64,
+      text: '\u26A1 EVOLUCIJA: VOID RIFT \u26A1', color: '#ff66ff',
+      life: 2.4, maxLife: 2.4, vy: -0.7
+    });
+    this.particles.push({
+      x: p.x, y: p.y, vx: 0, vy: 0,
+      life: 0.8, maxLife: 0.8, size: 160, color: '#ff66ff', type: 'ring'
+    });
+    this.screenShake = Math.max(this.screenShake, 10);
+    this.audio.playPowerUp();
+  }
+
   chooseUpgrade(index: number) {
     if (this.state !== 'levelup' && this.state !== 'levelchoice') return;
     const upgrade = this.levelChoices[index];
     if (!upgrade) return;
     upgrade.apply(this.player);
+    this.checkWeaponEvolution();
     this.levelChoices = [];
     this.state = 'playing';
     this.onStateChange(this.state);
@@ -1129,6 +1175,7 @@ export class GameEngine {
 
   private spawnWave() {
     const count = Math.min(24, 3 + this.wave * 2);
+    this.elitesThisWave = 0;
     
     // Wave announcement
     if (this.wave % 5 === 0) {
@@ -1185,13 +1232,26 @@ export class GameEngine {
       const type = Math.random() < 0.6 ? 'swarmer' : (Math.random() < 0.7 ? 'sniper' : 'titan');
       const baseHp = type === 'swarmer' ? 20 : type === 'sniper' ? 40 : 100;
 
+      // Elite roll (rare modified enemies — spike moments, jackpot loot).
+      let elite: EliteAffix | null = null;
+      if (this.wave >= 4 && this.elitesThisWave < 2) {
+        const chance = Math.min(0.22, 0.05 + this.wave * 0.012);
+        if (Math.random() < chance) {
+          const pool = (Object.keys(GameEngine.ELITE_AFFIXES) as EliteAffix[])
+            .filter((a) => GameEngine.ELITE_AFFIXES[a].minSector <= this.sector());
+          elite = pool[Math.floor(Math.random() * pool.length)] ?? null;
+          if (elite) this.elitesThisWave++;
+        }
+      }
+      const affix = elite ? GameEngine.ELITE_AFFIXES[elite] : null;
+
       this.enemies.push({
         x: pos.x,
         y: pos.y,
         vx: 0, vy: 0,
-        hp: baseHp * hpMul,
-        maxHp: baseHp * hpMul,
-        size: type === 'swarmer' ? 15 : type === 'sniper' ? 20 : 35,
+        hp: baseHp * hpMul * (affix?.hpMul ?? 1),
+        maxHp: baseHp * hpMul * (affix?.hpMul ?? 1),
+        size: (type === 'swarmer' ? 15 : type === 'sniper' ? 20 : 35) * (affix ? 1.25 : 1),
         type,
         color: type === 'swarmer' ? '#ff4444' : type === 'sniper' ? '#ff8800' : '#aa00ff',
         phase: Math.random() * Math.PI * 2,
@@ -1199,8 +1259,18 @@ export class GameEngine {
         shootTimer: Math.random() * 2,
         moveTimer: 0,
         targetX: this.player.x, targetY: this.player.y,
-        playerPattern: { left: 0, right: 0, up: 0, down: 0 }
+        playerPattern: { left: 0, right: 0, up: 0, down: 0 },
+        elite: elite ?? undefined
       });
+
+      // Elite spawn tag — the player should KNOW this one is special.
+      if (affix) {
+        this.floatingTexts.push({
+          x: pos.x, y: pos.y - 30,
+          text: affix.tag, color: affix.color,
+          life: 1.8, maxLife: 1.8, vy: -0.6
+        });
+      }
     }
 
     // The asteroid field thickens with every stage: top the stream back up.
@@ -1629,7 +1699,8 @@ export class GameEngine {
     p: Player, dirX: number, dirY: number, speed: number,
     isCrit: boolean, dmgMul: number, spreadOffset: number, laser = false
   ) {
-    const count = Math.min(p.weaponLevel, 5);
+    // VOID RIFT evolution: two extra barrels and hotter damage.
+    const count = Math.min(p.weaponEvolved ? p.weaponLevel + 2 : p.weaponLevel, 8);
     for (let i = 0; i < count; i++) {
       const spread = (i - (count - 1) / 2) * (laser ? 0.09 : 0.15) + spreadOffset;
       const cos = Math.cos(spread);
@@ -1639,8 +1710,9 @@ export class GameEngine {
       this.bullets.push({
         x: p.x, y: p.y, vx: bvx, vy: bvy,
         size: laser ? 5.5 : isCrit ? 6 : 4,
-        color: laser ? '#ff44cc' : isCrit ? '#ffff00' : '#00ffff',
-        damage: (10 + p.weaponLevel * 3) * dmgMul * (isCrit ? p.critDmg : 1) * (laser ? 1.25 : 1),
+        color: laser ? '#ff44cc' : isCrit ? '#ffff00' : p.weaponEvolved ? '#ff7bff' : '#00ffff',
+        damage: (10 + p.weaponLevel * 3) * dmgMul * (isCrit ? p.critDmg : 1)
+          * (laser ? 1.25 : 1) * (p.weaponEvolved ? 1.15 : 1),
         life: 2, type: 'player',
         chainLeft: this.skillBonuses.chainCount,
         chainDamage: this.skillBonuses.chainDamageMul,
@@ -1719,7 +1791,9 @@ export class GameEngine {
         // Apply AI movement (with difficulty speed multiplier from main).
         // During a dive the ship ignores hover-steering and commits to the
         // strafing run — but keeps shooting via the AI decision below.
-        const speed = (e.type === 'swarmer' ? 2.5 : e.type === 'sniper' ? 1 : 0.8) * (this.difficulty?.enemySpeedMultiplier ?? 1);
+        const speed = (e.type === 'swarmer' ? 2.5 : e.type === 'sniper' ? 1 : 0.8)
+          * (this.difficulty?.enemySpeedMultiplier ?? 1)
+          * (e.elite ? GameEngine.ELITE_AFFIXES[e.elite].speedMul : 1);
         if (!e.diving) {
           e.vx += aiResult.moveX * speed * 0.1 * timeScale;
           e.vy += aiResult.moveY * speed * 0.1 * timeScale;
@@ -1765,12 +1839,12 @@ export class GameEngine {
         // Shooting based on AI decision
         if (aiResult.shouldAttack && e.shootTimer <= 0) {
           const shootInterval = e.type === 'swarmer' ? 1.5 : e.type === 'sniper' ? 2.5 : 3;
-          e.shootTimer = shootInterval / this.fireRateMul();
+          e.shootTimer = shootInterval / (this.fireRateMul() * (e.elite ? GameEngine.ELITE_AFFIXES[e.elite].fireMul : 1));
           if (onScreen) this.enemyShoot(e, aiResult.attackAngle);
         } else if (e.shootTimer <= 0) {
           // Fallback to regular shooting if AI doesn't want to attack
           const shootInterval = e.type === 'swarmer' ? 1.5 : e.type === 'sniper' ? 2.5 : 3;
-          e.shootTimer = shootInterval / this.fireRateMul();
+          e.shootTimer = shootInterval / (this.fireRateMul() * (e.elite ? GameEngine.ELITE_AFFIXES[e.elite].fireMul : 1));
           if (onScreen) this.enemyShoot(e);
         }
         
@@ -2186,12 +2260,19 @@ export class GameEngine {
     this.enemiesKilled++;
     if (e.type === 'boss') this.bossKills++;
 
-    // Gold reward (scaled by difficulty)
+    // Gold reward (scaled by difficulty; elites pay a jackpot multiplier)
     const goldMul = this.difficulty?.goldMultiplier ?? 1;
-    this.gold += Math.round((e.type === 'boss' ? 250 : e.type === 'titan' ? 25 : 10) * goldMul);
+    this.gold += Math.round(
+      (e.type === 'boss' ? 250 : e.type === 'titan' ? 25 : 10)
+      * goldMul * (e.elite ? GameEngine.ELITE_AFFIXES[e.elite].goldMul : 1)
+    );
 
-    // Award XP based on enemy type (scaled by difficulty)
-    const xpGained = Math.round((e.type === 'boss' ? 500 : e.type === 'titan' ? 50 : 15) * (this.difficulty?.xpMultiplier ?? 1));
+    // Award XP based on enemy type (elites are worth double XP)
+    const xpGained = Math.round(
+      (e.type === 'boss' ? 500 : e.type === 'titan' ? 50 : 15)
+      * (e.elite ? 2 : 1)
+      * (this.difficulty?.xpMultiplier ?? 1)
+    );
     this.awardXP(xpGained, e.x, e.y);
 
     // Expanding shockwave ring — one readable pulse marking the blast
@@ -2254,6 +2335,10 @@ export class GameEngine {
       letterDrop(this.player.options < 3 ? 'option' : 'bomb', e.x, e.y);
       letterDrop('capsule', e.x - 26, e.y);
       letterDrop('medal', e.x + 26, e.y);
+    } else if (e.elite) {
+      // Elites always pay out a medal (the jackpot moment).
+      letterDrop('medal', e.x + (Math.random() - 0.5) * 30, e.y);
+      if (e.elite === 'gilded') letterDrop('power', e.x, e.y);
     } else if (e.type === 'titan') {
       const roll = Math.random();
       if (roll < 0.35) letterDrop(Math.random() < 0.5 ? 'power' : 'bomb', e.x, e.y);
@@ -2902,6 +2987,7 @@ export class GameEngine {
           case 'power':
             // Letter P (Raiden/Truxton): instant weapon level
             this.player.weaponLevel = Math.min(10, this.player.weaponLevel + 1);
+            this.checkWeaponEvolution();
             this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: 'POWER UP!', color: '#ffcc00', life: 1.2, maxLife: 1.2, vy: -1.5 });
             break;
           case 'speed':
@@ -3776,6 +3862,25 @@ export class GameEngine {
     for (const e of this.enemies) {
       ctx.save();
       ctx.translate(e.x, e.y);
+
+      // Elite aura: pulsing colored ring marks the modified enemy.
+      if (e.elite) {
+        const affix = GameEngine.ELITE_AFFIXES[e.elite];
+        const pulse = 0.55 + 0.45 * Math.sin(this.time * 6 + e.phase);
+        ctx.save();
+        ctx.globalAlpha = 0.35 + pulse * 0.4;
+        ctx.strokeStyle = affix.color;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, e.size * 1.5 + pulse * 3, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 0.16 + pulse * 0.12;
+        ctx.fillStyle = affix.color;
+        ctx.beginPath();
+        ctx.arc(0, 0, e.size * 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
 
       // White hit flash — instant, readable damage feedback
       if (e.hitFlash && e.hitFlash > 0) {
