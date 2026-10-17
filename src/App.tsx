@@ -38,7 +38,8 @@ import {
   ArcadeGame,
   DailyRewardsUI,
   ShopUI,
-  DifficultySelectUI
+  DifficultySelectUI,
+  MetaProgressionUI
 } from './components';
 import { loadGame, saveGame, createDefaultSaveData, SaveData } from './game/saveSystem';
 import { getLevelForPlayer } from './game/levels';
@@ -74,6 +75,7 @@ export default function App() {
   const [showDailyRewards, setShowDailyRewards] = useState(false);
   const [showShop, setShowShop] = useState(false);
   const [showDifficultySelect, setShowDifficultySelect] = useState(false);
+  const [showMetaProgression, setShowMetaProgression] = useState(false);
   const [gold, setGold] = useState(0);
   const [gems, setGems] = useState(0);
   const [ownedCosmetics, setOwnedCosmetics] = useState<string[]>(['default']);
@@ -340,6 +342,7 @@ export default function App() {
           onShowDailyRewards={() => setShowDailyRewards(true)}
           onShowShop={() => setShowShop(true)}
           onShowDifficulty={() => setShowDifficultySelect(true)}
+          onShowMetaProgression={() => setShowMetaProgression(true)}
           highScore={highScore}
           webgpuSupported={webgpuSupported}
         />
@@ -448,6 +451,8 @@ export default function App() {
           <ComboDisplay
             combo={playerStats.combo}
             multiplier={1 + playerStats.combo * 0.1}
+            maxCombo={playerStats.combo}
+            isVisible={gameState === 'playing' && playerStats.combo > 0}
           />
 
           {/* Game Timer */}
@@ -620,6 +625,22 @@ export default function App() {
         }}
         playerLevel={playerStats.level}
         currentDifficulty={null}
+      />
+
+      {/* Meta Progression */}
+      <MetaProgressionUI
+        isOpen={showMetaProgression}
+        onClose={() => setShowMetaProgression(false)}
+        playerStats={{
+          level: playerStats.level,
+          maxCombo: playerStats.combo,
+          highestWave: playerStats.wave,
+          bossKills: 0
+        }}
+        currency={gems}
+        onUnlock={(nodeId) => {
+          addNotification(`Odklenjeno: ${nodeId}`, 'success');
+        }}
       />
 
       {/* Settings Menu */}

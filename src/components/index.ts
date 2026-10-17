@@ -45,3 +45,5 @@ export { ArcadeGame } from './ArcadeGame';
 export { DailyRewardsUI } from './DailyRewardsUI';
 export { ShopUI } from './ShopUI';
 export { DifficultySelectUI } from './DifficultySelectUI';
+export { MetaProgressionUI } from './MetaProgressionUI';
+export { AchievementUI } from './AchievementUI';
