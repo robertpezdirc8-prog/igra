@@ -7,6 +7,9 @@ import { BossSystem } from './bossSystem';
 import { DestructibleEnvironmentSystem } from './destructibleEnvironment';
 import { ClassicEnemySystem, EnemyType } from './classicEnemySystem';
 import { ProceduralAudioSystem } from './audioSystem';
+import { ParticleSystem } from './particleSystem';
+import { ScreenShake } from './screenShake';
+import { ComboSystem } from './comboSystem';
 
 export interface ClassicPlayer {
   x: number;
@@ -63,6 +66,9 @@ export class ClassicArcadeEngine {
   private environmentSystem: DestructibleEnvironmentSystem;
   private enemySystem: ClassicEnemySystem;
   private audio: ProceduralAudioSystem;
+  private particles: ParticleSystem;
+  private screenShake: ScreenShake;
+  private comboSystem: ComboSystem;
 
   // Game state
   private state: ClassicGameState = 'menu';
@@ -95,6 +101,9 @@ export class ClassicArcadeEngine {
     this.environmentSystem = new DestructibleEnvironmentSystem(800, 600);
     this.enemySystem = new ClassicEnemySystem();
     this.audio = new ProceduralAudioSystem();
+    this.particles = new ParticleSystem();
+    this.screenShake = new ScreenShake();
+    this.comboSystem = new ComboSystem();
 
     // Initialize player
     this.player = {
@@ -181,6 +190,9 @@ export class ClassicArcadeEngine {
     this.enemySystem.clear();
     this.bossSystem.clearBoss();
     this.environmentSystem.generateEnvironment(this.stage, 100);
+    this.particles.clear();
+    this.screenShake.reset();
+    this.comboSystem.reset();
     this.onStateChange(this.state);
   }
 
@@ -198,6 +210,11 @@ export class ClassicArcadeEngine {
     this.waveSystem.update(deltaTime);
     this.environmentSystem.update(deltaTime, 100);
     this.enemySystem.update(deltaTime, this.player.x, this.player.y, this.width, this.height);
+    
+    // Update new systems
+    this.particles.update(deltaTime);
+    this.screenShake.update(deltaTime);
+    this.comboSystem.update(deltaTime);
 
     // Spawn enemies from waves
     const spawnResult = this.waveSystem.shouldSpawnEnemy();
@@ -250,19 +267,34 @@ export class ClassicArcadeEngine {
   private updatePlayer(deltaTime: number) {
     const speed = this.shooterSystem.getSpeed();
     const moveSpeed = speed * 60 * deltaTime;
+    let isMoving = false;
 
     // Keyboard movement
     if (this.keys.has('arrowleft') || this.keys.has('a')) {
       this.player.x -= moveSpeed;
+      isMoving = true;
     }
     if (this.keys.has('arrowright') || this.keys.has('d')) {
       this.player.x += moveSpeed;
+      isMoving = true;
     }
     if (this.keys.has('arrowup') || this.keys.has('w')) {
       this.player.y -= moveSpeed;
+      isMoving = true;
     }
     if (this.keys.has('arrowdown') || this.keys.has('s')) {
       this.player.y += moveSpeed;
+      isMoving = true;
+    }
+
+    // Create trail particles when moving
+    if (isMoving && Math.random() < 0.3) {
+      const armor = this.shooterSystem.getArmor();
+      this.particles.createTrail(
+        this.player.x + (Math.random() - 0.5) * 10,
+        this.player.y + this.player.height / 2,
+        armor.color
+      );
     }
 
     // Keep player in bounds
@@ -362,6 +394,20 @@ export class ClassicArcadeEngine {
     for (const powerUp of this.powerUps) {
       powerUp.y += powerUp.vy * 60 * deltaTime;
       powerUp.life -= deltaTime;
+      
+      // Create trail particles for power-ups
+      if (Math.random() < 0.2) {
+        let color = '#ffffff';
+        switch (powerUp.type) {
+          case 'weapon': color = '#ff0000'; break;
+          case 'armor': color = '#00ff00'; break;
+          case 'pod': color = '#00ffff'; break;
+          case 'speed': color = '#ffff00'; break;
+          case 'bomb': color = '#ff8800'; break;
+          case 'score': color = '#ff00ff'; break;
+        }
+        this.particles.createTrail(powerUp.x, powerUp.y, color);
+      }
     }
 
     // Remove off-screen or expired power-ups
@@ -385,10 +431,22 @@ export class ClassicArcadeEngine {
         bullet.life = 0;
 
         if (result.destroyed && result.enemy) {
-          this.score += result.enemy.score;
+          // Add to combo
+          this.comboSystem.addKill();
+          
+          // Apply combo multiplier to score
+          const baseScore = result.enemy.score;
+          const comboMultiplier = this.comboSystem.getMultiplier();
+          this.score += Math.floor(baseScore * comboMultiplier);
           
           // Play explosion sound
           this.audio.playExplosion();
+          
+          // Create explosion particles
+          this.particles.createExplosion(result.enemy.x, result.enemy.y, result.enemy.color, 20);
+          
+          // Screen shake
+          this.screenShake.shake(5, 0.3);
           
           // Drop power-up
           if (result.enemy.dropsPowerUp && Math.random() < result.enemy.powerUpChance) {
@@ -404,8 +462,21 @@ export class ClassicArcadeEngine {
           const defeated = this.bossSystem.damageBoss(bullet.damage);
           bullet.life = 0;
 
+          // Create hit particles
+          this.particles.createExplosion(bullet.x, bullet.y, '#ffff00', 5);
+
           if (defeated) {
             this.score += boss.score;
+            
+            // Big explosion for boss defeat
+            this.particles.createExplosion(boss.x, boss.y, boss.color, 50);
+            this.particles.createDebris(boss.x, boss.y, '#888888', 30);
+            
+            // Strong screen shake
+            this.screenShake.shake(15, 1.0);
+            
+            // Play boss defeat sound
+            this.audio.playLevelUp();
           }
         }
       }
@@ -495,8 +566,24 @@ export class ClassicArcadeEngine {
   private playerHit() {
     const destroyed = this.shooterSystem.takeDamage();
     
+    // Create hit particles
+    this.particles.createExplosion(this.player.x, this.player.y, '#ff0000', 10);
+    
+    // Screen shake
+    this.screenShake.shake(8, 0.4);
+    
+    // Reset combo on hit
+    this.comboSystem.reset();
+    
     if (destroyed) {
       this.lives--;
+      
+      // Big explosion for player death
+      this.particles.createExplosion(this.player.x, this.player.y, '#ff8800', 40);
+      this.particles.createDebris(this.player.x, this.player.y, '#4488ff', 20);
+      
+      // Strong screen shake
+      this.screenShake.shake(20, 1.0);
       
       if (this.lives <= 0) {
         this.gameOver();
@@ -573,16 +660,26 @@ export class ClassicArcadeEngine {
       for (const enemy of enemies) {
         this.enemySystem.damageEnemy(enemy.id, 999);
         this.score += enemy.score;
+        
+        // Create explosion for each enemy
+        this.particles.createExplosion(enemy.x, enemy.y, enemy.color, 15);
       }
 
       // Damage boss
       const boss = this.bossSystem.getCurrentBoss();
       if (boss) {
         this.bossSystem.damageBoss(100);
+        this.particles.createExplosion(boss.x, boss.y, '#ffff00', 30);
       }
 
       // Clear enemy bullets
       this.bullets = this.bullets.filter(b => b.isPlayerBullet);
+      
+      // Strong screen shake for bomb
+      this.screenShake.shake(25, 1.5);
+      
+      // Create big bomb explosion effect
+      this.particles.createExplosion(this.width / 2, this.height / 2, '#ffffff', 100);
     }
   }
 
@@ -657,6 +754,11 @@ export class ClassicArcadeEngine {
     this.ctx.fillRect(0, 0, this.width, this.height);
 
     if (this.state === 'playing' || this.state === 'bossfight') {
+      // Apply screen shake
+      const shakeOffset = this.screenShake.getOffset();
+      this.ctx.save();
+      this.ctx.translate(shakeOffset.x, shakeOffset.y);
+
       // Render background
       this.scrollingSystem.render(this.ctx, this.width, this.height);
 
@@ -678,23 +780,61 @@ export class ClassicArcadeEngine {
       // Render player
       this.renderPlayer();
 
-      // Render HUD
+      // Render particles
+      this.particles.render(this.ctx);
+
+      this.ctx.restore();
+
+      // Render HUD (not affected by screen shake)
       this.renderHUD();
     }
   }
 
   private renderBullets() {
     for (const bullet of this.bullets) {
+      // Create trail for player bullets
+      if (bullet.isPlayerBullet && Math.random() < 0.3) {
+        this.particles.createTrail(bullet.x, bullet.y, bullet.color);
+      }
+      
+      this.ctx.save();
+      
+      // Outer glow
+      this.ctx.shadowColor = bullet.color;
+      this.ctx.shadowBlur = bullet.isPlayerBullet ? 15 : 10;
+      
+      // Main bullet
       this.ctx.fillStyle = bullet.color;
       this.ctx.beginPath();
       this.ctx.arc(bullet.x, bullet.y, bullet.size / 2, 0, Math.PI * 2);
       this.ctx.fill();
-
-      // Glow effect
-      this.ctx.shadowColor = bullet.color;
-      this.ctx.shadowBlur = 10;
-      this.ctx.fill();
+      
+      // Inner bright core
       this.ctx.shadowBlur = 0;
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.beginPath();
+      this.ctx.arc(bullet.x, bullet.y, bullet.size / 4, 0, Math.PI * 2);
+      this.ctx.fill();
+      
+      // Direction indicator for player bullets
+      if (bullet.isPlayerBullet) {
+        const angle = Math.atan2(bullet.vy, bullet.vx);
+        const trailLength = bullet.size * 2;
+        
+        this.ctx.strokeStyle = bullet.color;
+        this.ctx.lineWidth = 2;
+        this.ctx.globalAlpha = 0.5;
+        this.ctx.beginPath();
+        this.ctx.moveTo(bullet.x, bullet.y);
+        this.ctx.lineTo(
+          bullet.x - Math.cos(angle) * trailLength,
+          bullet.y - Math.sin(angle) * trailLength
+        );
+        this.ctx.stroke();
+        this.ctx.globalAlpha = 1;
+      }
+      
+      this.ctx.restore();
     }
   }
 
@@ -737,38 +877,54 @@ export class ClassicArcadeEngine {
           break;
       }
 
-      // Pixel art style power-up
+      // Pixel art style power-up with rotation
       const size = 30;
-      const x = powerUp.x - size / 2;
-      const y = powerUp.y - size / 2;
+      const time = Date.now() * 0.003;
+      const rotation = Math.sin(time + powerUp.x) * 0.2;
+      
+      this.ctx.save();
+      this.ctx.translate(powerUp.x, powerUp.y);
+      this.ctx.rotate(rotation);
+      
+      // Pulsing effect
+      const pulse = Math.sin(time * 2) * 0.2 + 1;
+      const scaledSize = size * pulse;
+      const x = -scaledSize / 2;
+      const y = -scaledSize / 2;
 
+      // Outer glow
+      this.ctx.shadowColor = color;
+      this.ctx.shadowBlur = 15;
+      
       // Background
       this.ctx.fillStyle = bgColor;
-      this.ctx.fillRect(x, y, size, size);
+      this.ctx.fillRect(x, y, scaledSize, scaledSize);
 
       // Border
       this.ctx.strokeStyle = color;
       this.ctx.lineWidth = 3;
-      this.ctx.strokeRect(x, y, size, size);
+      this.ctx.strokeRect(x, y, scaledSize, scaledSize);
 
       // Inner glow
       this.ctx.fillStyle = color;
-      this.ctx.fillRect(x + 4, y + 4, size - 8, size - 8);
+      this.ctx.fillRect(x + 4, y + 4, scaledSize - 8, scaledSize - 8);
 
       // Symbol
+      this.ctx.shadowBlur = 0;
       this.ctx.fillStyle = '#ffffff';
       this.ctx.font = 'bold 20px monospace';
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
-      this.ctx.fillText(symbol, powerUp.x, powerUp.y);
+      this.ctx.fillText(symbol, 0, 0);
 
-      // Pulsing effect
-      const pulse = Math.sin(Date.now() * 0.01) * 0.3 + 0.7;
-      this.ctx.globalAlpha = pulse;
+      // Rotating border effect
       this.ctx.strokeStyle = '#ffffff';
       this.ctx.lineWidth = 1;
-      this.ctx.strokeRect(x - 2, y - 2, size + 4, size + 4);
+      this.ctx.globalAlpha = 0.5;
+      this.ctx.strokeRect(x - 3, y - 3, scaledSize + 6, scaledSize + 6);
       this.ctx.globalAlpha = 1;
+      
+      this.ctx.restore();
     }
   }
 
@@ -863,6 +1019,41 @@ export class ClassicArcadeEngine {
     const bombs = this.shooterSystem.getBombs();
     this.ctx.textAlign = 'right';
     this.ctx.fillText(`BOMBS: ${bombs}`, this.width - 20, this.height - 30);
+
+    // Combo display
+    const combo = this.comboSystem.getCombo();
+    if (combo > 0) {
+      const multiplier = this.comboSystem.getMultiplier();
+      const timer = this.comboSystem.getTimer();
+      const timeout = this.comboSystem.getTimeout();
+      
+      // Combo background
+      const comboAlpha = Math.min(1, timer / timeout);
+      this.ctx.fillStyle = `rgba(255, 255, 0, ${comboAlpha * 0.3})`;
+      this.ctx.fillRect(this.width / 2 - 100, 80, 200, 60);
+      
+      // Combo text
+      this.ctx.fillStyle = `rgba(255, 255, 0, ${comboAlpha})`;
+      this.ctx.font = 'bold 24px monospace';
+      this.ctx.textAlign = 'center';
+      this.ctx.fillText(`${combo} COMBO!`, this.width / 2, 105);
+      
+      // Multiplier
+      this.ctx.font = 'bold 18px monospace';
+      this.ctx.fillText(`x${multiplier}`, this.width / 2, 130);
+      
+      // Combo timer bar
+      const barWidth = 180;
+      const barHeight = 8;
+      const barX = this.width / 2 - barWidth / 2;
+      const barY = 140;
+      
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      this.ctx.fillRect(barX, barY, barWidth, barHeight);
+      
+      this.ctx.fillStyle = `rgba(255, 255, 0, ${comboAlpha})`;
+      this.ctx.fillRect(barX, barY, barWidth * (timer / timeout), barHeight);
+    }
   }
 
   // Public getters
@@ -888,5 +1079,17 @@ export class ClassicArcadeEngine {
 
   getShooterSystem(): ClassicShooterSystem {
     return this.shooterSystem;
+  }
+
+  getComboSystem(): ComboSystem {
+    return this.comboSystem;
+  }
+
+  getParticleSystem(): ParticleSystem {
+    return this.particles;
+  }
+
+  getScreenShake(): ScreenShake {
+    return this.screenShake;
   }
 }

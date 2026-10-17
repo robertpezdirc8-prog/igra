@@ -67,23 +67,30 @@ export class VerticalScrollingSystem {
       {
         id: 'deep-space',
         color: '#000011',
-        speed: 0.2,
+        speed: 0.1,
         pattern: 'stars',
         opacity: 1
       },
       {
+        id: 'distant-stars',
+        color: '#112244',
+        speed: 0.3,
+        pattern: 'stars',
+        opacity: 0.6
+      },
+      {
         id: 'nebula',
         color: '#220044',
-        speed: 0.4,
+        speed: 0.5,
         pattern: 'clouds',
-        opacity: 0.3
+        opacity: 0.4
       },
       {
         id: 'grid',
         color: '#00ffff',
-        speed: 0.6,
+        speed: 0.8,
         pattern: 'grid',
-        opacity: 0.1
+        opacity: 0.15
       }
     ];
   }
@@ -159,14 +166,16 @@ export class VerticalScrollingSystem {
   }
 
   private renderGrid(ctx: CanvasRenderingContext2D, width: number, height: number, layer: BackgroundLayer) {
-    const gridSize = 50;
+    const gridSize = 60;
     const offset = (this.scrollOffset * layer.speed) % gridSize;
 
     ctx.strokeStyle = layer.color;
     ctx.lineWidth = 1;
 
-    // Vertical lines
+    // Vertical lines with perspective effect
     for (let x = 0; x < width; x += gridSize) {
+      const alpha = 0.3 + Math.sin((x / width) * Math.PI) * 0.3;
+      ctx.globalAlpha = alpha;
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, height);
@@ -174,29 +183,39 @@ export class VerticalScrollingSystem {
     }
 
     // Horizontal lines
+    ctx.globalAlpha = 1;
     for (let y = -gridSize + offset; y < height + gridSize; y += gridSize) {
+      const alpha = 0.2 + (y / height) * 0.3;
+      ctx.globalAlpha = alpha;
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(width, y);
       ctx.stroke();
     }
+    
+    ctx.globalAlpha = 1;
   }
 
   private renderNebula(ctx: CanvasRenderingContext2D, width: number, height: number, layer: BackgroundLayer) {
-    const gradient = ctx.createRadialGradient(
-      width / 2,
-      (height / 2 + this.scrollOffset * layer.speed * 0.1) % height,
-      0,
-      width / 2,
-      (height / 2 + this.scrollOffset * layer.speed * 0.1) % height,
-      width * 0.6
-    );
+    // Multiple nebula clouds for depth
+    const nebulaCount = 3;
+    
+    for (let i = 0; i < nebulaCount; i++) {
+      const x = (width * (i + 1)) / (nebulaCount + 1);
+      const y = ((height / 2 + this.scrollOffset * layer.speed * 0.1 * (i + 1)) % height);
+      const radius = width * (0.3 + i * 0.1);
+      
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      
+      // Different colors for each nebula
+      const colors = ['#220044', '#004422', '#442200'];
+      gradient.addColorStop(0, colors[i % colors.length]);
+      gradient.addColorStop(0.5, layer.color);
+      gradient.addColorStop(1, 'transparent');
 
-    gradient.addColorStop(0, layer.color);
-    gradient.addColorStop(1, 'transparent');
-
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+    }
   }
 
   setScrollSpeed(speed: number) {
