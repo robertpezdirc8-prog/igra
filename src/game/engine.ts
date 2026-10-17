@@ -15,7 +15,7 @@ interface Vec2 { x: number; y: number; }
 interface Particle {
   x: number; y: number; vx: number; vy: number;
   life: number; maxLife: number; size: number;
-  color: string; type: 'spark' | 'trail' | 'debris' | 'energy' | 'orb' | 'ring';
+  color: string; type: 'spark' | 'trail' | 'debris' | 'energy' | 'orb' | 'ring' | 'smoke';
 }
 interface Bullet {
   x: number; y: number; vx: number; vy: number;
@@ -30,6 +30,8 @@ interface Bullet {
   pierceLeft?: number; pierceHits?: Set<Enemy>;
   // Elongated beam/missile rendering aligned to the travel direction
   capsule?: boolean; wave?: boolean;
+  // Solid-fuel rocket: metallic body art + smoke trail (Gradius RAKETA)
+  missile?: boolean; trailT?: number;
   // Danmaku sine-wave motion (optional): the bullet oscillates around its
   // base trajectory, producing the flowing "wave wall" look.
   waveAmp?: number; waveFreq?: number; wavePhase?: number;
@@ -739,10 +741,10 @@ export class GameEngine {
       this.bullets.push({
         x: p.x + side * 14, y: p.y + 6,
         vx: side * 2.5, vy: -6.5,
-        size: 4, color: '#ff8844',
-        damage: 14 * dmgMul,
-        life: 2.2, type: 'player',
-        homing: 0.14, capsule: true
+        size: 4.5, color: '#ffb060',
+        damage: 15 * dmgMul,
+        life: 2.4, type: 'player',
+        homing: 0.14, capsule: true, missile: true
       });
     }
   }
@@ -2444,6 +2446,21 @@ export class GameEngine {
       });
     }
 
+    // Post-blast smoke plume — the burn-off that sells a real explosion.
+    const smokeCount = e.type === 'boss' ? (e.midBoss ? 5 : 9) : e.type === 'titan' ? 4 : 0;
+    for (let i = 0; i < smokeCount; i++) {
+      this.particles.push({
+        x: e.x + (Math.random() - 0.5) * e.size,
+        y: e.y + (Math.random() - 0.5) * e.size,
+        vx: (Math.random() - 0.5) * 1.2,
+        vy: -0.4 - Math.random() * 0.8,
+        life: 0.9 + Math.random() * 0.8, maxLife: 1.7,
+        size: (8 + Math.random() * 10) * (e.midBoss ? 1 : e.type === 'boss' ? 1.4 : 1),
+        color: Math.random() < 0.6 ? '#9a9aa2' : '#6f6f76',
+        type: 'smoke'
+      });
+    }
+
     // Drop power orbs
     if (Math.random() < 0.3 || e.type === 'boss') {
       const orbCount = e.type === 'boss' ? (e.midBoss ? 3 : 5) : 1;
@@ -2724,6 +2741,36 @@ export class GameEngine {
       b.x += b.vx;
       b.y += b.vy;
       b.life -= this.deltaTime;
+
+      // Rocket exhaust: smoke puffs + flame sparks streaming from the tail.
+      // The trail is what sells "real rocket" — fire without smoke looks
+      // like a spark; smoke without fire looks like a jet contrail.
+      if (b.missile) {
+        b.trailT = (b.trailT ?? 0) - this.deltaTime;
+        if (b.trailT <= 0) {
+          b.trailT = 0.024;
+          const sp = Math.sqrt(b.vx * b.vx + b.vy * b.vy) || 1;
+          const nx = -b.vx / sp, ny = -b.vy / sp; // tail direction
+          this.particles.push({
+            x: b.x + nx * 9 + (Math.random() - 0.5) * 3,
+            y: b.y + ny * 9 + (Math.random() - 0.5) * 3,
+            vx: nx * 0.5 + (Math.random() - 0.5) * 0.4,
+            vy: ny * 0.5 - 0.2,
+            life: 0.5 + Math.random() * 0.3, maxLife: 0.8,
+            size: 3.5 + Math.random() * 2.5,
+            color: Math.random() < 0.75 ? '#b9b9b9' : '#8f8f8f',
+            type: 'smoke'
+          });
+          this.particles.push({
+            x: b.x + nx * 6, y: b.y + ny * 6,
+            vx: nx * 1.5 + (Math.random() - 0.5), vy: ny * 1.5 + (Math.random() - 0.5),
+            life: 0.16 + Math.random() * 0.1, maxLife: 0.26,
+            size: 2 + Math.random() * 1.5,
+            color: Math.random() < 0.5 ? '#ffcc66' : '#ff8833',
+            type: 'energy'
+          });
+        }
+      }
 
       let removeBullet: boolean;
 
@@ -4554,67 +4601,225 @@ export class GameEngine {
       ctx.save();
       ctx.translate(b.x, b.y);
 
-      // Enemy bullets must ALWAYS stay visible (Anatomy of a Shmup rule):
-      // a pulsing white outline keeps colored shots readable against any
-      // background, explosion or nebula.
+      const ang = Math.atan2(b.vy, b.vx);
+
       if (b.type === 'enemy') {
+        // ── Enemy plasma orbs ───
+        // Anatomy of a Shmup rule: enemy shots must ALWAYS read. Pulsing
+        // white outline + motion teardrop + halo + hot core.
         const pulse = 0.45 + 0.3 * Math.sin(this.time * 9 + b.x * 0.08 + b.y * 0.05);
         ctx.lineWidth = 1.5;
         ctx.strokeStyle = `rgba(255, 255, 255, ${pulse.toFixed(2)})`;
         ctx.beginPath();
         ctx.arc(0, 0, b.size + 2.2, 0, Math.PI * 2);
         ctx.stroke();
-      }
 
-      // Elongated beam/missile capsule (wave cannon, plasma, missiles):
-      // aligned to the travel direction with a bright leading core.
-      if (b.capsule) {
-        const ang = Math.atan2(b.vy, b.vx);
         ctx.rotate(ang);
-        const len = b.size * 3.4;
-        const wid = b.size * 1.6;
-        const glow = ctx.createLinearGradient(-len / 2, 0, len / 2, 0);
-        glow.addColorStop(0, 'transparent');
-        glow.addColorStop(0.45, b.color);
-        glow.addColorStop(1, b.color + '55');
-        ctx.fillStyle = glow;
+        ctx.globalCompositeOperation = 'lighter';
+        // Motion teardrop tail — energy smeared opposite the travel
+        const tail = ctx.createLinearGradient(-b.size * 3.2, 0, b.size * 0.4, 0);
+        tail.addColorStop(0, 'transparent');
+        tail.addColorStop(1, b.color + '77');
+        ctx.fillStyle = tail;
         ctx.beginPath();
-        ctx.roundRect(-len / 2, -wid / 2, len, wid, wid / 2);
+        ctx.ellipse(-b.size * 1.2, 0, b.size * 2.0, b.size * 0.62, 0, 0, Math.PI * 2);
         ctx.fill();
+        // Soft halo
+        const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, b.size * 2.1);
+        halo.addColorStop(0, b.color + 'cc');
+        halo.addColorStop(0.55, b.color + '44');
+        halo.addColorStop(1, 'transparent');
+        ctx.fillStyle = halo;
         ctx.beginPath();
-        ctx.arc(len * 0.18, 0, b.size * 0.5, 0, Math.PI * 2);
+        ctx.arc(0, 0, b.size * 2.1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+        // Colored core + white-hot center
+        ctx.fillStyle = b.color;
+        ctx.beginPath();
+        ctx.arc(0, 0, b.size, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(0, 0, b.size * 0.52, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
         continue;
       }
 
-      // Glow
-      const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, b.size * 3);
-      glow.addColorStop(0, b.color + 'aa');
-      glow.addColorStop(1, 'transparent');
-      ctx.fillStyle = glow;
-      ctx.fillRect(-b.size * 3, -b.size * 3, b.size * 6, b.size * 6);
+      // ── Player shots ───
+      ctx.rotate(ang);
 
-      // Core
+      if (b.capsule) {
+        if (b.missile) {
+          this.renderRocket(ctx, b);
+          ctx.restore();
+          continue;
+        }
+        // Energy beam capsule (plasma "toothpaste", wave cannon):
+        // additive aura → colored body → white-hot leading filament.
+        const len = b.size * 3.4;
+        const wid = b.size * 1.6;
+        ctx.globalCompositeOperation = 'lighter';
+        const aura = ctx.createLinearGradient(-len / 2, 0, len / 2, 0);
+        aura.addColorStop(0, 'transparent');
+        aura.addColorStop(0.45, b.color + '66');
+        aura.addColorStop(1, b.color + '22');
+        ctx.fillStyle = aura;
+        ctx.beginPath();
+        ctx.roundRect(-len / 2 - wid * 0.3, -wid * 0.95, len + wid * 0.6, wid * 1.9, wid * 0.95);
+        ctx.fill();
+        const body = ctx.createLinearGradient(-len / 2, 0, len / 2, 0);
+        body.addColorStop(0, 'transparent');
+        body.addColorStop(0.4, b.color);
+        body.addColorStop(1, b.color + '88');
+        ctx.fillStyle = body;
+        ctx.beginPath();
+        ctx.roundRect(-len / 2, -wid / 2, len, wid, wid / 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.roundRect(len * 0.05, -wid * 0.16, len * 0.42, wid * 0.32, wid * 0.16);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(len * 0.36, 0, b.size * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.restore();
+        continue;
+      }
+
+      // Regular player rounds: tracer streak + additive halo + hot core —
+      // shots read as tracer rounds instead of flat dots.
+      ctx.globalCompositeOperation = 'lighter';
+      const streak = ctx.createLinearGradient(-b.size * 4.5, 0, b.size * 0.6, 0);
+      streak.addColorStop(0, 'transparent');
+      streak.addColorStop(0.7, b.color + '55');
+      streak.addColorStop(1, b.color + 'cc');
+      ctx.fillStyle = streak;
+      ctx.beginPath();
+      ctx.ellipse(-b.size * 1.4, 0, b.size * 2.6, b.size * 0.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      const halo2 = ctx.createRadialGradient(0, 0, 0, 0, 0, b.size * 2.4);
+      halo2.addColorStop(0, b.color + 'aa');
+      halo2.addColorStop(1, 'transparent');
+      ctx.fillStyle = halo2;
+      ctx.beginPath();
+      ctx.arc(0, 0, b.size * 2.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = b.color;
       ctx.beginPath();
       ctx.arc(0, 0, b.size, 0, Math.PI * 2);
-      ctx.fillStyle = b.color;
       ctx.fill();
-
-      // Bright center
+      ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.arc(0, 0, b.size * 0.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
       ctx.fill();
 
       ctx.restore();
     }
   }
 
+  /** Realistic rocket: metallic body, warhead nose, swept tail fins and an
+   *  animated exhaust flame. Drawn inside a velocity-aligned context so the
+   *  airframe banks into every homing turn. */
+  private renderRocket(ctx: CanvasRenderingContext2D, b: Bullet) {
+    const s = b.size;
+    const flicker = 0.75 + Math.sin(this.time * 47 + b.x * 0.7) * 0.25;
+    const len = s * 3.4;
+    const wid = s * 1.5;
+
+    // ── Exhaust flame (additive, behind the tail) ──
+    ctx.globalCompositeOperation = 'lighter';
+    const flameLen = len * (0.95 + 0.45 * flicker);
+    const flame = ctx.createLinearGradient(-len * 0.5, 0, -len * 0.5 - flameLen, 0);
+    flame.addColorStop(0, 'rgba(255,240,190,0.95)');
+    flame.addColorStop(0.25, 'rgba(255,170,60,0.75)');
+    flame.addColorStop(0.65, 'rgba(255,90,30,0.35)');
+    flame.addColorStop(1, 'rgba(120,20,0,0)');
+    ctx.fillStyle = flame;
+    ctx.beginPath();
+    ctx.moveTo(-len * 0.5, -wid * 0.42);
+    ctx.quadraticCurveTo(-len * 0.5 - flameLen * 0.55, -wid * 0.1, -len * 0.5 - flameLen, 0);
+    ctx.quadraticCurveTo(-len * 0.5 - flameLen * 0.55, wid * 0.1, -len * 0.5, wid * 0.42);
+    ctx.closePath();
+    ctx.fill();
+    // White-hot nozzle dot
+    ctx.fillStyle = 'rgba(255,255,230,0.9)';
+    ctx.beginPath();
+    ctx.arc(-len * 0.46, 0, s * 0.34 * flicker, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+
+    // ── Body: metallic gradient cylinder ──
+    const body = ctx.createLinearGradient(0, -wid / 2, 0, wid / 2);
+    body.addColorStop(0, '#e8e8ee');
+    body.addColorStop(0.35, '#b8bcc8');
+    body.addColorStop(0.65, '#7c828f');
+    body.addColorStop(1, '#4a4e58');
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.roundRect(-len * 0.5, -wid * 0.36, len * 0.72, wid * 0.72, wid * 0.18);
+    ctx.fill();
+    // Panel line seam
+    ctx.strokeStyle = 'rgba(40,44,52,0.5)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(-len * 0.18, -wid * 0.36);
+    ctx.lineTo(-len * 0.18, wid * 0.36);
+    ctx.stroke();
+
+    // ── Warhead nose cone ──
+    const nose = ctx.createLinearGradient(0, -wid / 2, 0, wid / 2);
+    nose.addColorStop(0, '#ff9a66');
+    nose.addColorStop(0.5, '#e04a20');
+    nose.addColorStop(1, '#8a2810');
+    ctx.fillStyle = nose;
+    ctx.beginPath();
+    ctx.moveTo(len * 0.66, 0);
+    ctx.quadraticCurveTo(len * 0.28, -wid * 0.34, len * 0.2, -wid * 0.34);
+    ctx.lineTo(len * 0.2, wid * 0.34);
+    ctx.quadraticCurveTo(len * 0.28, wid * 0.34, len * 0.66, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // ── Swept tail fins (dark steel, both sides) ──
+    ctx.fillStyle = '#5a5e68';
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(-len * 0.22, side * wid * 0.3);
+      ctx.lineTo(-len * 0.52, side * wid * 0.85);
+      ctx.lineTo(-len * 0.5, side * wid * 0.3);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // ── Leading tip highlight ──
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.beginPath();
+    ctx.arc(len * 0.5, -wid * 0.08, s * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   private renderParticles(ctx: CanvasRenderingContext2D) {
     for (const p of this.particles) {
       const ratio = Math.max(0, Math.min(1, p.life / (p.maxLife || 1)));
+
+      // Smoke: soft expanding puffs with normal blending — grows and fades
+      // like real dissipating exhaust. Never additive: smoke occludes
+      // light, it must not emit it.
+      if (p.type === 'smoke') {
+        const progress = 1 - ratio;
+        ctx.save();
+        ctx.globalAlpha = ratio * 0.34;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, Math.max(1, p.size * (0.5 + 0.9 * progress)), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        continue;
+      }
 
       // Expanding shockwave ring (Canvas2D fallback for the GPU ring mode)
       if (p.type === 'ring') {

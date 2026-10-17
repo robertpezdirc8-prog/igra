@@ -156,6 +156,9 @@ intenzivnost 0        1                 2                 BOSS
 ```
 
 - **Bloom v3:** prag 0,45, ločljivi Gaussian v polovični resoluciji — sijaj brez mehčanja
+- **Realistični izstrelki:** rakete z kovinskim truplom, bojevo glavo, repnimi krilci in
+  utripajočim plamenom + **dimni sled** (razširjajoči se oblaki); nasprotnikovi plazma-orbi
+  s pulzirajočim halojem in gobo gibanja; tracer-steaki za vulkanski strel
 - CPU pakuje delce v 48 B/delec → staging buffer → instancirani izris
 - **Parallax zvezdnato nebo:** 3 sloji, vertikalni smear = občutek hitrosti
 - Brez WebGPU → samodejni Canvas2D fallback (isti vizualni rezultat)
