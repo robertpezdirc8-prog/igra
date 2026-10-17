@@ -1,0 +1,255 @@
+import { SKILL_TREE, SkillTree } from './skillTree';
+
+export interface SaveData {
+  version: string;
+  timestamp: number;
+  player: {
+    highScore: number;
+    totalPlayTime: number;
+    totalGamesPlayed: number;
+    totalEnemiesKilled: number;
+    totalBossKills: number;
+    highestWave: number;
+    highestLevel: number;
+    maxCombo: number;
+  };
+  skillTree: {
+    offense: { [skillId: string]: number };
+    defense: { [skillId: string]: number };
+    utility: { [skillId: string]: number };
+  };
+  achievements: string[];
+  completedChallenges: {
+    [date: string]: string[];
+  };
+  settings: {
+    musicVolume: number;
+    sfxVolume: number;
+    showFPS: boolean;
+    particles: 'low' | 'medium' | 'high';
+  };
+  cosmetics: {
+    unlocked: string[];
+    equipped: {
+      trail: string | null;
+      aura: string | null;
+      border: string | null;
+    };
+  };
+  currency: {
+    gold: number;
+    gems: number;
+  };
+}
+
+const SAVE_KEY = 'atheria_save_data';
+const SAVE_VERSION = '1.0.0';
+
+export function createDefaultSaveData(): SaveData {
+  return {
+    version: SAVE_VERSION,
+    timestamp: Date.now(),
+    player: {
+      highScore: 0,
+      totalPlayTime: 0,
+      totalGamesPlayed: 0,
+      totalEnemiesKilled: 0,
+      totalBossKills: 0,
+      highestWave: 0,
+      highestLevel: 1,
+      maxCombo: 0
+    },
+    skillTree: {
+      offense: {},
+      defense: {},
+      utility: {}
+    },
+    achievements: [],
+    completedChallenges: {},
+    settings: {
+      musicVolume: 0.5,
+      sfxVolume: 0.6,
+      showFPS: true,
+      particles: 'high'
+    },
+    cosmetics: {
+      unlocked: ['default'],
+      equipped: {
+        trail: null,
+        aura: null,
+        border: null
+      }
+    },
+    currency: {
+      gold: 0,
+      gems: 0
+    }
+  };
+}
+
+export function saveGame(data: SaveData): boolean {
+  try {
+    data.timestamp = Date.now();
+    data.version = SAVE_VERSION;
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    return true;
+  } catch (error) {
+    console.error('Failed to save game:', error);
+    return false;
+  }
+}
+
+export function loadGame(): SaveData | null {
+  try {
+    const saved = localStorage.getItem(SAVE_KEY);
+    if (!saved) return null;
+
+    const data = JSON.parse(saved) as SaveData;
+    
+    // Version check and migration
+    if (data.version !== SAVE_VERSION) {
+      console.log('Save data version mismatch, migrating...');
+      return migrateSaveData(data);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Failed to load game:', error);
+    return null;
+  }
+}
+
+export function deleteSave(): boolean {
+  try {
+    localStorage.removeItem(SAVE_KEY);
+    return true;
+  } catch (error) {
+    console.error('Failed to delete save:', error);
+    return false;
+  }
+}
+
+export function hasSaveData(): boolean {
+  return localStorage.getItem(SAVE_KEY) !== null;
+}
+
+function migrateSaveData(oldData: any): SaveData {
+  const newData = createDefaultSaveData();
+  
+  // Migrate player stats
+  if (oldData.player) {
+    newData.player = { ...newData.player, ...oldData.player };
+  }
+  
+  // Migrate skill tree
+  if (oldData.skillTree) {
+    newData.skillTree = { ...newData.skillTree, ...oldData.skillTree };
+  }
+  
+  // Migrate achievements
+  if (oldData.achievements) {
+    newData.achievements = oldData.achievements;
+  }
+  
+  // Migrate settings
+  if (oldData.settings) {
+    newData.settings = { ...newData.settings, ...oldData.settings };
+  }
+  
+  return newData;
+}
+
+export function updateSaveWithGameStats(
+  saveData: SaveData,
+  gameStats: {
+    score: number;
+    playTime: number;
+    enemiesKilled: number;
+    bossKills: number;
+    wave: number;
+    level: number;
+    maxCombo: number;
+  }
+): SaveData {
+  const updated = { ...saveData };
+  
+  // Update player stats
+  updated.player.highScore = Math.max(updated.player.highScore, gameStats.score);
+  updated.player.totalPlayTime += gameStats.playTime;
+  updated.player.totalGamesPlayed += 1;
+  updated.player.totalEnemiesKilled += gameStats.enemiesKilled;
+  updated.player.totalBossKills += gameStats.bossKills;
+  updated.player.highestWave = Math.max(updated.player.highestWave, gameStats.wave);
+  updated.player.highestLevel = Math.max(updated.player.highestLevel, gameStats.level);
+  updated.player.maxCombo = Math.max(updated.player.maxCombo, gameStats.maxCombo);
+  
+  return updated;
+}
+
+export function updateSaveWithSkillTree(
+  saveData: SaveData,
+  skillTree: SkillTree
+): SaveData {
+  const updated = { ...saveData };
+  
+  // Save skill tree state
+  updated.skillTree.offense = {};
+  updated.skillTree.defense = {};
+  updated.skillTree.utility = {};
+  
+  for (const skill of skillTree.offense) {
+    updated.skillTree.offense[skill.id] = skill.currentLevel;
+  }
+  for (const skill of skillTree.defense) {
+    updated.skillTree.defense[skill.id] = skill.currentLevel;
+  }
+  for (const skill of skillTree.utility) {
+    updated.skillTree.utility[skill.id] = skill.currentLevel;
+  }
+  
+  return updated;
+}
+
+export function loadSkillTreeFromSave(saveData: SaveData): SkillTree {
+  const skillTree = JSON.parse(JSON.stringify(SKILL_TREE)) as SkillTree;
+  
+  // Load offense skills
+  for (const skill of skillTree.offense) {
+    if (saveData.skillTree.offense[skill.id]) {
+      skill.currentLevel = saveData.skillTree.offense[skill.id];
+    }
+  }
+  
+  // Load defense skills
+  for (const skill of skillTree.defense) {
+    if (saveData.skillTree.defense[skill.id]) {
+      skill.currentLevel = saveData.skillTree.defense[skill.id];
+    }
+  }
+  
+  // Load utility skills
+  for (const skill of skillTree.utility) {
+    if (saveData.skillTree.utility[skill.id]) {
+      skill.currentLevel = saveData.skillTree.utility[skill.id];
+    }
+  }
+  
+  return skillTree;
+}
+
+export function exportSave(): string {
+  const saveData = loadGame();
+  if (!saveData) return '';
+  return btoa(JSON.stringify(saveData));
+}
+
+export function importSave(encoded: string): boolean {
+  try {
+    const decoded = atob(encoded);
+    const data = JSON.parse(decoded) as SaveData;
+    return saveGame(data);
+  } catch (error) {
+    console.error('Failed to import save:', error);
+    return false;
+  }
+}
