@@ -1,42 +1,41 @@
+// UI components actually used by the application.
+// Effect/prototype components that were never rendered have been removed.
+
+// Shared building blocks
 export { Button } from './Button';
 export { Notification } from './Notification';
-export { LoadingScreen } from './LoadingScreen';
 export { HUDBar, ComboCounter, WaveAnnouncement } from './HUD';
+
+// Screens & menus
+export { LoadingScreen } from './LoadingScreen';
+export { MainMenu } from './MainMenu';
+export { PauseMenu } from './PauseMenu';
+export { GameOverScreen } from './GameOverScreen';
+export { LevelUpScreen } from './LevelUpScreen';
+export { LevelUpChoiceScreen } from './LevelUpChoiceScreen';
 export { SettingsMenu } from './SettingsMenu';
 export { TutorialOverlay } from './TutorialOverlay';
-export { MainMenu } from './MainMenu';
-export { GameOverScreen } from './GameOverScreen';
-export { PauseMenu } from './PauseMenu';
-export { LevelUpScreen } from './LevelUpScreen';
+
+// Feedback
 export { AchievementNotification } from './AchievementNotification';
+export { AchievementPanel } from './AchievementPanel';
+export { DamageFlash } from './DamageFlash';
+
+// In-game HUD (fed with real engine data via App.tsx)
 export { MobileControls } from './MobileControls';
 export { KeyboardHints } from './KeyboardHints';
 export { MiniMap } from './MiniMap';
-export { DamageNumbers } from './DamageNumbers';
 export { HealthBar } from './HealthBar';
 export { ScoreDisplay } from './ScoreDisplay';
 export { WeaponIndicator } from './WeaponIndicator';
-export { PowerUpIndicator } from './PowerUpIndicator';
-export { WaveProgress } from './WaveProgress';
-export { StatsPanel } from './StatsPanel';
 export { Crosshair } from './Crosshair';
-export { BossHealthBar } from './BossHealthBar';
-export { AchievementPanel } from './AchievementPanel';
-export { DamageFlash } from './DamageFlash';
-export { PerformanceMonitor } from './PerformanceMonitor';
-export { ControlsOverlay } from './ControlsOverlay';
 export { WaveInfo } from './WaveInfo';
 export { ComboDisplay } from './ComboDisplay';
-export { PowerUpNotificationDisplay } from './PowerUpNotificationDisplay';
 export { GameTimer } from './GameTimer';
-export { MiniAchievementDisplay } from './MiniAchievementDisplay';
-export { ScreenShake } from './ScreenShake';
-export { ParticleOverlay } from './ParticleOverlay';
-export { VignetteOverlay } from './VignetteOverlay';
-export { ChromaticAberration } from './ChromaticAberration';
 export { LevelDisplay } from './LevelDisplay';
 export { LevelInfo } from './LevelInfo';
-export { LevelUpChoiceScreen } from './LevelUpChoiceScreen';
+
+// Meta systems
 export { SkillTreeUI } from './SkillTreeUI';
 export { DailyChallengesUI } from './DailyChallengesUI';
 export { SaveLoadUI } from './SaveLoadUI';

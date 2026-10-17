@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { GameEngine } from './game/engine';
+import { GameEngine, GameStats } from './game/engine';
 import {
   LoadingScreen,
   MainMenu,
   PauseMenu,
   GameOverScreen,
   LevelUpScreen,
+  LevelUpChoiceScreen,
   SettingsMenu,
   TutorialOverlay,
   Notification,
@@ -17,20 +18,12 @@ import {
   MiniMap,
   KeyboardHints,
   Crosshair,
-  BossHealthBar,
   DamageFlash,
-  WaveProgress,
-  StatsPanel,
-  AchievementPanel,
-  PerformanceMonitor,
-  ControlsOverlay,
   WaveInfo,
   ComboDisplay,
-  PowerUpNotificationDisplay,
   GameTimer,
   LevelDisplay,
   LevelInfo,
-  LevelUpChoiceScreen,
   SkillTreeUI,
   DailyChallengesUI,
   SaveLoadUI,
@@ -38,11 +31,30 @@ import {
   ArcadeGame,
   DailyRewardsUI,
   ShopUI,
-  DifficultySelectUI
+  DifficultySelectUI,
+  AchievementPanel
 } from './components';
-import { loadGame, saveGame, createDefaultSaveData, SaveData } from './game/saveSystem';
+import {
+  loadGame,
+  saveGame,
+  createDefaultSaveData,
+  updateSaveWithGameStats,
+  updateSaveWithSkillTree,
+  loadSkillTreeFromSave,
+  SaveData
+} from './game/saveSystem';
 import { getLevelForPlayer } from './game/levels';
-import { SKILL_TREE, findSkill, getSkillCost } from './game/skillTree';
+import {
+  SKILL_TREE,
+  findSkill,
+  getSkillCost,
+  canUnlockSkill,
+  computeSkillBonuses,
+  SkillTree
+} from './game/skillTree';
+import { DIFFICULTY_MODES, DifficultyMode } from './game/difficulty';
+import { ALL_ACHIEVEMENTS, checkAchievements, Achievement } from './game/achievements';
+import { CosmeticItem, canAffordCosmetic } from './game/cosmetics';
 
 type GameState = 'loading' | 'menu' | 'playing' | 'paused' | 'levelup' | 'levelchoice' | 'gameover';
 
@@ -53,125 +65,198 @@ interface Settings {
   particles: 'low' | 'medium' | 'high';
 }
 
+// Keys the game consumes - preventDefault is applied ONLY to these while
+// playing, so browser shortcuts (F5, Tab, Ctrl+R, ...) keep working.
+const GAME_KEYS = new Set([
+  'w', 'a', 's', 'd', 'q',
+  'arrowup', 'arrowdown', 'arrowleft', 'arrowright',
+  ' ', 'escape'
+]);
+
+const emptyStats: GameStats = {
+  score: 0, wave: 1, enemiesKilled: 0, bossKills: 0,
+  totalDamage: 0, survivalTime: 0, maxCombo: 1, combo: 1,
+  enemiesRemaining: 0, totalWaveEnemies: 0,
+  isBossWave: false, bossPresent: false,
+  gold: 0, fps: 60, seed: '', gameStartTime: 0,
+  shotsFired: 0, hitsLanded: 0, damageTaken: 0, itemsCollected: 0,
+  webgpuSupported: false, playerLevel: 1, playerXp: 0, xpToNext: 100
+};
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const webgpuCanvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
+  const saveDataRef = useRef<SaveData | null>(null);
+
   const [gameState, setGameState] = useState<GameState>('loading');
-  const [showTutorial, setShowTutorial] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showStats, setShowStats] = useState(false);
-  const [showAchievements, setShowAchievements] = useState(false);
-  const [showControls, setShowControls] = useState(false);
-  const [showPerformance, setShowPerformance] = useState(false);
-  const [showSkillTree, setShowSkillTree] = useState(false);
-  const [skillPoints, setSkillPoints] = useState(0);
-  const [showDailyChallenges, setShowDailyChallenges] = useState(false);
-  const [completedChallenges, setCompletedChallenges] = useState<string[]>([]);
-  const [showSaveLoad, setShowSaveLoad] = useState(false);
   const [saveData, setSaveData] = useState<SaveData | null>(null);
-  const [showStatsLeaderboard, setShowStatsLeaderboard] = useState(false);
-  const [showArcadeGame, setShowArcadeGame] = useState(false);
-  const [showDailyRewards, setShowDailyRewards] = useState(false);
-  const [showShop, setShowShop] = useState(false);
-  const [showDifficultySelect, setShowDifficultySelect] = useState(false);
-  const [gold, setGold] = useState(0);
-  const [gems, setGems] = useState(0);
-  const [ownedCosmetics, setOwnedCosmetics] = useState<string[]>(['default']);
-  const [equippedCosmetics, setEquippedCosmetics] = useState<{ [key: string]: string | null }>({});
-
-  // Load save data on mount
-  useEffect(() => {
-    const loaded = loadGame();
-    if (loaded) {
-      setSaveData(loaded);
-    } else {
-      const defaultSave = createDefaultSaveData();
-      setSaveData(defaultSave);
-      saveGame(defaultSave);
-    }
-  }, []);
-
-  const handleSave = () => {
-    if (saveData) {
-      saveGame(saveData);
-      addNotification('Igra shranjena!', 'success');
-    }
-  };
-
-  const handleLoad = () => {
-    const loaded = loadGame();
-    if (loaded) {
-      setSaveData(loaded);
-      addNotification('Igra naložena!', 'success');
-    }
-  };
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [isShooting, setIsShooting] = useState(false);
-  const [damageFlash, setDamageFlash] = useState(false);
   const [settings, setSettings] = useState<Settings>({
     musicVolume: 0.5,
     sfxVolume: 0.6,
     showFPS: true,
     particles: 'high'
   });
-  const [notifications, setNotifications] = useState<Array<{ id: number; message: string; type: 'success' | 'warning' | 'error' | 'info' }>>([]);
-  const [highScore, setHighScore] = useState(0);
   const [webgpuSupported, setWebgpuSupported] = useState(false);
-  const [playerStats, setPlayerStats] = useState({
+  const [stats, setStats] = useState<GameStats>(emptyStats);
+  const [player, setPlayer] = useState({
     hp: 100, maxHp: 100,
     shield: 50, maxShield: 50,
     energy: 100, maxEnergy: 100,
-    score: 0, wave: 1, combo: 1,
+    combo: 1,
     weaponLevel: 1,
     secondaryWeapon: 'none' as 'none' | 'gravity' | 'chain' | 'temporal',
     secondaryCooldown: 0,
-    dashCooldown: 0,
-    level: 1,
-    xp: 0,
-    xpToNextLevel: 100
+    dashCooldown: 0
   });
+  const [minimap, setMinimap] = useState({
+    playerX: 0, playerY: 0,
+    enemies: [] as Array<{ x: number; y: number; type: string }>,
+    worldWidth: 0, worldHeight: 0
+  });
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isShooting, setIsShooting] = useState(false);
+  const [damageFlash, setDamageFlash] = useState(false);
+  const [notifications, setNotifications] = useState<Array<{ id: number; message: string; type: 'success' | 'warning' | 'error' | 'info' }>>([]);
+  const [levelChoices, setLevelChoices] = useState<Array<{ name: string; description: string; icon: string }>>([]);
 
-  const handleStateChange = useCallback((state: string) => {
-    setGameState(state as GameState);
+  // Overlay menus
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showSkillTree, setShowSkillTree] = useState(false);
+  const [showDailyChallenges, setShowDailyChallenges] = useState(false);
+  const [showSaveLoad, setShowSaveLoad] = useState(false);
+  const [showStatsLeaderboard, setShowStatsLeaderboard] = useState(false);
+  const [showArcadeGame, setShowArcadeGame] = useState(false);
+  const [showDailyRewards, setShowDailyRewards] = useState(false);
+  const [showShop, setShowShop] = useState(false);
+  const [showDifficultySelect, setShowDifficultySelect] = useState(false);
+  const [showAchievements, setShowAchievements] = useState(false);
+
+  // Persistent meta derived from saveData
+  const [skillPoints, setSkillPoints] = useState(0);
+  const [skillTree, setSkillTree] = useState<SkillTree>(SKILL_TREE);
+  const [completedChallenges, setCompletedChallenges] = useState<string[]>([]);
+  const [newAchievements, setNewAchievements] = useState<Achievement[]>([]);
+  // Snapshot of final stats for the game-over screen
+  const [finalStats, setFinalStats] = useState<GameStats | null>(null);
+  const lastHpRef = useRef(100);
+  const flashTimerRef = useRef<number | null>(null);
+
+  const addNotification = useCallback((message: string, type: 'success' | 'warning' | 'error' | 'info') => {
+    const id = Date.now() + Math.random();
+    setNotifications((prev) => [...prev.slice(-4), { id, message, type }]);
   }, []);
 
-  // Game loop za posodabljanje UI state
+  const removeNotification = useCallback((id: number) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  }, []);
+
+  // ============= SAVE DATA =============
+  const persistSave = useCallback((updater: (data: SaveData) => SaveData) => {
+    const current = saveDataRef.current;
+    if (!current) return;
+    const updated = updater(current);
+    saveDataRef.current = updated;
+    setSaveData(updated);
+    saveGame(updated);
+  }, []);
+
+  // Load save data on mount
   useEffect(() => {
-    const updateUI = () => {
-      if (engineRef.current && gameState === 'playing') {
-        const player = engineRef.current.getPlayer();
-        if (player) {
-          setPlayerStats({
-            hp: player.hp,
-            maxHp: player.maxHp,
-            shield: player.shield,
-            maxShield: player.maxShield,
-            energy: player.energy,
-            maxEnergy: player.maxEnergy,
-            score: player.score,
-            wave: engineRef.current.getWave(),
-            combo: player.combo,
-            weaponLevel: player.weaponLevel,
-            secondaryWeapon: player.secondaryWeapon,
-            secondaryCooldown: player.secondaryCooldown,
-            dashCooldown: player.dashCooldown,
-            level: engineRef.current.getPlayerLevel(),
-            xp: engineRef.current.getPlayerXP(),
-            xpToNextLevel: engineRef.current.getPlayerXPToNext()
-          });
-        }
+    let data = loadGame();
+    if (!data) {
+      data = createDefaultSaveData();
+      saveGame(data);
+    }
+    saveDataRef.current = data;
+    setSaveData(data);
+    setSettings({ ...data.settings });
+    setSkillPoints(data.skillPoints);
+    setSkillTree(loadSkillTreeFromSave(data));
+    const today = new Date().toISOString().slice(0, 10);
+    setCompletedChallenges(data.completedChallenges[today] ?? []);
+    // Keep the engine's own high score key in sync with the save file
+    try {
+      localStorage.setItem('atheria_highscore', String(data.player.highScore));
+    } catch { /* ignore */ }
+  }, []);
+
+  // ============= ENGINE LIFECYCLE =============
+  const handleStateChange = useCallback((state: string) => {
+    const engine = engineRef.current;
+    setGameState(state as GameState);
+
+    if (!engine) return;
+
+    // Snapshot level-up choices for the React screens
+    if (state === 'levelup' || state === 'levelchoice') {
+      setLevelChoices(engine.getLevelChoices().map(u => ({
+        name: u.name, description: u.description, icon: u.icon
+      })));
+      // Award a skill point for every XP level-up
+      if (state === 'levelchoice') {
+        setSkillPoints(prev => {
+          const next = prev + 1;
+          persistSave(data => ({ ...data, skillPoints: next }));
+          return next;
+        });
       }
-      requestAnimationFrame(updateUI);
-    };
-    const frameId = requestAnimationFrame(updateUI);
-    return () => cancelAnimationFrame(frameId);
-  }, [gameState]);
+    }
+
+    // Game over: persist run statistics, gold, high score and check achievements
+    if (state === 'gameover') {
+      const runStats = engine.getGameStats();
+      setFinalStats(runStats);
+
+      persistSave(data => {
+        let updated = updateSaveWithGameStats(data, {
+          score: runStats.score,
+          playTime: runStats.survivalTime,
+          enemiesKilled: runStats.enemiesKilled,
+          bossKills: runStats.bossKills,
+          wave: runStats.wave,
+          level: runStats.playerLevel,
+          maxCombo: runStats.maxCombo
+        });
+        // Gold earned during the run is added to the wallet
+        updated = {
+          ...updated,
+          currency: { ...updated.currency, gold: updated.currency.gold + runStats.gold }
+        };
+        return updated;
+      });
+
+      // Achievement evaluation
+      const unlocked = new Set(saveDataRef.current?.achievements ?? []);
+      const newlyUnlocked = checkAchievements({
+        level: runStats.playerLevel,
+        totalXp: 0,
+        enemiesKilled: runStats.enemiesKilled,
+        bossKills: runStats.bossKills,
+        maxCombo: runStats.maxCombo,
+        wavesCompleted: runStats.wave,
+        totalDamage: runStats.totalDamage,
+        survivalTime: runStats.survivalTime,
+        highestWave: Math.max(saveDataRef.current?.player.highestWave ?? 0, runStats.wave)
+      }, unlocked);
+
+      if (newlyUnlocked.length > 0) {
+        persistSave(data => ({
+          ...data,
+          achievements: [...data.achievements, ...newlyUnlocked.map(a => a.id)]
+        }));
+        setNewAchievements(newlyUnlocked);
+      }
+    }
+  }, [persistSave]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    const overlay = webgpuCanvasRef.current;
     if (!canvas) return;
 
-    const engine = new GameEngine(canvas, handleStateChange);
+    const engine = new GameEngine(canvas, overlay, handleStateChange);
     engineRef.current = engine;
 
     const resize = () => {
@@ -183,31 +268,20 @@ export default function App() {
     engine.startLoop();
     engine.start();
 
-    // Check WebGPU support
-    const checkWebGPU = async () => {
-      const nav = navigator as any;
-      if (nav.gpu) {
-        try {
-          const adapter = await nav.gpu.requestAdapter();
-          setWebgpuSupported(!!adapter);
-        } catch (e) {
-          setWebgpuSupported(false);
-        }
-      }
-    };
-    checkWebGPU();
-
     // Load high score
     try {
       const saved = localStorage.getItem('atheria_highscore');
-      if (saved) setHighScore(parseInt(saved));
-    } catch (e) {}
+      if (saved) setStats(prev => ({ ...prev }));
+    } catch { /* ignore */ }
+
+    const isGameKey = (key: string) => GAME_KEYS.has(key.toLowerCase());
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      e.preventDefault();
+      if (isGameKey(e.key)) e.preventDefault();
       engine.handleKeyDown(e.key);
     };
     const handleKeyUp = (e: KeyboardEvent) => {
+      if (isGameKey(e.key)) e.preventDefault();
       engine.handleKeyUp(e.key);
     };
     const handleMouseMove = (e: MouseEvent) => {
@@ -216,7 +290,6 @@ export default function App() {
     };
     const handleMouseDown = (e: MouseEvent) => {
       engine.handleMouseDown(e.button);
-      engine.handleClick(e.clientX, e.clientY);
       if (e.button === 0) setIsShooting(true);
     };
     const handleMouseUp = (e: MouseEvent) => {
@@ -226,13 +299,18 @@ export default function App() {
     const handleContextMenu = (e: Event) => {
       e.preventDefault();
     };
+    const handleBeforeUnload = () => {
+      engine.setMobileMove(0, 0);
+      engine.setMobileShooting(false);
+    };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mousedown', handleMouseDown);
-    canvas.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('mouseup', handleMouseUp);
     canvas.addEventListener('contextmenu', handleContextMenu);
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       window.removeEventListener('resize', resize);
@@ -240,87 +318,280 @@ export default function App() {
       window.removeEventListener('keyup', handleKeyUp);
       canvas.removeEventListener('mousemove', handleMouseMove);
       canvas.removeEventListener('mousedown', handleMouseDown);
-      canvas.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('mouseup', handleMouseUp);
       canvas.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       engine.destroy();
     };
   }, [handleStateChange]);
 
-  const addNotification = (message: string, type: 'success' | 'warning' | 'error' | 'info') => {
-    const id = Date.now();
-    setNotifications((prev) => [...prev, { id, message, type }]);
-  };
-
-  const removeNotification = (id: number) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  };
-
-  const handleStartGame = () => {
-    setGameState('playing');
-    addNotification('Igra se je začela!', 'success');
-  };
-
-  const handleResume = () => {
-    setGameState('playing');
-  };
-
-  const handleRestart = () => {
-    setGameState('playing');
-    addNotification('Ponovni zagon...', 'info');
-  };
-
-  const handleMainMenu = () => {
-    setGameState('menu');
-  };
-
-  const handleUnlockSkill = (skillId: string) => {
-    const skill = findSkill(skillId, SKILL_TREE);
-    if (!skill) return;
-
-    const cost = getSkillCost(skill);
-    if (skillPoints >= cost) {
-      setSkillPoints(prev => prev - cost);
-      skill.currentLevel++;
-      addNotification(`Odklenjeno: ${skill.name} (Level ${skill.currentLevel})`, 'success');
-    }
-  };
-
-  // Award skill points on level up
+  // ============= THROTTLED UI SYNC =============
+  // Instead of calling setState 60x/second, sample the engine at ~10 Hz and
+  // only update React when something actually changed.
   useEffect(() => {
-    if (gameState === 'levelchoice') {
-      setSkillPoints(prev => prev + 1);
-    }
-  }, [gameState]);
+    let lastSync = 0;
+    let rafId = 0;
+    let prevFingerprint = '';
 
-  const handleCompleteChallenge = (challengeId: string) => {
-    if (!completedChallenges.includes(challengeId)) {
-      setCompletedChallenges(prev => [...prev, challengeId]);
-      addNotification('Izziv zaključen! Poglej nagrade.', 'success');
-    }
-  };
+    const loop = (t: number) => {
+      rafId = requestAnimationFrame(loop);
+      if (t - lastSync < 100) return;
+      lastSync = t;
 
-  const handleBuyCosmetic = (item: any) => {
-    if (item.currency === 'gold') {
-      setGold(prev => prev - item.price);
-    } else {
-      setGems(prev => prev - item.price);
+      const engine = engineRef.current;
+      if (!engine) return;
+
+      const state = engine.getState();
+      const gs = engine.getGameStats();
+      const p = engine.getPlayer();
+
+      // Damage flash detection (real HP drops only)
+      if (p.hp < lastHpRef.current - 0.5) {
+        setDamageFlash(true);
+        if (flashTimerRef.current) window.clearTimeout(flashTimerRef.current);
+        flashTimerRef.current = window.setTimeout(() => setDamageFlash(false), 350);
+      }
+      lastHpRef.current = p.hp;
+
+      const fingerprint = [
+        state, gs.score, gs.wave, gs.enemiesRemaining, gs.fps, gs.gold,
+        gs.playerLevel, Math.round(gs.playerXp), p.hp.toFixed(0), p.shield.toFixed(0),
+        p.energy.toFixed(0), p.combo, p.weaponLevel, p.secondaryWeapon,
+        p.secondaryCooldown.toFixed(1), p.dashCooldown.toFixed(1),
+        p.x.toFixed(0), p.y.toFixed(0), p.maxHp, p.maxShield, p.maxEnergy,
+        engine.isWebGPUSupported(), gs.gameStartTime
+      ].join('|');
+
+      if (fingerprint === prevFingerprint) return;
+      prevFingerprint = fingerprint;
+
+      setStats(gs);
+      setPlayer({
+        hp: p.hp, maxHp: p.maxHp,
+        shield: p.shield, maxShield: p.maxShield,
+        energy: p.energy, maxEnergy: p.maxEnergy,
+        combo: p.combo,
+        weaponLevel: p.weaponLevel,
+        secondaryWeapon: p.secondaryWeapon,
+        secondaryCooldown: p.secondaryCooldown,
+        dashCooldown: p.dashCooldown
+      });
+      setMinimap(engine.getMinimapData());
+      setWebgpuSupported(engine.isWebGPUSupported());
+    };
+
+    rafId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
+
+  // ============= GAME FLOW (engine is the source of truth) =============
+  const handleStartGame = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const data = saveDataRef.current;
+    if (data) {
+      // Apply persistent bonuses, difficulty and starting XP
+      engine.setSkillBonuses(computeSkillBonuses(skillTree));
+      engine.setDifficulty(DIFFICULTY_MODES.find(m => m.id === data.difficulty) ?? null);
+      engine.setStartingXp(data.currency.xp);
+      // Consume the pending XP reward
+      if (data.currency.xp > 0) {
+        persistSave(d => ({ ...d, currency: { ...d.currency, xp: 0 } }));
+      }
     }
-    setOwnedCosmetics(prev => [...prev, item.id]);
+    engine.restart();
+  }, [skillTree, persistSave]);
+
+  const handleResume = useCallback(() => engineRef.current?.resume(), []);
+  const handleRestart = useCallback(() => engineRef.current?.restart(), []);
+  const handleMainMenu = useCallback(() => engineRef.current?.goToMenu(), []);
+
+  const handleChooseUpgrade = useCallback((index: number) => {
+    engineRef.current?.chooseUpgrade(index);
+  }, []);
+
+  const handleChooseLevelChoice = useCallback(() => {
+    // LevelUpChoiceScreen passes a mapped choice; the engine keeps its own
+    // ordered list, so we pick by the position in our rendered choices.
+    engineRef.current?.chooseUpgrade(0);
+  }, []);
+
+  // ============= SKILL TREE (persistent, no module mutation) =============
+  const handleUnlockSkill = useCallback((skillId: string) => {
+    const skill = findSkill(skillId, skillTree);
+    if (!skill) return;
+    if (!canUnlockSkill(skill, skillTree)) {
+      addNotification('Veščina še ni na voljo!', 'warning');
+      return;
+    }
+    const cost = getSkillCost(skill);
+    if (skillPoints < cost) {
+      addNotification('Nimaš dovolj skill točk!', 'error');
+      return;
+    }
+
+    // Immutable clone with the unlocked level applied
+    const updatedTree: SkillTree = {
+      offense: skillTree.offense.map(s =>
+        s.id === skillId ? { ...s, currentLevel: s.currentLevel + 1 } : s),
+      defense: skillTree.defense.map(s =>
+        s.id === skillId ? { ...s, currentLevel: s.currentLevel + 1 } : s),
+      utility: skillTree.utility.map(s =>
+        s.id === skillId ? { ...s, currentLevel: s.currentLevel + 1 } : s)
+    };
+
+    setSkillTree(updatedTree);
+    setSkillPoints(prev => {
+      const next = prev - cost;
+      persistSave(data => updateSaveWithSkillTree({ ...data, skillPoints: next }, updatedTree));
+      return next;
+    });
+    addNotification(`Odklenjeno: ${skill.name} (Level ${skill.currentLevel + 1})`, 'success');
+  }, [skillTree, skillPoints, persistSave, addNotification]);
+
+  // ============= SHOP (validated + persistent) =============
+  const handleBuyCosmetic = useCallback((item: CosmeticItem) => {
+    const data = saveDataRef.current;
+    if (!data) return;
+    if (data.cosmetics.unlocked.includes(item.id)) {
+      addNotification('Predmet je že last!', 'warning');
+      return;
+    }
+    const playerLevel = data.player.highestLevel;
+    if (item.unlockLevel > playerLevel) {
+      addNotification(`Zahteva nivo ${item.unlockLevel}!`, 'error');
+      return;
+    }
+    if (!canAffordCosmetic(item, data.currency.gold, data.currency.gems)) {
+      addNotification('Nimaš dovolj sredstev!', 'error');
+      return;
+    }
+
+    persistSave(d => ({
+      ...d,
+      currency: {
+        ...d.currency,
+        gold: item.currency === 'gold' ? d.currency.gold - item.price : d.currency.gold,
+        gems: item.currency === 'gems' ? d.currency.gems - item.price : d.currency.gems
+      },
+      cosmetics: {
+        ...d.cosmetics,
+        unlocked: [...d.cosmetics.unlocked, item.id]
+      }
+    }));
     addNotification(`Kupil si ${item.name}!`, 'success');
-  };
+  }, [persistSave, addNotification]);
 
-  const handleEquipCosmetic = (item: any) => {
-    setEquippedCosmetics(prev => ({ ...prev, [item.type]: item.id }));
+  const handleEquipCosmetic = useCallback((item: CosmeticItem) => {
+    persistSave(d => ({
+      ...d,
+      cosmetics: {
+        ...d.cosmetics,
+        equipped: { ...d.cosmetics.equipped, [item.type]: item.id }
+      }
+    }));
     addNotification(`Opremil si ${item.name}!`, 'success');
-  };
+  }, [persistSave, addNotification]);
+
+  // ============= DAILY CHALLENGES (persistent per date) =============
+  const handleCompleteChallenge = useCallback((challengeId: string) => {
+    const today = new Date().toISOString().slice(0, 10);
+    if (completedChallenges.includes(challengeId)) return;
+    setCompletedChallenges(prev => [...prev, challengeId]);
+    persistSave(d => ({
+      ...d,
+      completedChallenges: {
+        ...d.completedChallenges,
+        [today]: [...(d.completedChallenges[today] ?? []), challengeId]
+      }
+    }));
+    addNotification('Izziv zaključen! Poglej nagrade.', 'success');
+  }, [completedChallenges, persistSave, addNotification]);
+
+  // ============= DAILY REWARDS (applied to wallet) =============
+  const handleClaimReward = useCallback((reward: { reward: string; amount: number }) => {
+    persistSave(d => {
+      switch (reward.reward) {
+        case 'gold':
+          return { ...d, currency: { ...d.currency, gold: d.currency.gold + reward.amount } };
+        case 'gem':
+          return { ...d, currency: { ...d.currency, gems: d.currency.gems + reward.amount } };
+        case 'skillPoint':
+          return { ...d, skillPoints: d.skillPoints + reward.amount };
+        case 'xp':
+          return { ...d, currency: { ...d.currency, xp: d.currency.xp + reward.amount } };
+        default:
+          return d;
+      }
+    });
+    if (reward.reward === 'skillPoint') {
+      setSkillPoints(prev => prev + reward.amount);
+    }
+    addNotification(`Prejel si ${reward.amount} ${reward.reward === 'gem' ? 'draguljev' : reward.reward === 'skillPoint' ? 'skill točk' : reward.reward === 'xp' ? 'XP za naslednjo igro' : 'zlata'}!`, 'success');
+  }, [persistSave, addNotification]);
+
+  // ============= DIFFICULTY (persistent + unlock check) =============
+  const handleSelectDifficulty = useCallback((difficulty: DifficultyMode) => {
+    const highestLevel = saveDataRef.current?.player.highestLevel ?? 1;
+    if (difficulty.unlockLevel > highestLevel) {
+      addNotification(`Zaklenjeno! Doseži nivo ${difficulty.unlockLevel}.`, 'error');
+      return;
+    }
+    engineRef.current?.setDifficulty(difficulty);
+    persistSave(d => ({ ...d, difficulty: difficulty.id }));
+    addNotification(`Težavnost nastavljena na: ${difficulty.name}`, 'info');
+    setShowDifficultySelect(false);
+  }, [persistSave, addNotification]);
+
+  // ============= SETTINGS (persistent + applied to engine) =============
+  const handleSettingsChange = useCallback((newSettings: Settings) => {
+    setSettings(newSettings);
+    engineRef.current?.applySettings(newSettings);
+    persistSave(d => ({ ...d, settings: { ...d.settings, ...newSettings } }));
+  }, [persistSave]);
+
+  const handleSaveGame = useCallback(() => {
+    if (saveDataRef.current) {
+      saveGame(saveDataRef.current);
+      addNotification('Igra shranjena!', 'success');
+    }
+  }, [addNotification]);
+
+  const handleLoadGame = useCallback(() => {
+    const loaded = loadGame();
+    if (loaded) {
+      saveDataRef.current = loaded;
+      setSaveData(loaded);
+      setSkillPoints(loaded.skillPoints);
+      setSkillTree(loadSkillTreeFromSave(loaded));
+      const today = new Date().toISOString().slice(0, 10);
+      setCompletedChallenges(loaded.completedChallenges[today] ?? []);
+      addNotification('Igra naložena!', 'success');
+    }
+  }, [addNotification]);
+
+  const currentDifficulty = DIFFICULTY_MODES.find(m => m.id === saveData?.difficulty) ?? null;
+  const allAchievements = ALL_ACHIEVEMENTS;
+  const unlockedAchievementIds = new Set(saveData?.achievements ?? []);
+
+  // Rarity labels for the level-choice screen (cosmetic only)
+  const rarities: Array<'common' | 'rare' | 'epic'> = ['rare', 'common', 'epic'];
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-black">
-      {/* Canvas */}
+      {/* Main 2D canvas */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full"
         style={{ touchAction: 'none', cursor: gameState === 'playing' ? 'none' : 'default' }}
+      />
+
+      {/* Dedicated WebGPU overlay canvas for GPU-accelerated particles.
+          A canvas can host only ONE context type, so particles get their own. */}
+      <canvas
+        ref={webgpuCanvasRef}
+        className="absolute inset-0 w-full h-full pointer-events-none"
+        style={{ touchAction: 'none' }}
       />
 
       {/* Loading Screen */}
@@ -340,121 +611,112 @@ export default function App() {
           onShowDailyRewards={() => setShowDailyRewards(true)}
           onShowShop={() => setShowShop(true)}
           onShowDifficulty={() => setShowDifficultySelect(true)}
-          highScore={highScore}
+          highScore={saveData?.player.highScore ?? 0}
           webgpuSupported={webgpuSupported}
         />
       )}
 
-      {/* In-Game UI */}
+      {/* In-Game UI (fed with REAL engine data) */}
       {gameState === 'playing' && (
         <>
-          {/* Level Display */}
           <LevelDisplay
-            level={playerStats.level}
-            xp={playerStats.xp}
-            xpToNext={playerStats.xpToNextLevel}
+            level={stats.playerLevel}
+            xp={stats.playerXp}
+            xpToNext={stats.xpToNext}
           />
 
-          {/* Level Info */}
           <LevelInfo
-            level={getLevelForPlayer(playerStats.level)}
-            playerLevel={playerStats.level}
+            level={getLevelForPlayer(stats.playerLevel)}
+            playerLevel={stats.playerLevel}
           />
 
-          {/* Health Bar */}
           <HealthBar
-            hp={playerStats.hp}
-            maxHp={playerStats.maxHp}
-            shield={playerStats.shield}
-            maxShield={playerStats.maxShield}
-            energy={playerStats.energy}
-            maxEnergy={playerStats.maxEnergy}
+            hp={player.hp}
+            maxHp={player.maxHp}
+            shield={player.shield}
+            maxShield={player.maxShield}
+            energy={player.energy}
+            maxEnergy={player.maxEnergy}
           />
 
-          {/* Score Display */}
           <ScoreDisplay
-            score={playerStats.score}
-            wave={playerStats.wave}
-            combo={playerStats.combo}
-            fps={60}
-            seed="DEMO123"
-            webgpuSupported={webgpuSupported}
+            score={stats.score}
+            wave={stats.wave}
+            combo={stats.combo}
+            fps={stats.fps}
+            seed={stats.seed}
+            webgpuSupported={stats.webgpuSupported}
           />
 
-          {/* Weapon Indicator */}
           <WeaponIndicator
-            weaponLevel={playerStats.weaponLevel}
-            secondaryWeapon={playerStats.secondaryWeapon}
-            secondaryCooldown={playerStats.secondaryCooldown}
-            dashCooldown={playerStats.dashCooldown}
+            weaponLevel={player.weaponLevel}
+            secondaryWeapon={player.secondaryWeapon}
+            secondaryCooldown={player.secondaryCooldown}
+            dashCooldown={player.dashCooldown}
           />
 
-          {/* Mini Map */}
           <MiniMap
-            playerX={400}
-            playerY={300}
-            enemies={[]}
-            worldWidth={800}
-            worldHeight={600}
+            playerX={minimap.playerX}
+            playerY={minimap.playerY}
+            enemies={minimap.enemies}
+            worldWidth={minimap.worldWidth || window.innerWidth}
+            worldHeight={minimap.worldHeight || window.innerHeight}
           />
 
-          {/* Crosshair */}
           <Crosshair
             x={mousePos.x}
             y={mousePos.y}
             isActive={isShooting}
           />
 
-          {/* Keyboard Hints */}
           <KeyboardHints />
 
-          {/* Damage Flash */}
           <DamageFlash
             isActive={damageFlash}
             intensity={0.5}
           />
 
-          {/* Wave Info */}
           <WaveInfo
-            wave={playerStats.wave}
-            enemiesRemaining={10}
-            totalEnemies={10}
-            isBossWave={playerStats.wave % 5 === 0}
+            wave={stats.wave}
+            enemiesRemaining={stats.enemiesRemaining}
+            totalEnemies={Math.max(stats.totalWaveEnemies, stats.enemiesRemaining)}
+            isBossWave={stats.isBossWave}
           />
 
-          {/* Skill Tree Button */}
-          <button
-            onClick={() => setShowSkillTree(true)}
-            className="fixed top-4 right-4 z-40 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-mono rounded transition-all hover:scale-110"
-            style={{
-              boxShadow: '0 0 15px rgba(168, 85, 247, 0.5)'
-            }}
-          >
-            🌳 SKILLS ({skillPoints})
-          </button>
-
-          {/* Daily Challenges Button */}
-          <button
-            onClick={() => setShowDailyChallenges(true)}
-            className="fixed top-4 right-48 z-40 px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white font-mono rounded transition-all hover:scale-110"
-            style={{
-              boxShadow: '0 0 15px rgba(236, 72, 153, 0.5)'
-            }}
-          >
-            🎯 IZZIVI
-          </button>
-
-          {/* Combo Display */}
           <ComboDisplay
-            combo={playerStats.combo}
-            multiplier={1 + playerStats.combo * 0.1}
+            combo={player.combo}
+            multiplier={1 + player.combo * 0.1}
           />
 
-          {/* Game Timer */}
           <GameTimer
-            startTime={Date.now()}
+            startTime={stats.gameStartTime || Date.now()}
             isPaused={false}
           />
+
+          {/* Meta buttons */}
+          <div className="fixed top-4 right-4 z-40 flex gap-2">
+            <button
+              onClick={() => setShowSkillTree(true)}
+              className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white font-mono text-sm rounded transition-all hover:scale-110"
+              style={{ boxShadow: '0 0 15px rgba(168, 85, 247, 0.5)' }}
+            >
+              🌳 SKILLS ({skillPoints})
+            </button>
+            <button
+              onClick={() => setShowDailyChallenges(true)}
+              className="px-3 py-2 bg-pink-600 hover:bg-pink-700 text-white font-mono text-sm rounded transition-all hover:scale-110"
+              style={{ boxShadow: '0 0 15px rgba(236, 72, 153, 0.5)' }}
+            >
+              🎯 IZZIVI
+            </button>
+            <button
+              onClick={() => setShowAchievements(true)}
+              className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white font-mono text-sm rounded transition-all hover:scale-110"
+              style={{ boxShadow: '0 0 15px rgba(245, 158, 11, 0.5)' }}
+            >
+              🏆
+            </button>
+          </div>
         </>
       )}
 
@@ -468,96 +730,75 @@ export default function App() {
         />
       )}
 
-      {/* Game Over Screen */}
+      {/* Game Over Screen (real final stats) */}
       {gameState === 'gameover' && (
         <GameOverScreen
-          score={playerStats.score}
-          wave={playerStats.wave}
-          enemiesKilled={0}
-          totalDamage={0}
-          survivalTime={0}
-          maxCombo={playerStats.combo}
-          seed="DEMO123"
-          highScore={highScore}
-          isNewHighScore={playerStats.score > highScore}
-          playerLevel={playerStats.level}
-          onRestart={handleRestart}
+          score={finalStats?.score ?? 0}
+          wave={finalStats?.wave ?? 1}
+          enemiesKilled={finalStats?.enemiesKilled ?? 0}
+          totalDamage={finalStats?.totalDamage ?? 0}
+          survivalTime={finalStats?.survivalTime ?? 0}
+          maxCombo={finalStats?.maxCombo ?? 1}
+          seed={finalStats?.seed ?? ''}
+          highScore={Math.max(saveData?.player.highScore ?? 0, finalStats?.score ?? 0)}
+          isNewHighScore={(finalStats?.score ?? 0) > (saveData?.player.highScore ?? 0) && (finalStats?.score ?? 0) > 0}
+          playerLevel={finalStats?.playerLevel ?? 1}
+          onRestart={handleStartGame}
           onMainMenu={handleMainMenu}
         />
       )}
 
-      {/* Level Up Screen */}
+      {/* Level Up (wave milestone) - real engine choices */}
       {gameState === 'levelup' && (
         <LevelUpScreen
-          upgrades={[
-            { name: 'Plasma Overcharge', description: '+25% damage, +1 weapon level', icon: '⚡' },
-            { name: 'Neural Reflexes', description: '+15% movement speed', icon: '🧠' },
-            { name: 'Void Shield', description: '+30 max shield, full restore', icon: '🛡️' }
-          ]}
-          onSelectUpgrade={(index) => {
-            addNotification('Nadgradnja izbrana!', 'success');
-            setGameState('playing');
-          }}
+          upgrades={levelChoices}
+          onSelectUpgrade={handleChooseUpgrade}
         />
       )}
 
-      {/* Level Choice Screen */}
+      {/* Level Up (XP level) - real engine choices */}
       {gameState === 'levelchoice' && (
         <LevelUpChoiceScreen
-          level={playerStats.level}
-          choices={[
-            {
-              id: 'damage',
-              name: 'Plasma Overcharge',
-              description: '+25% škoda, +1 nivo orožja',
-              icon: '⚡',
-              rarity: 'rare'
-            },
-            {
-              id: 'speed',
-              name: 'Neural Reflexes',
-              description: '+15% hitrost gibanja',
-              icon: '🧠',
-              rarity: 'common'
-            },
-            {
-              id: 'shield',
-              name: 'Void Shield',
-              description: '+30 max ščit, polna obnovitev',
-              icon: '🛡️',
-              rarity: 'epic'
-            }
-          ]}
-          onSelect={(choice) => {
-            addNotification(`${choice.name} izbrana!`, 'success');
-            setGameState('playing');
+          level={stats.playerLevel}
+          choices={levelChoices.map((c, i) => ({
+            id: `choice_${i}`,
+            name: c.name,
+            description: c.description,
+            icon: c.icon,
+            rarity: rarities[i % rarities.length]
+          }))}
+          onSelect={(_choice) => {
+            // The engine owns the ordered choice list; map back by index.
+            const idx = levelChoices.findIndex(c => c.name === _choice.name);
+            handleChooseUpgrade(idx >= 0 ? idx : 0);
           }}
         />
       )}
 
-      {/* Skill Tree */}
+      {/* Skill Tree (persistent state, passed in explicitly) */}
       <SkillTreeUI
         isOpen={showSkillTree}
         onClose={() => setShowSkillTree(false)}
         skillPoints={skillPoints}
+        skillTree={skillTree}
         onUnlockSkill={handleUnlockSkill}
       />
 
-      {/* Daily Challenges */}
+      {/* Daily Challenges (real run stats) */}
       <DailyChallengesUI
         isOpen={showDailyChallenges}
         onClose={() => setShowDailyChallenges(false)}
         playerStats={{
-          score: playerStats.score,
-          level: playerStats.level,
-          wave: playerStats.wave,
-          enemiesKilled: 0,
-          bossKills: 0,
-          maxCombo: playerStats.combo,
-          survivalTime: 0,
-          damageDealt: 0,
-          damageTaken: 0,
-          itemsCollected: 0,
+          score: stats.score,
+          level: stats.playerLevel,
+          wave: stats.wave,
+          enemiesKilled: stats.enemiesKilled,
+          bossKills: stats.bossKills,
+          maxCombo: stats.maxCombo,
+          survivalTime: stats.survivalTime,
+          damageDealt: stats.totalDamage,
+          damageTaken: stats.damageTaken,
+          itemsCollected: stats.itemsCollected,
           deaths: 0
         }}
         completedChallenges={completedChallenges}
@@ -569,8 +810,8 @@ export default function App() {
         isOpen={showSaveLoad}
         onClose={() => setShowSaveLoad(false)}
         saveData={saveData}
-        onSave={handleSave}
-        onLoad={handleLoad}
+        onSave={handleSaveGame}
+        onLoad={handleLoadGame}
       />
 
       {/* Stats & Leaderboard */}
@@ -588,46 +829,41 @@ export default function App() {
         }}
       />
 
-      {/* Daily Rewards */}
+      {/* Daily Rewards (applies to persistent wallet) */}
       <DailyRewardsUI
         isOpen={showDailyRewards}
         onClose={() => setShowDailyRewards(false)}
-        onClaim={(reward) => {
-          addNotification(`Prejel si ${reward.amount} ${reward.reward}!`, 'success');
-        }}
+        onClaim={handleClaimReward}
       />
 
-      {/* Shop */}
+      {/* Shop (validated + persistent) */}
       <ShopUI
         isOpen={showShop}
         onClose={() => setShowShop(false)}
-        gold={gold}
-        gems={gems}
-        ownedItems={ownedCosmetics}
-        equippedItems={equippedCosmetics}
+        gold={saveData?.currency.gold ?? 0}
+        gems={saveData?.currency.gems ?? 0}
+        ownedItems={saveData?.cosmetics.unlocked ?? ['default']}
+        equippedItems={saveData?.cosmetics.equipped ?? {}}
         onBuy={handleBuyCosmetic}
         onEquip={handleEquipCosmetic}
-        playerLevel={playerStats.level}
+        playerLevel={saveData?.player.highestLevel ?? 1}
       />
 
-      {/* Difficulty Select */}
+      {/* Difficulty Select (persistent + unlock gating) */}
       <DifficultySelectUI
         isOpen={showDifficultySelect}
         onClose={() => setShowDifficultySelect(false)}
-        onSelect={(difficulty) => {
-          addNotification(`Težavnost spremenjena na: ${difficulty.name}`, 'info');
-          setShowDifficultySelect(false);
-        }}
-        playerLevel={playerStats.level}
-        currentDifficulty={null}
+        onSelect={handleSelectDifficulty}
+        playerLevel={saveData?.player.highestLevel ?? 1}
+        currentDifficulty={currentDifficulty}
       />
 
-      {/* Settings Menu */}
+      {/* Settings Menu (persistent + applied to engine) */}
       <SettingsMenu
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
         settings={settings}
-        onSettingsChange={setSettings}
+        onSettingsChange={handleSettingsChange}
       />
 
       {/* Tutorial Overlay */}
@@ -636,35 +872,24 @@ export default function App() {
         onClose={() => setShowTutorial(false)}
       />
 
-      {/* Stats Panel */}
-      <StatsPanel
-        isOpen={showStats}
-        stats={{
-          totalDamage: 0,
-          enemiesKilled: 0,
-          shotsFired: 0,
-          accuracy: 0,
-          timePlayed: 0,
-          upgradesCollected: 0
-        }}
-        onClose={() => setShowStats(false)}
-      />
-
-      {/* Achievement Panel */}
+      {/* Achievement Panel (real achievement list + unlock state) */}
       <AchievementPanel
         isOpen={showAchievements}
-        achievements={[]}
+        achievements={allAchievements.map(a => ({
+          ...a,
+          unlocked: unlockedAchievementIds.has(a.id)
+        }))}
         onClose={() => setShowAchievements(false)}
       />
 
-      {/* Controls Overlay */}
-      <ControlsOverlay
-        isVisible={showControls}
-        onClose={() => setShowControls(false)}
-      />
-
-      {/* Performance Monitor */}
-      <PerformanceMonitor isVisible={showPerformance} />
+      {/* Achievement toast notifications */}
+      {newAchievements.map((achievement, i) => (
+        <AchievementNotification
+          key={`${achievement.id}_${i}`}
+          achievement={achievement}
+          onClose={() => setNewAchievements(prev => prev.filter(a => a.id !== achievement.id))}
+        />
+      ))}
 
       {/* Notifications */}
       {notifications.map((notification) => (
@@ -676,12 +901,13 @@ export default function App() {
         />
       ))}
 
-      {/* Mobile Controls */}
+      {/* Mobile Controls (wired to the engine) */}
       <MobileControls
-        onMove={(x, y) => {}}
-        onShoot={() => {}}
-        onDash={() => {}}
-        onSecondary={() => {}}
+        onMove={(x, y) => engineRef.current?.setMobileMove(x, y)}
+        onShootStart={() => engineRef.current?.setMobileShooting(true)}
+        onShootEnd={() => engineRef.current?.setMobileShooting(false)}
+        onDash={() => engineRef.current?.mobileDash()}
+        onSecondary={() => engineRef.current?.mobileSecondary()}
         isVisible={gameState === 'playing'}
       />
 

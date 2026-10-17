@@ -2,6 +2,8 @@ import { AudioEngine } from './audio';
 import { WebGPURenderer } from './webgpu-renderer';
 import { getLevelForPlayer } from './levels';
 import { getEnvironmentForLevel, renderEnvironment } from './environment';
+import { DifficultyMode } from './difficulty';
+import { SkillBonuses, defaultSkillBonuses } from './skillTree';
 
 // ============= TYPES =============
 interface Vec2 { x: number; y: number; }
@@ -66,6 +68,27 @@ interface FloatingText {
   life: number; maxLife: number; vy: number;
 }
 
+export interface GameStats {
+  score: number; wave: number;
+  enemiesKilled: number; bossKills: number;
+  totalDamage: number; survivalTime: number;
+  maxCombo: number; combo: number;
+  enemiesRemaining: number; totalWaveEnemies: number;
+  isBossWave: boolean; bossPresent: boolean;
+  gold: number; fps: number; seed: string;
+  gameStartTime: number;
+  shotsFired: number; hitsLanded: number;
+  damageTaken: number; itemsCollected: number;
+  webgpuSupported: boolean;
+  playerLevel: number; playerXp: number; xpToNext: number;
+}
+
+export interface MinimapData {
+  playerX: number; playerY: number;
+  enemies: Array<{ x: number; y: number; type: string }>;
+  worldWidth: number; worldHeight: number;
+}
+
 // ============= GAME ENGINE =============
 export class GameEngine {
   private canvas: HTMLCanvasElement;
@@ -96,7 +119,6 @@ export class GameEngine {
   private bossActive = false;
   private screenShake = 0;
   private upgrades: Upgrade[] = [];
-  private selectedUpgrade = -1;
   private highScore = 0;
   private animFrame = 0;
   private stars: { x: number; y: number; z: number; brightness: number }[] = [];
@@ -108,22 +130,54 @@ export class GameEngine {
   private totalDamageDealt = 0;
   private enemiesKilled = 0;
   private floatingTexts: FloatingText[] = [];
+  // Persistent meta earned during a run
+  private gold = 0;
+  private maxCombo = 1;
+  private bossKills = 0;
+  private shotsFired = 0;
+  private hitsLanded = 0;
+  private damageTaken = 0;
+  private itemsCollected = 0;
+  private waveTotalEnemies = 0;
+  private gameStartTime = 0;
+  // Level-up upgrade choices (used by both 'levelup' and 'levelchoice')
+  private levelChoices: Upgrade[] = [];
+  // Difficulty & persistent bonuses applied on startGame()
+  private difficulty: DifficultyMode | null = null;
+  private skillBonuses: SkillBonuses = defaultSkillBonuses();
+  private startingXp = 0;
+  // Mobile input state
+  private mobileMove: Vec2 = { x: 0, y: 0 };
+  private mobileShooting = false;
+  // Particle budget scale from settings (0..1)
+  private particleScale = 1;
 
-  constructor(canvas: HTMLCanvasElement, onStateChange: (state: GameState) => void) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    overlayCanvas: HTMLCanvasElement | null,
+    onStateChange: (state: GameState) => void
+  ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
     this.audio = new AudioEngine();
     this.onStateChange = onStateChange;
     this.player = this.createPlayer();
-    this.initWebGPU();
+    // WebGPU renders on a dedicated overlay canvas. A canvas can only host a
+    // single context type, so the 2D context above must never be requested on
+    // the overlay canvas (and vice versa).
+    this.initWebGPU(overlayCanvas);
     this.initStars();
     this.loadHighScore();
     this.generateUpgrades();
     this.generateSeed();
   }
 
-  private async initWebGPU() {
-    this.webgpuRenderer = new WebGPURenderer(this.canvas);
+  private async initWebGPU(overlayCanvas: HTMLCanvasElement | null) {
+    if (!overlayCanvas) {
+      this.webgpuSupported = false;
+      return;
+    }
+    this.webgpuRenderer = new WebGPURenderer(overlayCanvas);
     this.webgpuSupported = await this.webgpuRenderer.initialize();
     if (this.webgpuSupported) {
       console.log('WebGPU rendering enabled');
@@ -166,13 +220,15 @@ export class GameEngine {
   }
 
   private createPlayer(): Player {
+    const b = this.skillBonuses;
     return {
       x: 0, y: 0, vx: 0, vy: 0,
-      hp: 100, maxHp: 100, shield: 50, maxShield: 50,
-      energy: 100, maxEnergy: 100,
-      speed: 5, dashCooldown: 0, dashTimer: 0,
+      hp: 100 + b.maxHp, maxHp: 100 + b.maxHp,
+      shield: 50 + b.maxShield, maxShield: 50 + b.maxShield,
+      energy: 100 + b.maxEnergy, maxEnergy: 100 + b.maxEnergy,
+      speed: 5 * b.speedMul, dashCooldown: 0, dashTimer: 0,
       invincible: 0, shootTimer: 0,
-      weaponLevel: 1, critRate: 0.05, critDmg: 2,
+      weaponLevel: 1, critRate: 0.05 + b.critRateBonus, critDmg: 2 * b.critDmgMul,
       score: 0, combo: 1, comboTimer: 0,
       secondaryWeapon: 'none',
       secondaryCooldown: 0,
@@ -204,6 +260,7 @@ export class GameEngine {
     this.height = h;
     this.canvas.width = w;
     this.canvas.height = h;
+    this.webgpuRenderer?.resize(w, h);
     this.player.x = w / 2;
     this.player.y = h / 2;
   }
@@ -213,11 +270,91 @@ export class GameEngine {
     this.audio.startMusic();
   }
 
+  // ============= PUBLIC CONTROL API =============
+  // The engine is the single source of truth for game state. The React UI
+  // calls these methods instead of maintaining a parallel game state.
+
+  pause() {
+    if (this.state !== 'playing') return;
+    this.state = 'paused';
+    this.onStateChange(this.state);
+  }
+
+  resume() {
+    if (this.state !== 'paused') return;
+    this.state = 'playing';
+    this.onStateChange(this.state);
+  }
+
+  togglePause() {
+    if (this.state === 'playing') this.pause();
+    else if (this.state === 'paused') this.resume();
+  }
+
+  restart() {
+    this.startGame();
+  }
+
+  goToMenu() {
+    this.state = 'menu';
+    this.onStateChange(this.state);
+    this.audio.startMusic();
+  }
+
+  /** Apply the upgrade at the given index of the current level-up choices. */
+  chooseUpgrade(index: number) {
+    if (this.state !== 'levelup' && this.state !== 'levelchoice') return;
+    const upgrade = this.levelChoices[index];
+    if (!upgrade) return;
+    upgrade.apply(this.player);
+    this.levelChoices = [];
+    this.state = 'playing';
+    this.onStateChange(this.state);
+  }
+
+  /** Apply difficulty modifiers (takes effect on the next startGame). */
+  setDifficulty(mode: DifficultyMode | null) {
+    this.difficulty = mode;
+  }
+
+  /** Apply persistent skill-tree bonuses (takes effect on the next startGame). */
+  setSkillBonuses(bonuses: SkillBonuses) {
+    this.skillBonuses = { ...defaultSkillBonuses(), ...bonuses };
+  }
+
+  /** XP granted automatically at the start of the next run (daily reward). */
+  setStartingXp(amount: number) {
+    this.startingXp = Math.max(0, Math.floor(amount));
+  }
+
+  /** Apply user settings (audio volumes, particle budget). */
+  applySettings(settings: { musicVolume: number; sfxVolume: number; particles: 'low' | 'medium' | 'high' }) {
+    this.audio.setVolumes(settings.musicVolume, settings.sfxVolume);
+    this.particleScale = settings.particles === 'low' ? 0.25 : settings.particles === 'medium' ? 0.6 : 1;
+  }
+
+  // ============= MOBILE INPUT =============
+  setMobileMove(x: number, y: number) {
+    this.mobileMove.x = Math.max(-1, Math.min(1, x));
+    this.mobileMove.y = Math.max(-1, Math.min(1, y));
+  }
+
+  setMobileShooting(active: boolean) {
+    this.mobileShooting = active;
+  }
+
+  mobileDash() {
+    if (this.state === 'playing') this.tryDash();
+  }
+
+  mobileSecondary() {
+    if (this.state === 'playing') this.useSecondaryWeapon();
+  }
+
   handleKeyDown(key: string) {
     this.keys.add(key.toLowerCase());
     if (key === 'Escape') {
-      if (this.state === 'playing') { this.state = 'paused'; this.onStateChange(this.state); }
-      else if (this.state === 'paused') { this.state = 'playing'; this.onStateChange(this.state); }
+      this.togglePause();
     }
     if (key === ' ' && this.state === 'playing') {
       this.tryDash();
@@ -254,15 +391,7 @@ export class GameEngine {
     }
   }
 
-  handleClick(x: number, y: number) {
-    if (this.state === 'menu') {
-      this.startGame();
-    } else if (this.state === 'gameover') {
-      this.startGame();
-    } else if (this.state === 'levelup') {
-      this.selectUpgrade(x, y);
-    }
-  }
+
 
   private startGame() {
     this.player = this.createPlayer();
@@ -275,16 +404,32 @@ export class GameEngine {
     this.crystals = [];
     this.wave = 1;
     this.waveTimer = 0;
+    this.waveTotalEnemies = 0;
     this.bossActive = false;
     this.time = 0;
     this.gameTime = 0;
+    this.gameStartTime = Date.now();
     this.totalDamageDealt = 0;
     this.enemiesKilled = 0;
+    this.bossKills = 0;
+    this.gold = 0;
+    this.maxCombo = 1;
+    this.shotsFired = 0;
+    this.hitsLanded = 0;
+    this.damageTaken = 0;
+    this.itemsCollected = 0;
+    this.levelChoices = [];
     this.state = 'playing';
     this.onStateChange(this.state);
     this.audio.startMusic();
     this.generateSeed();
     this.spawnCrystals();
+    // Apply starting XP from persistent rewards (may trigger a level-up)
+    if (this.startingXp > 0) {
+      const xp = this.startingXp;
+      this.startingXp = 0;
+      this.awardXP(xp, this.player.x, this.player.y - 30);
+    }
   }
 
   private spawnCrystals() {
@@ -302,11 +447,12 @@ export class GameEngine {
   }
 
   private tryDash() {
-    if (this.player.dashCooldown <= 0 && this.player.energy >= 20) {
+    const dashCost = 20 * this.skillBonuses.energyCostMul;
+    if (this.player.dashCooldown <= 0 && this.player.energy >= dashCost) {
       this.player.dashTimer = 0.15;
-      this.player.dashCooldown = 1;
+      this.player.dashCooldown = 1 * this.skillBonuses.dashCooldownMul;
       this.player.invincible = 0.2;
-      this.player.energy -= 20;
+      this.player.energy -= dashCost;
       const dx = this.mouse.x - this.player.x;
       const dy = this.mouse.y - this.player.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -325,21 +471,23 @@ export class GameEngine {
   }
 
   private activateStasis() {
-    if (this.player.energy >= 30 && !this.player.stasisActive) {
+    const stasisCost = 30 * this.skillBonuses.energyCostMul;
+    if (this.player.energy >= stasisCost && !this.player.stasisActive) {
       this.player.stasisActive = true;
-      this.player.stasisTimer = 2;
-      this.player.energy -= 30;
+      this.player.stasisTimer = 2 * this.skillBonuses.stasisDurationMul;
+      this.player.energy -= stasisCost;
       this.audio.playStasis();
     }
   }
 
   private useSecondaryWeapon() {
     const p = this.player;
-    if (p.secondaryCooldown > 0 || p.energy < 25) return;
+    const cost = 25 * this.skillBonuses.energyCostMul;
+    if (p.secondaryCooldown > 0 || p.energy < cost) return;
 
     if (p.secondaryWeapon === 'gravity') {
       p.secondaryCooldown = 3;
-      p.energy -= 25;
+      p.energy -= cost;
       // Create gravity well
       for (let i = 0; i < 30; i++) {
         const angle = (Math.PI * 2 * i) / 30;
@@ -364,7 +512,7 @@ export class GameEngine {
       this.audio.playExplosion();
     } else if (p.secondaryWeapon === 'chain') {
       p.secondaryCooldown = 2;
-      p.energy -= 25;
+      p.energy -= cost;
       // Chain lightning to nearest enemies
       const targets = this.enemies
         .map(e => ({ e, dist: Math.sqrt((e.x - p.x) ** 2 + (e.y - p.y) ** 2) }))
@@ -390,22 +538,15 @@ export class GameEngine {
     }
   }
 
-  private selectUpgrade(x: number, y: number) {
-    const cardWidth = 180;
-    const cardHeight = 220;
-    const startX = this.width / 2 - (cardWidth * 1.5 + 20);
-    const startY = this.height / 2 - cardHeight / 2;
-
-    for (let i = 0; i < 3; i++) {
-      const cx = startX + i * (cardWidth + 20);
-      if (x >= cx && x <= cx + cardWidth && y >= startY && y <= startY + cardHeight) {
-        this.upgrades[this.selectedUpgrade + i]?.apply(this.player);
-        this.audio.playPowerUp();
-        this.state = 'playing';
-        this.onStateChange(this.state);
-        return;
-      }
+  /** Pick 3 distinct random upgrades for the level-up screens. */
+  private generateLevelChoices() {
+    const pool = [...this.upgrades];
+    const choices: Upgrade[] = [];
+    while (choices.length < 3 && pool.length > 0) {
+      const idx = Math.floor(Math.random() * pool.length);
+      choices.push(pool.splice(idx, 1)[0]);
     }
+    this.levelChoices = choices;
   }
 
   private spawnWave() {
@@ -428,16 +569,19 @@ export class GameEngine {
       };
     }
 
+    this.waveTotalEnemies = count + (this.wave % 5 === 0 ? 1 : 0);
+    const hpMul = this.difficulty?.enemyHpMultiplier ?? 1;
     for (let i = 0; i < count; i++) {
       const angle = (Math.PI * 2 * i) / count;
       const dist = 400 + Math.random() * 200;
       const type = Math.random() < 0.6 ? 'swarmer' : (Math.random() < 0.7 ? 'sniper' : 'titan');
+      const baseHp = type === 'swarmer' ? 20 : type === 'sniper' ? 40 : 100;
       this.enemies.push({
         x: this.player.x + Math.cos(angle) * dist,
         y: this.player.y + Math.sin(angle) * dist,
         vx: 0, vy: 0,
-        hp: type === 'swarmer' ? 20 : type === 'sniper' ? 40 : 100,
-        maxHp: type === 'swarmer' ? 20 : type === 'sniper' ? 40 : 100,
+        hp: baseHp * hpMul,
+        maxHp: baseHp * hpMul,
         size: type === 'swarmer' ? 15 : type === 'sniper' ? 20 : 35,
         type,
         color: type === 'swarmer' ? '#ff4444' : type === 'sniper' ? '#ff8800' : '#aa00ff',
@@ -457,11 +601,12 @@ export class GameEngine {
 
   private spawnBoss() {
     this.bossActive = true;
+    const hpMul = this.difficulty?.enemyHpMultiplier ?? 1;
     this.enemies.push({
       x: this.player.x, y: this.player.y - 350,
       vx: 0, vy: 0,
-      hp: 500 + this.wave * 100,
-      maxHp: 500 + this.wave * 100,
+      hp: (500 + this.wave * 100) * hpMul,
+      maxHp: (500 + this.wave * 100) * hpMul,
       size: 60,
       type: 'boss',
       color: '#ff00ff',
@@ -506,8 +651,10 @@ export class GameEngine {
 
   private updatePlayer() {
     const p = this.player;
-    const friction = 0.88;
-    const accel = 0.8;
+    // Frame-rate independent movement: scale per-frame constants by dt*60
+    const dtScale = this.deltaTime * 60;
+    const friction = Math.pow(0.88, dtScale);
+    const accel = 0.8 * dtScale;
 
     // Track player movement patterns for adaptive AI
     if (this.keys.has('a') || this.keys.has('arrowleft')) {
@@ -526,6 +673,10 @@ export class GameEngine {
     if (this.keys.has('s') || this.keys.has('arrowdown')) p.vy += accel;
     if (this.keys.has('a') || this.keys.has('arrowleft')) p.vx -= accel;
     if (this.keys.has('d') || this.keys.has('arrowright')) p.vx += accel;
+
+    // Mobile joystick input
+    if (this.mobileMove.x !== 0) p.vx += this.mobileMove.x * accel;
+    if (this.mobileMove.y !== 0) p.vy += this.mobileMove.y * accel;
 
     p.vx *= friction;
     p.vy *= friction;
@@ -557,11 +708,15 @@ export class GameEngine {
 
     // Energy regen
     p.energy = Math.min(p.maxEnergy, p.energy + 8 * this.deltaTime);
-    // Shield regen
-    p.shield = Math.min(p.maxShield, p.shield + 3 * this.deltaTime);
+    // Shield regen (boosted by skill tree)
+    p.shield = Math.min(p.maxShield, p.shield + 3 * this.skillBonuses.shieldRegenMul * this.deltaTime);
+    // HP regen (from skill tree)
+    if (this.skillBonuses.hpRegen > 0) {
+      p.hp = Math.min(p.maxHp, p.hp + this.skillBonuses.hpRegen * this.deltaTime);
+    }
 
     // Shooting
-    if (this.mouseDown || this.keys.has(' ')) {
+    if (this.mouseDown || this.mobileShooting || this.keys.has(' ')) {
       p.shootTimer -= this.deltaTime;
       if (p.shootTimer <= 0) {
         this.playerShoot();
@@ -592,6 +747,8 @@ export class GameEngine {
     const dirY = dy / dist;
     const speed = 12;
     const isCrit = Math.random() < p.critRate;
+    this.shotsFired++;
+    const dmgMul = this.skillBonuses.damageMul * (this.difficulty?.playerDamageMultiplier ?? 1);
 
     for (let i = 0; i < Math.min(p.weaponLevel, 5); i++) {
       const spread = (i - (Math.min(p.weaponLevel, 5) - 1) / 2) * 0.15;
@@ -602,7 +759,7 @@ export class GameEngine {
       this.bullets.push({
         x: p.x, y: p.y, vx: bvx, vy: bvy,
         size: isCrit ? 6 : 4, color: isCrit ? '#ffff00' : '#00ffff',
-        damage: (10 + p.weaponLevel * 3) * (isCrit ? p.critDmg : 1),
+        damage: (10 + p.weaponLevel * 3) * dmgMul * (isCrit ? p.critDmg : 1),
         life: 2, type: 'player'
       });
     }
@@ -640,7 +797,7 @@ export class GameEngine {
         const dx = this.player.x - e.x;
         const dy = this.player.y - e.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const speed = e.type === 'swarmer' ? 2.5 : e.type === 'sniper' ? 1 : 0.8;
+        const speed = (e.type === 'swarmer' ? 2.5 : e.type === 'sniper' ? 1 : 0.8) * (this.difficulty?.enemySpeedMultiplier ?? 1);
         
         if (e.type === 'swarmer') {
           e.vx += (dx / dist) * speed * 0.1 * timeScale;
@@ -770,6 +927,7 @@ export class GameEngine {
     const dx = this.player.x - e.x;
     const dy = this.player.y - e.y;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const dmgMul = this.difficulty?.enemyDamageMultiplier ?? 1;
 
     // Adaptive aiming based on player patterns
     let aimOffset = 0;
@@ -785,7 +943,7 @@ export class GameEngine {
       this.bullets.push({
         x: e.x, y: e.y,
         vx: (dx / dist) * 4, vy: (dy / dist) * 4,
-        size: 3, color: '#ff6644', damage: 8,
+        size: 3, color: '#ff6644', damage: 8 * dmgMul,
         life: 3, type: 'enemy'
       });
       // Muzzle flash
@@ -801,7 +959,7 @@ export class GameEngine {
         this.bullets.push({
           x: e.x, y: e.y,
           vx: Math.cos(angle) * 7, vy: Math.sin(angle) * 7,
-          size: 4, color: '#ffaa00', damage: 12,
+          size: 4, color: '#ffaa00', damage: 12 * dmgMul,
           life: 2.5, type: 'enemy'
         });
       }
@@ -811,7 +969,7 @@ export class GameEngine {
         this.bullets.push({
           x: e.x, y: e.y,
           vx: Math.cos(angle) * 3, vy: Math.sin(angle) * 3,
-          size: 5, color: '#aa44ff', damage: 10,
+          size: 5, color: '#aa44ff', damage: 10 * dmgMul,
           life: 3, type: 'enemy'
         });
       }
@@ -819,20 +977,27 @@ export class GameEngine {
   }
 
   private onEnemyDeath(e: Enemy) {
-    const baseScore = e.type === 'boss' ? 1000 : e.type === 'titan' ? 100 : 25;
+    const scoreMul = this.difficulty?.scoreMultiplier ?? 1;
+    const baseScore = (e.type === 'boss' ? 1000 : e.type === 'titan' ? 100 : 25) * scoreMul;
     this.player.score += baseScore * this.player.combo;
     this.player.combo = Math.min(10, this.player.combo + 1);
     this.player.comboTimer = 5;
+    this.maxCombo = Math.max(this.maxCombo, this.player.combo);
     this.screenShake = e.type === 'boss' ? 20 : 5;
     this.audio.playExplosion();
     this.enemiesKilled++;
+    if (e.type === 'boss') this.bossKills++;
 
-    // Award XP based on enemy type
-    const xpGained = e.type === 'boss' ? 500 : e.type === 'titan' ? 50 : 15;
+    // Gold reward (scaled by difficulty)
+    const goldMul = this.difficulty?.goldMultiplier ?? 1;
+    this.gold += Math.round((e.type === 'boss' ? 250 : e.type === 'titan' ? 25 : 10) * goldMul);
+
+    // Award XP based on enemy type (scaled by difficulty)
+    const xpGained = Math.round((e.type === 'boss' ? 500 : e.type === 'titan' ? 50 : 15) * (this.difficulty?.xpMultiplier ?? 1));
     this.awardXP(xpGained, e.x, e.y);
 
     // Death particles - more when WebGPU is active
-    const particleCount = this.webgpuSupported ? (e.type === 'boss' ? 200 : 50) : (e.type === 'boss' ? 80 : 20);
+    const particleCount = Math.floor((this.webgpuSupported ? (e.type === 'boss' ? 200 : 50) : (e.type === 'boss' ? 80 : 20)) * this.particleScale);
     for (let i = 0; i < particleCount; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = Math.random() * 8 + 2;
@@ -895,15 +1060,17 @@ export class GameEngine {
     this.player.totalXp += amount;
 
     // Show floating XP text
-    this.floatingTexts.push({
-      x: x,
-      y: y - 20,
-      text: `+${amount} XP`,
-      color: '#ffaa00',
-      life: 1.5,
-      maxLife: 1.5,
-      vy: -1.5
-    });
+    if (amount > 0) {
+      this.floatingTexts.push({
+        x: x,
+        y: y - 20,
+        text: `+${amount} XP`,
+        color: '#ffaa00',
+        life: 1.5,
+        maxLife: 1.5,
+        vy: -1.5
+      });
+    }
 
     // Check for level up
     while (this.player.xp >= this.player.xpToNextLevel) {
@@ -975,7 +1142,8 @@ export class GameEngine {
       color: '#ffaa00'
     };
 
-    // Trigger level choice screen
+    // Trigger level choice screen with real random upgrade choices
+    this.generateLevelChoices();
     this.state = 'levelchoice';
     this.onStateChange(this.state);
   }
@@ -1000,6 +1168,7 @@ export class GameEngine {
           if (dx * dx + dy * dy < (e.size + b.size) * (e.size + b.size)) {
             e.hp -= b.damage;
             this.totalDamageDealt += b.damage;
+            this.hitsLanded++;
             this.bullets.splice(i, 1);
             // Floating damage number
             this.floatingTexts.push({
@@ -1075,6 +1244,9 @@ export class GameEngine {
 
   private damagePlayer(amount: number) {
     const p = this.player;
+    // Skill tree damage reduction (capped at 75%)
+    amount *= Math.max(0.25, 1 - this.skillBonuses.damageReduction);
+    this.damageTaken += amount;
     if (p.shield > 0) {
       const shieldDmg = Math.min(p.shield, amount);
       p.shield -= shieldDmg;
@@ -1109,33 +1281,23 @@ export class GameEngine {
   }
 
   private updateParticles() {
-    // WebGPU handles physics via compute shaders
-    if (this.webgpuSupported && this.webgpuRenderer) {
-      // Just update life on CPU side
-      for (let i = this.particles.length - 1; i >= 0; i--) {
-        const p = this.particles[i];
-        p.life -= this.deltaTime;
-        if (p.life <= 0) {
-          this.particles.splice(i, 1);
-        }
-      }
-    } else {
-      // Canvas2D fallback - full physics on CPU
-      for (let i = this.particles.length - 1; i >= 0; i--) {
-        const p = this.particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.vx *= 0.96;
-        p.vy *= 0.96;
-        p.life -= this.deltaTime;
-        if (p.life <= 0) {
-          this.particles.splice(i, 1);
-        }
+    // Physics always integrates on the CPU (single source of truth for
+    // positions). With WebGPU enabled the GPU only accelerates RENDERING
+    // of the particles on the overlay canvas.
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.96;
+      p.vy *= 0.96;
+      p.life -= this.deltaTime;
+      if (p.life <= 0) {
+        this.particles.splice(i, 1);
       }
     }
     
-    // Limit particles
-    const maxParticles = this.webgpuSupported ? 10000 : 2000;
+    // Limit particles (respect the user's particle quality setting)
+    const maxParticles = Math.floor((this.webgpuSupported ? 10000 : 2000) * this.particleScale);
     if (this.particles.length > maxParticles) {
       this.particles.splice(0, this.particles.length - maxParticles);
     }
@@ -1155,6 +1317,7 @@ export class GameEngine {
       const dy = orb.y - this.player.y;
       if (dx * dx + dy * dy < 400) {
         // Pickup
+        this.itemsCollected++;
         switch (orb.type) {
           case 'hp': this.player.hp = Math.min(this.player.maxHp, this.player.hp + 10); break;
           case 'energy': this.player.energy = Math.min(this.player.maxEnergy, this.player.energy + 15); break;
@@ -1199,9 +1362,9 @@ export class GameEngine {
         
         // Level up every 3 waves
         if (this.wave % 3 === 0) {
+          this.generateLevelChoices();
           this.state = 'levelup';
           this.onStateChange(this.state);
-          this.selectedUpgrade = Math.floor(Math.random() * (this.upgrades.length - 2));
         }
       }
     }
@@ -1248,6 +1411,9 @@ export class GameEngine {
       this.renderGame(ctx, w, h);
     }
 
+    // Wave / level announcements (drawn on top of the game)
+    this.renderAnnouncement(ctx, w, h);
+
     ctx.restore();
   }
 
@@ -1264,7 +1430,7 @@ export class GameEngine {
     this.renderCrystals(ctx);
     this.renderPowerOrbs(ctx);
     
-    // Use WebGPU for particles if available
+    // Use WebGPU for particle rendering if available (overlay canvas)
     if (this.webgpuSupported && this.webgpuRenderer) {
       this.webgpuRenderer.render(this.particles, this.time);
     } else {
@@ -1275,8 +1441,31 @@ export class GameEngine {
     this.renderEnemies(ctx);
     this.renderPlayer(ctx);
     this.renderFloatingTexts(ctx);
-    this.renderHUD(ctx, w, h);
-    this.renderMinimap(ctx, w, h);
+    // NOTE: HUD and minimap are rendered by the React UI layer (App.tsx),
+    // fed with real data via getGameStats() / getMinimapData().
+  }
+
+  private renderAnnouncement(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    if (!this.waveAnnouncement) return;
+    this.waveAnnouncement.timer -= this.deltaTime;
+    if (this.waveAnnouncement.timer <= 0) {
+      this.waveAnnouncement = null;
+      return;
+    }
+    const alpha = Math.min(1, this.waveAnnouncement.timer);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.textAlign = 'center';
+    ctx.shadowColor = this.waveAnnouncement.color;
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = this.waveAnnouncement.color;
+    ctx.font = 'bold 32px monospace';
+    ctx.fillText(this.waveAnnouncement.text, w / 2, h * 0.2);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.font = '14px monospace';
+    ctx.fillText(this.waveAnnouncement.subtext, w / 2, h * 0.2 + 30);
+    ctx.restore();
   }
 
   private renderFloatingTexts(ctx: CanvasRenderingContext2D) {
@@ -1917,7 +2106,8 @@ export class GameEngine {
   }
 
   private renderLevelUp(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    // Animated background overlay
+    // Animated background overlay. The upgrade cards themselves are rendered
+    // by the React LevelUpScreen / LevelUpChoiceScreen components.
     const overlay = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w * 0.6);
     overlay.addColorStop(0, 'rgba(0, 20, 40, 0.85)');
     overlay.addColorStop(1, 'rgba(0, 0, 0, 0.95)');
@@ -1941,88 +2131,12 @@ export class GameEngine {
     ctx.font = 'bold 32px monospace';
     ctx.shadowColor = '#00ffff';
     ctx.shadowBlur = 15;
-    ctx.fillText('CHOOSE AN UPGRADE', w / 2, h * 0.2);
+    ctx.fillText('IZBERI NADGRADNJO', w / 2, h * 0.2);
     ctx.shadowBlur = 0;
-
-    const cardWidth = 180;
-    const cardHeight = 240;
-    const startX = w / 2 - (cardWidth * 1.5 + 20);
-    const startY = h / 2 - cardHeight / 2;
-
-    for (let i = 0; i < 3; i++) {
-      const upgrade = this.upgrades[this.selectedUpgrade + i];
-      if (!upgrade) continue;
-      const cx = startX + i * (cardWidth + 20);
-      const cy = startY;
-
-      const isHover = this.mouse.x >= cx && this.mouse.x <= cx + cardWidth &&
-                      this.mouse.y >= cy && this.mouse.y <= cy + cardHeight;
-      
-      // Card background with gradient
-      const cardGrad = ctx.createLinearGradient(cx, cy, cx, cy + cardHeight);
-      if (isHover) {
-        cardGrad.addColorStop(0, 'rgba(0, 255, 255, 0.3)');
-        cardGrad.addColorStop(1, 'rgba(0, 100, 150, 0.2)');
-      } else {
-        cardGrad.addColorStop(0, 'rgba(20, 20, 40, 0.9)');
-        cardGrad.addColorStop(1, 'rgba(10, 10, 30, 0.9)');
-      }
-      ctx.fillStyle = cardGrad;
-      ctx.fillRect(cx, cy, cardWidth, cardHeight);
-      
-      // Card border with glow
-      ctx.strokeStyle = isHover ? '#00ffff' : '#444488';
-      ctx.lineWidth = isHover ? 3 : 1;
-      if (isHover) {
-        ctx.shadowColor = '#00ffff';
-        ctx.shadowBlur = 10;
-      }
-      ctx.strokeRect(cx, cy, cardWidth, cardHeight);
-      ctx.shadowBlur = 0;
-
-      // Icon with animation
-      const iconScale = isHover ? 1.2 : 1;
-      ctx.save();
-      ctx.translate(cx + cardWidth / 2, cy + 55);
-      ctx.scale(iconScale, iconScale);
-      ctx.font = '40px serif';
-      ctx.fillText(upgrade.icon, 0, 0);
-      ctx.restore();
-
-      // Name
-      ctx.fillStyle = isHover ? '#00ffff' : '#ffffff';
-      ctx.font = 'bold 14px monospace';
-      ctx.fillText(upgrade.name, cx + cardWidth / 2, cy + 100);
-
-      // Description with word wrap
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.font = '11px monospace';
-      const words = upgrade.description.split(' ');
-      let line = '';
-      let lineY = cy + 125;
-      for (const word of words) {
-        const test = line + word + ' ';
-        if (ctx.measureText(test).width > cardWidth - 20) {
-          ctx.fillText(line.trim(), cx + cardWidth / 2, lineY);
-          line = word + ' ';
-          lineY += 16;
-        } else {
-          line = test;
-        }
-      }
-      ctx.fillText(line.trim(), cx + cardWidth / 2, lineY);
-
-      // Hover indicator
-      if (isHover) {
-        ctx.fillStyle = '#00ffff';
-        ctx.font = 'bold 12px monospace';
-        ctx.fillText('▼ SELECT ▼', cx + cardWidth / 2, cy + cardHeight - 15);
-      }
-    }
   }
 
   private renderGameOver(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    // Dark overlay with gradient
+    // Dark overlay backdrop. Full stats are rendered by the React GameOverScreen.
     const overlay = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w * 0.6);
     overlay.addColorStop(0, 'rgba(20, 0, 0, 0.85)');
     overlay.addColorStop(1, 'rgba(0, 0, 0, 0.95)');
@@ -2038,69 +2152,6 @@ export class GameEngine {
     ctx.shadowBlur = 20;
     ctx.fillText('VOID CONSUMED', w / 2, h * 0.25);
     ctx.shadowBlur = 0;
-
-    // Stats box
-    const boxWidth = 300;
-    const boxHeight = 200;
-    const boxX = (w - boxWidth) / 2;
-    const boxY = h * 0.32;
-    
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-    ctx.strokeStyle = '#ff004488';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
-
-    // Stats
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '16px monospace';
-    const stats = [
-      { label: 'Final Score', value: this.player.score.toLocaleString(), color: '#00ffff' },
-      { label: 'Wave Reached', value: this.wave.toString(), color: '#ff8800' },
-      { label: 'Enemies Killed', value: this.enemiesKilled.toString(), color: '#ff4444' },
-      { label: 'Total Damage', value: Math.floor(this.totalDamageDealt).toLocaleString(), color: '#ffff00' },
-      { label: 'Survival Time', value: `${Math.floor(this.gameTime)}s`, color: '#00ff88' },
-      { label: 'Max Combo', value: `${this.player.combo}x`, color: '#ff00ff' }
-    ];
-
-    let statY = boxY + 30;
-    for (const stat of stats) {
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.font = '12px monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText(stat.label + ':', boxX + 20, statY);
-      ctx.fillStyle = stat.color;
-      ctx.font = 'bold 14px monospace';
-      ctx.textAlign = 'right';
-      ctx.fillText(stat.value, boxX + boxWidth - 20, statY);
-      statY += 28;
-    }
-
-    // High score notification
-    if (this.player.score >= this.highScore && this.player.score > 0) {
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#ffaa00';
-      ctx.font = 'bold 18px monospace';
-      ctx.shadowColor = '#ffaa00';
-      ctx.shadowBlur = 10;
-      ctx.fillText('★ NEW HIGH SCORE ★', w / 2, boxY + boxHeight + 30);
-      ctx.shadowBlur = 0;
-    }
-
-    // Share seed
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.font = '12px monospace';
-    ctx.fillText(`SEED: ${this.seed}`, w / 2, h * 0.82);
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.font = '10px monospace';
-    ctx.fillText('Share this seed to challenge friends!', w / 2, h * 0.85);
-
-    // Retry button
-    const pulse = Math.sin(this.time * 3) * 0.3 + 0.7;
-    ctx.fillStyle = `rgba(0, 255, 255, ${pulse})`;
-    ctx.font = 'bold 20px monospace';
-    ctx.fillText('[ CLICK TO RETRY ]', w / 2, h * 0.92);
   }
 
   startLoop() {
@@ -2119,6 +2170,55 @@ export class GameEngine {
   getPlayerLevel(): number { return this.player.level; }
   getPlayerXP(): number { return this.player.xp; }
   getPlayerXPToNext(): number { return this.player.xpToNextLevel; }
+  getHighScore(): number { return this.highScore; }
+  getSeed(): string { return this.seed; }
+  getGameStartTime(): number { return this.gameStartTime; }
+  isWebGPUSupported(): boolean { return this.webgpuSupported; }
+
+  /** Current level-up upgrade choices (for 'levelup' and 'levelchoice' states). */
+  getLevelChoices(): Upgrade[] { return this.levelChoices; }
+
+  /** Aggregated, real run statistics for the React UI. */
+  getGameStats(): GameStats {
+    const boss = this.enemies.find(e => e.type === 'boss');
+    return {
+      score: this.player.score,
+      wave: this.wave,
+      enemiesKilled: this.enemiesKilled,
+      bossKills: this.bossKills,
+      totalDamage: Math.floor(this.totalDamageDealt),
+      survivalTime: Math.floor(this.gameTime),
+      maxCombo: this.maxCombo,
+      combo: this.player.combo,
+      enemiesRemaining: this.enemies.length,
+      totalWaveEnemies: this.waveTotalEnemies,
+      isBossWave: this.wave % 5 === 0,
+      bossPresent: !!boss,
+      gold: this.gold,
+      fps: this.fps,
+      seed: this.seed,
+      gameStartTime: this.gameStartTime,
+      shotsFired: this.shotsFired,
+      hitsLanded: this.hitsLanded,
+      damageTaken: Math.floor(this.damageTaken),
+      itemsCollected: this.itemsCollected,
+      webgpuSupported: this.webgpuSupported,
+      playerLevel: this.player.level,
+      playerXp: this.player.xp,
+      xpToNext: this.player.xpToNextLevel
+    };
+  }
+
+  /** Live data for the minimap. */
+  getMinimapData(): MinimapData {
+    return {
+      playerX: this.player.x,
+      playerY: this.player.y,
+      enemies: this.enemies.map(e => ({ x: e.x, y: e.y, type: e.type })),
+      worldWidth: this.width,
+      worldHeight: this.height
+    };
+  }
 
   destroy() {
     this.stopLoop();

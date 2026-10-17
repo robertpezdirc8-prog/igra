@@ -265,7 +265,114 @@ export function findSkill(id: string, skillTree: SkillTree): SkillNode | null {
 }
 
 export function getSkillCost(skill: SkillNode): number {
-  return skill.cost * (skill.currentLevel + 1);
+  // Skill points are scarce (~1 per player level-up / daily reward), so the
+  // original 100-400 "cost" values are mapped onto a small-point economy:
+  // 100-150 -> 1 SP, 180-200 -> 2 SP, 300 -> 3 SP, 350-400 -> 4 SP.
+  const baseCost = Math.max(1, Math.round(skill.cost / 100));
+  return baseCost * (skill.currentLevel + 1);
+}
+
+// ============= PERSISTENT SKILL BONUSES =============
+// Aggregated bonuses derived from the skill tree, applied by the game engine
+// at the start of every run.
+export interface SkillBonuses {
+  maxHp: number;           // flat HP added
+  maxShield: number;       // flat shield added
+  maxEnergy: number;       // flat energy added
+  speedMul: number;        // movement speed multiplier
+  damageMul: number;       // weapon damage multiplier
+  fireRateMul: number;     // fire rate multiplier
+  critRateBonus: number;   // added to base crit rate
+  critDmgMul: number;      // crit damage multiplier
+  dashCooldownMul: number; // dash cooldown multiplier (<1 = faster dash)
+  hpRegen: number;         // HP per second
+  shieldRegenMul: number;  // shield regen multiplier
+  damageReduction: number; // 0..0.75 incoming damage reduction
+  stasisDurationMul: number; // temporal stasis duration multiplier
+  energyCostMul: number;   // ability energy cost multiplier (<1 = cheaper)
+}
+
+export function defaultSkillBonuses(): SkillBonuses {
+  return {
+    maxHp: 0,
+    maxShield: 0,
+    maxEnergy: 0,
+    speedMul: 1,
+    damageMul: 1,
+    fireRateMul: 1,
+    critRateBonus: 0,
+    critDmgMul: 1,
+    dashCooldownMul: 1,
+    hpRegen: 0,
+    shieldRegenMul: 1,
+    damageReduction: 0,
+    stasisDurationMul: 1,
+    energyCostMul: 1
+  };
+}
+
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+
+/**
+ * Compute aggregate bonuses from a skill tree. Pure function - the tree is
+ * never mutated here.
+ */
+export function computeSkillBonuses(tree: SkillTree): SkillBonuses {
+  const b = defaultSkillBonuses();
+  const allSkills: SkillNode[] = [...tree.offense, ...tree.defense, ...tree.utility];
+
+  for (const skill of allSkills) {
+    const lvl = Math.max(0, skill.currentLevel);
+    if (lvl === 0) continue;
+
+    switch (skill.id) {
+      case 'plasma_mastery':
+        b.damageMul *= 1 + 0.10 * lvl;
+        break;
+      case 'critical_strike':
+        b.critRateBonus += 0.05 * lvl;
+        b.critDmgMul *= 1 + 0.25 * lvl;
+        break;
+      case 'rapid_fire':
+        b.fireRateMul *= 1 + 0.15 * lvl;
+        break;
+      case 'reinforced_hull':
+        b.maxHp += 20 * lvl;
+        break;
+      case 'shield_generator':
+        b.maxShield += 15 * lvl;
+        break;
+      case 'regeneration':
+        b.hpRegen += 1 * lvl;
+        break;
+      case 'shield_recharge':
+        b.shieldRegenMul *= 1 + 0.25 * lvl;
+        break;
+      case 'energy_shield':
+        b.damageReduction = clamp(b.damageReduction + 0.10 * lvl, 0, 0.75);
+        break;
+      case 'swift_maneuvers':
+        b.speedMul *= 1 + 0.10 * lvl;
+        break;
+      case 'energy_core':
+        b.maxEnergy += 15 * lvl;
+        break;
+      case 'dash_master':
+        b.dashCooldownMul = clamp(b.dashCooldownMul - 0.15 * lvl, 0.25, 1);
+        break;
+      case 'energy_efficiency':
+        b.energyCostMul = clamp(b.energyCostMul - 0.10 * lvl, 0.25, 1);
+        break;
+      case 'temporal_mastery':
+        b.stasisDurationMul *= 1 + 0.25 * lvl;
+        break;
+      // chain_reaction & overcharge are not yet wired into gameplay
+      default:
+        break;
+    }
+  }
+
+  return b;
 }
 
 export function applySkillEffects(skill: SkillNode, stats: any): any {

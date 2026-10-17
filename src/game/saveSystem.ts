@@ -19,6 +19,10 @@ export interface SaveData {
     utility: { [skillId: string]: number };
   };
   achievements: string[];
+  // Skill points earned from level-ups and daily rewards
+  skillPoints: number;
+  // Selected difficulty mode id (from difficulty.ts), null = not chosen
+  difficulty: string | null;
   completedChallenges: {
     [date: string]: string[];
   };
@@ -39,11 +43,13 @@ export interface SaveData {
   currency: {
     gold: number;
     gems: number;
+    // XP granted automatically at the start of the next run (daily reward)
+    xp: number;
   };
 }
 
 const SAVE_KEY = 'atheria_save_data';
-const SAVE_VERSION = '1.0.0';
+const SAVE_VERSION = '2.0.0';
 
 export function createDefaultSaveData(): SaveData {
   return {
@@ -65,6 +71,8 @@ export function createDefaultSaveData(): SaveData {
       utility: {}
     },
     achievements: [],
+    skillPoints: 0,
+    difficulty: null,
     completedChallenges: {},
     settings: {
       musicVolume: 0.5,
@@ -82,7 +90,8 @@ export function createDefaultSaveData(): SaveData {
     },
     currency: {
       gold: 0,
-      gems: 0
+      gems: 0,
+      xp: 0
     }
   };
 }
@@ -147,13 +156,39 @@ function migrateSaveData(oldData: any): SaveData {
   }
   
   // Migrate achievements
-  if (oldData.achievements) {
+  if (Array.isArray(oldData.achievements)) {
     newData.achievements = oldData.achievements;
   }
   
   // Migrate settings
   if (oldData.settings) {
     newData.settings = { ...newData.settings, ...oldData.settings };
+  }
+
+  // v1.0.0 -> v2.0.0: new fields
+  if (typeof oldData.skillPoints === 'number' && Number.isFinite(oldData.skillPoints)) {
+    newData.skillPoints = Math.max(0, Math.floor(oldData.skillPoints));
+  }
+  if (typeof oldData.difficulty === 'string' || oldData.difficulty === null) {
+    newData.difficulty = oldData.difficulty;
+  }
+  if (oldData.currency && typeof oldData.currency === 'object') {
+    newData.currency = {
+      gold: Math.max(0, Math.floor(oldData.currency.gold ?? 0)),
+      gems: Math.max(0, Math.floor(oldData.currency.gems ?? 0)),
+      xp: Math.max(0, Math.floor(oldData.currency.xp ?? 0))
+    };
+  }
+  if (oldData.cosmetics && typeof oldData.cosmetics === 'object') {
+    newData.cosmetics = {
+      unlocked: Array.isArray(oldData.cosmetics.unlocked)
+        ? oldData.cosmetics.unlocked
+        : newData.cosmetics.unlocked,
+      equipped: { ...newData.cosmetics.equipped, ...(oldData.cosmetics.equipped ?? {}) }
+    };
+  }
+  if (oldData.completedChallenges && typeof oldData.completedChallenges === 'object') {
+    newData.completedChallenges = oldData.completedChallenges;
   }
   
   return newData;

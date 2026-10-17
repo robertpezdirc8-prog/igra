@@ -205,6 +205,10 @@ export class AudioEngine {
 
   startMusic() {
     if (!this.ctx || !this.musicGain || this.musicPlaying) return;
+    // AudioContext may start suspended until the first user gesture
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
     this.musicPlaying = true;
 
     const notes = [55, 65.41, 73.42, 82.41, 98, 110];
@@ -281,6 +285,16 @@ export class AudioEngine {
     osc.start();
     osc.stop(this.ctx.currentTime + 0.5);
     setTimeout(() => this.playArpeggio(notes), 200 + Math.random() * 300);
+  }
+
+  /** Update music/sfx volume (values 0..1) from user settings. */
+  setVolumes(musicVolume: number, sfxVolume: number) {
+    if (this.musicGain) {
+      this.musicGain.gain.value = Math.max(0, Math.min(1, musicVolume)) * 0.3;
+    }
+    if (this.sfxGain) {
+      this.sfxGain.gain.value = Math.max(0, Math.min(1, sfxVolume));
+    }
   }
 
   stopMusic() {

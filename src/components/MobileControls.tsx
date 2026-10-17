@@ -2,13 +2,14 @@ import { useState } from 'react';
 
 interface MobileControlsProps {
   onMove: (x: number, y: number) => void;
-  onShoot: () => void;
+  onShootStart: () => void;
+  onShootEnd: () => void;
   onDash: () => void;
   onSecondary: () => void;
   isVisible: boolean;
 }
 
-export function MobileControls({ onMove, onShoot, onDash, onSecondary, isVisible }: MobileControlsProps) {
+export function MobileControls({ onMove, onShootStart, onShootEnd, onDash, onSecondary, isVisible }: MobileControlsProps) {
   const [joystickActive, setJoystickActive] = useState(false);
   const [joystickPos, setJoystickPos] = useState({ x: 0, y: 0 });
 
@@ -66,9 +67,11 @@ export function MobileControls({ onMove, onShoot, onDash, onSecondary, isVisible
 
       {/* Action buttons */}
       <div className="absolute bottom-20 right-20 flex flex-col gap-4 pointer-events-auto">
-        {/* Shoot button */}
+        {/* Shoot button (continuous fire while held) */}
         <button
-          onTouchStart={onShoot}
+          onTouchStart={onShootStart}
+          onTouchEnd={onShootEnd}
+          onTouchCancel={onShootEnd}
           className="w-20 h-20 rounded-full bg-red-500/30 border-2 border-red-400 active:bg-red-500/50 transition-all"
         >
           <span className="text-3xl">🎯</span>

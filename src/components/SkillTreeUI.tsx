@@ -1,17 +1,23 @@
 import { useState } from 'react';
-import { SKILL_TREE, SkillNode, canUnlockSkill, getSkillCost } from '../game/skillTree';
+import { SkillNode, canUnlockSkill, getSkillCost, SkillTree, SKILL_TREE } from '../game/skillTree';
 
 interface SkillTreeUIProps {
   isOpen: boolean;
   onClose: () => void;
   skillPoints: number;
+  /** Current skill tree state (loaded from the save file). Falls back to the
+   *  default tree when not provided. */
+  skillTree?: SkillTree;
   onUnlockSkill: (skillId: string) => void;
 }
 
-export function SkillTreeUI({ isOpen, onClose, skillPoints, onUnlockSkill }: SkillTreeUIProps) {
+export function SkillTreeUI({ isOpen, onClose, skillPoints, skillTree, onUnlockSkill }: SkillTreeUIProps) {
   const [selectedBranch, setSelectedBranch] = useState<'offense' | 'defense' | 'utility'>('offense');
 
   if (!isOpen) return null;
+
+  // Use the passed tree (persistent state) - never mutate the module constant
+  const tree: SkillTree = skillTree ?? SKILL_TREE;
 
   const branchColors = {
     offense: { primary: '#ff4444', secondary: '#ff8888' },
@@ -25,7 +31,7 @@ export function SkillTreeUI({ isOpen, onClose, skillPoints, onUnlockSkill }: Ski
     utility: 'Uporabnost'
   };
 
-  const currentBranch = SKILL_TREE[selectedBranch];
+  const currentBranch = tree[selectedBranch];
   const colors = branchColors[selectedBranch];
 
   return (
@@ -78,7 +84,7 @@ export function SkillTreeUI({ isOpen, onClose, skillPoints, onUnlockSkill }: Ski
               <SkillNodeUI
                 key={skill.id}
                 skill={skill}
-                canUnlock={canUnlockSkill(skill, SKILL_TREE)}
+                canUnlock={canUnlockSkill(skill, tree)}
                 skillPoints={skillPoints}
                 cost={getSkillCost(skill)}
                 color={colors.primary}

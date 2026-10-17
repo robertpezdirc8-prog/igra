@@ -37,9 +37,10 @@ export function ShopUI({
     { type: 'effect', name: 'Efekti', icon: '💥' }
   ];
 
-  const filteredItems = COSMETIC_ITEMS.filter(item => 
-    item.type === selectedCategory && item.unlockLevel <= playerLevel
-  );
+  // Show ALL items so new players see the full catalogue; items above the
+  // player's level are rendered as locked instead of hiding the grid.
+  const filteredItems = COSMETIC_ITEMS.filter(item => item.type === selectedCategory);
+  const isLevelLocked = (item: CosmeticItem) => item.unlockLevel > playerLevel;
 
   const isOwned = (item: CosmeticItem) => ownedItems.includes(item.id);
   const isEquipped = (item: CosmeticItem) => equippedItems[item.type] === item.id;
@@ -109,8 +110,8 @@ export function ShopUI({
               {filteredItems.map((item) => {
                 const owned = isOwned(item);
                 const equipped = isEquipped(item);
+                const locked = isLevelLocked(item);
                 const rarityColor = getRarityColor(item.rarity);
-                const canAfford = canAffordCosmetic(item, gold, gems);
 
                 return (
                   <div
@@ -122,13 +123,13 @@ export function ShopUI({
                         : owned
                         ? 'bg-purple-900/30 border-purple-500'
                         : 'bg-black/60 border-gray-700 hover:border-purple-500'
-                    }`}
+                    } ${locked ? 'opacity-60' : ''}`}
                     style={{
                       borderColor: selectedItem?.id === item.id ? rarityColor : undefined
                     }}
                   >
                     <div className="text-center">
-                      <div className="text-5xl mb-2">{item.icon}</div>
+                      <div className="text-5xl mb-2" style={locked ? { filter: 'grayscale(80%)' } : undefined}>{item.icon}</div>
                       <h3 className="font-mono font-bold text-white text-sm mb-1">
                         {item.name}
                       </h3>
@@ -138,13 +139,17 @@ export function ShopUI({
                       >
                         {getRarityName(item.rarity)}
                       </div>
-                      {!owned && (
+                      {locked ? (
+                        <div className="text-gray-400 font-mono text-xs">
+                          🔒 Nivo {item.unlockLevel}
+                        </div>
+                      ) : !owned ? (
                         <div className="text-sm font-mono">
                           <span style={{ color: item.currency === 'gold' ? '#facc15' : '#a855f7' }}>
                             {item.currency === 'gold' ? '💰' : '💎'} {item.price}
                           </span>
                         </div>
-                      )}
+                      ) : null}
                       {owned && !equipped && (
                         <div className="text-green-400 font-mono text-xs">
                           ✓ V LASTI
@@ -194,17 +199,23 @@ export function ShopUI({
               )}
 
               {!isOwned(selectedItem) ? (
-                <button
-                  onClick={() => {
-                    if (canAffordCosmetic(selectedItem, gold, gems)) {
-                      onBuy(selectedItem);
-                    }
-                  }}
-                  disabled={!canAffordCosmetic(selectedItem, gold, gems)}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed text-white font-mono font-bold rounded-lg transition-all"
-                >
-                  KUPI
-                </button>
+                isLevelLocked(selectedItem) ? (
+                  <div className="w-full text-center px-6 py-3 bg-gray-800 text-gray-400 font-mono font-bold rounded-lg">
+                    🔒 ZAKLENJENO — Nivo {selectedItem.unlockLevel}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      if (canAffordCosmetic(selectedItem, gold, gems)) {
+                        onBuy(selectedItem);
+                      }
+                    }}
+                    disabled={!canAffordCosmetic(selectedItem, gold, gems)}
+                    className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed text-white font-mono font-bold rounded-lg transition-all"
+                  >
+                    KUPI
+                  </button>
+                )
               ) : !isEquipped(selectedItem) ? (
                 <button
                   onClick={() => onEquip(selectedItem)}
