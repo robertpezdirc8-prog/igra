@@ -343,7 +343,16 @@ export class GameEngine {
     this.loadHighScore();
     this.generateUpgrades();
     this.generateSeed();
+    // ── Auto-pause when the tab/app goes hidden ──
+    // Incoming call, app switch, lock screen: the fight pauses itself
+    // instead of letting the player die off-screen. (rAF already stops
+    // while hidden; this guarantees a clean PAUSED menu on return.)
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
   }
+
+  private handleVisibilityChange = () => {
+    if (document.hidden && this.state === 'playing') this.pause();
+  };
 
   private async initWebGPU(overlayCanvas: HTMLCanvasElement | null) {
     if (!overlayCanvas) {
@@ -1344,19 +1353,20 @@ export class GameEngine {
     // Fair per-wave HP ramp on top of the chosen difficulty mode.
     const hpMul = (this.difficulty?.enemyHpMultiplier ?? 1) * plan.hpMul;
 
-    // Choose formation based on wave (merged from webgpu-online-games-51d72)
-    const formationTypes: Array<'line' | 'circle' | 'vshape' | 'random' | 'spiral'> =
-      ['line', 'circle', 'vshape', 'random', 'spiral'];
-    const formationType = formationTypes[this.wave % formationTypes.length] ?? 'line';
-
-    // Create formation
-    this.formationSystem = new FormationSystem(formationType);
+    // Authored formation from the level curve — every wave of a sector has
+    // a deliberate SHAPE (line → sine snake → V escort → pincer → boss
+    // circle, rotated per sector). 'random' noise is gone: pattern, not
+    // confetti (Gradius/Raiden composition lesson).
+    this.formationSystem = new FormationSystem(plan.formation);
     const centerX = this.player.x;
     // Spawn fully above the screen: the formation streams in from the top
     // like a classic vertical-scroller attacking wave.
     const centerY = Math.min(this.player.y - 400, -140);
     this.formationSystem.setCenter(centerX, centerY);
-    this.formationSystem.setRotation(Math.random() * Math.PI * 2);
+    // Directional shapes (line/sine/pincer) only read near-upright — give
+    // them a small tilt; free-spin shapes keep the full random rotation.
+    const upright = plan.formation === 'line' || plan.formation === 'sine' || plan.formation === 'pincer';
+    this.formationSystem.setRotation(upright ? (Math.random() - 0.5) * 0.3 : Math.random() * Math.PI * 2);
     this.formationSystem.setScale(plan.formationScale);
 
     for (let i = 0; i < count; i++) {

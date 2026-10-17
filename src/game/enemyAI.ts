@@ -462,13 +462,13 @@ export class BossAI {
 
 // Formation system for enemy groups
 export class FormationSystem {
-  private formationType: 'line' | 'circle' | 'vshape' | 'random' | 'spiral';
+  private formationType: 'line' | 'circle' | 'vshape' | 'random' | 'spiral' | 'sine' | 'pincer';
   private centerX: number;
   private centerY: number;
   private rotation: number = 0;
   private scale: number = 1;
 
-  constructor(formationType: 'line' | 'circle' | 'vshape' | 'random' | 'spiral' = 'circle') {
+  constructor(formationType: 'line' | 'circle' | 'vshape' | 'random' | 'spiral' | 'sine' | 'pincer' = 'circle') {
     this.formationType = formationType;
     this.centerX = 0;
     this.centerY = 0;
@@ -510,6 +510,27 @@ export class FormationSystem {
         const vIndex = index - totalEnemies / 2;
         x = vIndex * 40 * this.scale;
         y = Math.abs(vIndex) * 30 * this.scale;
+        break;
+      }
+
+      case 'sine': {
+        // Flowing snake string (Gradius staple): enemies spread along a
+        // horizontal axis, each offset by a phase-shifted sine — the wave
+        // reads as one undulating creature, not isolated dots.
+        const t = totalEnemies > 1 ? index / (totalEnemies - 1) : 0.5;
+        x = (t - 0.5) * 320 * this.scale;
+        y = Math.sin(t * Math.PI * 2.5) * 60 * this.scale;
+        break;
+      }
+
+      case 'pincer': {
+        // Twin flanking wings (Raiden lesson): staggered columns come in
+        // from both edges and close like pincers around the player.
+        const half = Math.ceil(totalEnemies / 2);
+        const side = index < half ? -1 : 1;
+        const k = index < half ? index : index - half;
+        x = side * (110 + (k % 2) * 30) * this.scale;
+        y = k * 42 * this.scale - (half - 1) * 21 * this.scale;
         break;
       }
 

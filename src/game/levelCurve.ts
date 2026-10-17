@@ -18,6 +18,8 @@
  *    "ne le povečevanje hitrosti in gostote metkov" — zmerno 35 % bonus.
  */
 
+export type FormationType = 'line' | 'sine' | 'vshape' | 'pincer' | 'circle' | 'spiral';
+
 export interface WavePlan {
   wave: number;
   sector: number;
@@ -38,6 +40,8 @@ export interface WavePlan {
   diveMax: number;
   /** Avtorizirana mešanica tipov po sektorju (uteži se seštejejo v 1). */
   comp: { swarmer: number; sniper: number; titan: number };
+  /** Avtorizirana formacija tega vala — vzorec, ne šum. */
+  formation: FormationType;
   /** Razpon formacije (merilo razporeditve). */
   formationScale: number;
   /** Svetovni scroll naprej (px/s) — občutek hitrosti leta. */
@@ -77,6 +81,24 @@ const SECTOR_COMP: ReadonlyArray<{ swarmer: number; sniper: number; titan: numbe
   { swarmer: 0.32, sniper: 0.33, titan: 0.35 },
   { swarmer: 0.30, sniper: 0.32, titan: 0.38 }, // S10: finalna mešanica
 ];
+
+/**
+ * Avtorizirane formacije po valu znotraj sektorja (1..5):
+ * w1 berljiva črta → w2 sine-kača (učenje toka) → w3 V-ščit (mid-boss
+ * eskorta) → w4 klešče (pritisk s krili) → w5 boss-krog.
+ * Sodi sektorji rotirajo zaporedje za 1 mesto — raznolikost brez kaosa.
+ * Lekcija Gradius/Raiden: vsaka faza sektorja ima svojo OBLIKO;
+ * 'random' ni kompozicija, zato ga ni več.
+ */
+const FORMATION_SEQUENCE: ReadonlyArray<FormationType> = [
+  'line', 'sine', 'vshape', 'pincer', 'circle',
+];
+
+function formationFor(bw: number, sector: number): FormationType {
+  const idx = (bw - 1) % FORMATION_SEQUENCE.length;
+  const shift = (sector - 1) % FORMATION_SEQUENCE.length;
+  return FORMATION_SEQUENCE[(idx + shift) % FORMATION_SEQUENCE.length] ?? 'line';
+}
 
 /**
  * Čist funkcija: val (1..50, nato zanka) → polni načrt vala.
@@ -137,6 +159,7 @@ export function getWavePlan(wave: number): WavePlan {
     wave: w,
     sector,
     count,
+    formation: formationFor(bw, sector),
     hpMul,
     dmgMul,
     speedMul,

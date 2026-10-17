@@ -1,0 +1,26 @@
+{
+  "name": "ATHERIA: VOID BREAKER",
+  "short_name": "ATHERIA",
+  "description": "WebGPU cosmic-horror rogue-lite arena shooter — preživi valove Voida.",
+  "start_url": "/igra/",
+  "scope": "/igra/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "categories": ["games"],
+  "icons": [
+    {
+      "src": "/igra/icons/icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/igra/icons/icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
