@@ -5,11 +5,13 @@ interface MainMenuProps {
   onStartGame: () => void;
   onShowTutorial: () => void;
   onShowSettings: () => void;
+  onShowSaveLoad: () => void;
+  onShowStats: () => void;
   highScore: number;
   webgpuSupported: boolean;
 }
 
-export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, highScore, webgpuSupported }: MainMenuProps) {
+export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, onShowSaveLoad, onShowStats, highScore, webgpuSupported }: MainMenuProps) {
   const [titleGlow, setTitleGlow] = useState(0);
   const [particles, setParticles] = useState<Array<{ x: number; y: number; vx: number; vy: number; life: number }>>([]);
 
@@ -121,6 +123,12 @@ export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, highScor
         </Button>
         <Button onClick={onShowSettings} variant="secondary" size="medium" className="w-full">
           NASTAVITVE
+        </Button>
+        <Button onClick={onShowSaveLoad} variant="secondary" size="medium" className="w-full">
+          💾 SHRANI/NALOŽI
+        </Button>
+        <Button onClick={() => {}} variant="secondary" size="medium" className="w-full">
+          📊 STATISTIKA
         </Button>
       </div>
 

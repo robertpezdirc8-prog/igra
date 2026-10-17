@@ -1,5 +1,7 @@
 import { AudioEngine } from './audio';
 import { WebGPURenderer } from './webgpu-renderer';
+import { getLevelForPlayer } from './levels';
+import { getEnvironmentForLevel, renderEnvironment } from './environment';
 
 // ============= TYPES =============
 interface Vec2 { x: number; y: number; }
@@ -1250,59 +1252,12 @@ export class GameEngine {
   }
 
   private renderBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    // Deep space gradient
-    const grad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w * 0.7);
-    grad.addColorStop(0, '#0a0015');
-    grad.addColorStop(0.5, '#050010');
-    grad.addColorStop(1, '#000005');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
-
-    // Stars with parallax
-    for (const star of this.stars) {
-      const sx = ((star.x + this.time * 10 * star.z) % w + w) % w;
-      const sy = ((star.y + this.time * 5 * star.z) % h + h) % h;
-      const brightness = (Math.sin(this.time * 2 + star.brightness * 10) + 1) * 0.5;
-      const size = star.z * (0.5 + brightness * 0.5);
-      ctx.fillStyle = `rgba(200, 200, 255, ${0.3 + brightness * 0.7})`;
-      ctx.beginPath();
-      ctx.arc(sx, sy, size, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Nebula clouds
-    ctx.globalAlpha = 0.04;
-    for (let i = 0; i < 5; i++) {
-      const nx = w / 2 + Math.sin(this.time * 0.1 + i * 1.5) * 300;
-      const ny = h / 2 + Math.cos(this.time * 0.08 + i * 2.1) * 200;
-      const radius = 200 + Math.sin(this.time * 0.3 + i) * 50;
-      const nGrad = ctx.createRadialGradient(nx, ny, 0, nx, ny, radius);
-      const colors = ['#4400aa', '#aa0044', '#004488', '#004422', '#440022'];
-      nGrad.addColorStop(0, colors[i % colors.length]);
-      nGrad.addColorStop(1, 'transparent');
-      ctx.fillStyle = nGrad;
-      ctx.fillRect(0, 0, w, h);
-    }
-    ctx.globalAlpha = 1;
-
-    // Animated cosmic grid
-    ctx.strokeStyle = 'rgba(0, 255, 255, 0.025)';
-    ctx.lineWidth = 1;
-    const gridSize = 80;
-    const offsetX = (this.time * 15) % gridSize;
-    const offsetY = (this.time * 10) % gridSize;
-    for (let x = -gridSize + offsetX; x < w + gridSize; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-      ctx.stroke();
-    }
-    for (let y = -gridSize + offsetY; y < h + gridSize; y += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
+    // Get current level and environment configuration
+    const currentLevel = getLevelForPlayer(this.player.level);
+    const envConfig = getEnvironmentForLevel(currentLevel);
+    
+    // Render environment using the new system
+    renderEnvironment(ctx, w, h, envConfig, this.time);
   }
 
   private renderGame(ctx: CanvasRenderingContext2D, w: number, h: number) {

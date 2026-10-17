@@ -30,9 +30,15 @@ import {
   GameTimer,
   LevelDisplay,
   LevelInfo,
-  LevelUpChoiceScreen
+  LevelUpChoiceScreen,
+  SkillTreeUI,
+  DailyChallengesUI,
+  SaveLoadUI,
+  StatsLeaderboardUI
 } from './components';
+import { loadGame, saveGame, createDefaultSaveData, SaveData } from './game/saveSystem';
 import { getLevelForPlayer } from './game/levels';
+import { SKILL_TREE, findSkill, getSkillCost } from './game/skillTree';
 
 type GameState = 'loading' | 'menu' | 'playing' | 'paused' | 'levelup' | 'levelchoice' | 'gameover';
 
@@ -53,6 +59,40 @@ export default function App() {
   const [showAchievements, setShowAchievements] = useState(false);
   const [showControls, setShowControls] = useState(false);
   const [showPerformance, setShowPerformance] = useState(false);
+  const [showSkillTree, setShowSkillTree] = useState(false);
+  const [skillPoints, setSkillPoints] = useState(0);
+  const [showDailyChallenges, setShowDailyChallenges] = useState(false);
+  const [completedChallenges, setCompletedChallenges] = useState<string[]>([]);
+  const [showSaveLoad, setShowSaveLoad] = useState(false);
+  const [saveData, setSaveData] = useState<SaveData | null>(null);
+  const [showStatsLeaderboard, setShowStatsLeaderboard] = useState(false);
+
+  // Load save data on mount
+  useEffect(() => {
+    const loaded = loadGame();
+    if (loaded) {
+      setSaveData(loaded);
+    } else {
+      const defaultSave = createDefaultSaveData();
+      setSaveData(defaultSave);
+      saveGame(defaultSave);
+    }
+  }, []);
+
+  const handleSave = () => {
+    if (saveData) {
+      saveGame(saveData);
+      addNotification('Igra shranjena!', 'success');
+    }
+  };
+
+  const handleLoad = () => {
+    const loaded = loadGame();
+    if (loaded) {
+      setSaveData(loaded);
+      addNotification('Igra naložena!', 'success');
+    }
+  };
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isShooting, setIsShooting] = useState(false);
   const [damageFlash, setDamageFlash] = useState(false);
@@ -221,6 +261,32 @@ export default function App() {
     setGameState('menu');
   };
 
+  const handleUnlockSkill = (skillId: string) => {
+    const skill = findSkill(skillId, SKILL_TREE);
+    if (!skill) return;
+
+    const cost = getSkillCost(skill);
+    if (skillPoints >= cost) {
+      setSkillPoints(prev => prev - cost);
+      skill.currentLevel++;
+      addNotification(`Odklenjeno: ${skill.name} (Level ${skill.currentLevel})`, 'success');
+    }
+  };
+
+  // Award skill points on level up
+  useEffect(() => {
+    if (gameState === 'levelchoice') {
+      setSkillPoints(prev => prev + 1);
+    }
+  }, [gameState]);
+
+  const handleCompleteChallenge = (challengeId: string) => {
+    if (!completedChallenges.includes(challengeId)) {
+      setCompletedChallenges(prev => [...prev, challengeId]);
+      addNotification('Izziv zaključen! Poglej nagrade.', 'success');
+    }
+  };
+
   return (
     <div className="relative w-full h-screen overflow-hidden bg-black">
       {/* Canvas */}
@@ -241,6 +307,7 @@ export default function App() {
           onStartGame={handleStartGame}
           onShowTutorial={() => setShowTutorial(true)}
           onShowSettings={() => setShowSettings(true)}
+          onShowSaveLoad={() => setShowSaveLoad(true)}
           highScore={highScore}
           webgpuSupported={webgpuSupported}
         />
@@ -322,6 +389,28 @@ export default function App() {
             totalEnemies={10}
             isBossWave={playerStats.wave % 5 === 0}
           />
+
+          {/* Skill Tree Button */}
+          <button
+            onClick={() => setShowSkillTree(true)}
+            className="fixed top-4 right-4 z-40 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-mono rounded transition-all hover:scale-110"
+            style={{
+              boxShadow: '0 0 15px rgba(168, 85, 247, 0.5)'
+            }}
+          >
+            🌳 SKILLS ({skillPoints})
+          </button>
+
+          {/* Daily Challenges Button */}
+          <button
+            onClick={() => setShowDailyChallenges(true)}
+            className="fixed top-4 right-48 z-40 px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white font-mono rounded transition-all hover:scale-110"
+            style={{
+              boxShadow: '0 0 15px rgba(236, 72, 153, 0.5)'
+            }}
+          >
+            🎯 IZZIVI
+          </button>
 
           {/* Combo Display */}
           <ComboDisplay
@@ -413,6 +502,50 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Skill Tree */}
+      <SkillTreeUI
+        isOpen={showSkillTree}
+        onClose={() => setShowSkillTree(false)}
+        skillPoints={skillPoints}
+        onUnlockSkill={handleUnlockSkill}
+      />
+
+      {/* Daily Challenges */}
+      <DailyChallengesUI
+        isOpen={showDailyChallenges}
+        onClose={() => setShowDailyChallenges(false)}
+        playerStats={{
+          score: playerStats.score,
+          level: playerStats.level,
+          wave: playerStats.wave,
+          enemiesKilled: 0,
+          bossKills: 0,
+          maxCombo: playerStats.combo,
+          survivalTime: 0,
+          damageDealt: 0,
+          damageTaken: 0,
+          itemsCollected: 0,
+          deaths: 0
+        }}
+        completedChallenges={completedChallenges}
+        onCompleteChallenge={handleCompleteChallenge}
+      />
+
+      {/* Save/Load UI */}
+      <SaveLoadUI
+        isOpen={showSaveLoad}
+        onClose={() => setShowSaveLoad(false)}
+        saveData={saveData}
+        onSave={handleSave}
+        onLoad={handleLoad}
+      />
+
+      {/* Stats & Leaderboard */}
+      <StatsLeaderboardUI
+        isOpen={showStatsLeaderboard}
+        onClose={() => setShowStatsLeaderboard(false)}
+      />
 
       {/* Settings Menu */}
       <SettingsMenu

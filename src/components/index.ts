@@ -37,3 +37,7 @@ export { ChromaticAberration } from './ChromaticAberration';
 export { LevelDisplay } from './LevelDisplay';
 export { LevelInfo } from './LevelInfo';
 export { LevelUpChoiceScreen } from './LevelUpChoiceScreen';
+export { SkillTreeUI } from './SkillTreeUI';
+export { DailyChallengesUI } from './DailyChallengesUI';
+export { SaveLoadUI } from './SaveLoadUI';
+export { StatsLeaderboardUI } from './StatsLeaderboardUI';
