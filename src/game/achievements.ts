@@ -21,56 +21,56 @@ export interface PlayerStats {
 export const LEVEL_ACHIEVEMENTS: Achievement[] = [
   {
     id: 'level_5',
-    title: 'Začetnik Voida',
+    title: 'Začetnik praznine',
     description: 'Doseži nivo 5',
     icon: '⭐',
     condition: (stats) => stats.level >= 5
   },
   {
     id: 'level_10',
-    title: 'Void Walker',
+    title: 'Sprehajalec praznine',
     description: 'Doseži nivo 10',
     icon: '🌟',
     condition: (stats) => stats.level >= 10
   },
   {
     id: 'level_15',
-    title: 'Void Master',
+    title: 'Mojster praznine',
     description: 'Doseži nivo 15',
     icon: '💫',
     condition: (stats) => stats.level >= 15
   },
   {
     id: 'level_20',
-    title: 'Void Lord',
+    title: 'Gospodar praznine',
     description: 'Doseži nivo 20',
     icon: '👑',
     condition: (stats) => stats.level >= 20
   },
   {
     id: 'level_25',
-    title: 'Void Emperor',
+    title: 'Cesar praznine',
     description: 'Doseži nivo 25',
     icon: '🏆',
     condition: (stats) => stats.level >= 25
   },
   {
     id: 'level_30',
-    title: 'Void God',
+    title: 'Bog praznine',
     description: 'Doseži nivo 30',
     icon: '🔱',
     condition: (stats) => stats.level >= 30
   },
   {
     id: 'level_40',
-    title: 'Void Transcendent',
+    title: 'Onstran praznine',
     description: 'Doseži nivo 40',
     icon: '✨',
     condition: (stats) => stats.level >= 40
   },
   {
     id: 'level_50',
-    title: 'Void Incarnate',
+    title: 'Utelešenje praznine',
     description: 'Doseži nivo 50',
     icon: '🌌',
     condition: (stats) => stats.level >= 50
@@ -101,28 +101,28 @@ export const COMBAT_ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: 'boss_1',
-    title: 'Boss Killer',
+    title: 'Ubijalec bossov',
     description: 'Ubij svojega prvega bossa',
     icon: '🗡️',
     condition: (stats) => stats.bossKills >= 1
   },
   {
     id: 'boss_10',
-    title: 'Boss Hunter',
+    title: 'Lovec na bosse',
     description: 'Ubij 10 bossov',
     icon: '⚔️',
     condition: (stats) => stats.bossKills >= 10
   },
   {
     id: 'combo_10',
-    title: 'Combo Master',
+    title: 'Mojster kombinacij',
     description: 'Doseži 10x combo',
     icon: '🔥',
     condition: (stats) => stats.maxCombo >= 10
   },
   {
     id: 'combo_20',
-    title: 'Combo God',
+    title: 'Bog kombinacij',
     description: 'Doseži 20x combo',
     icon: '💥',
     condition: (stats) => stats.maxCombo >= 20
@@ -146,7 +146,7 @@ export const SURVIVAL_ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: 'wave_50',
-    title: 'Legend',
+    title: 'Legenda',
     description: 'Preživi 50 valov',
     icon: '🏅',
     condition: (stats) => stats.highestWave >= 50

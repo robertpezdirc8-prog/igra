@@ -12,7 +12,7 @@ export interface Level {
 export const LEVELS: Level[] = [
   {
     id: 1,
-    name: 'Void Nexus',
+    name: 'Vozlišče praznine',
     description: 'Začetna cona praznine',
     background: 'cosmic',
     enemyTypes: ['swarmer', 'sniper'],
@@ -22,7 +22,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 2,
-    name: 'Crystal Wastes',
+    name: 'Kristalne puščave',
     description: 'Uničeni kristalni svetovi',
     background: 'crystal',
     enemyTypes: ['swarmer', 'sniper', 'titan'],
@@ -32,7 +32,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 3,
-    name: 'Stellar Graveyard',
+    name: 'Zvezdno pokopališče',
     description: 'Pokopališče mrtvih zvezd',
     background: 'stellar',
     enemyTypes: ['swarmer', 'sniper', 'titan'],
@@ -42,7 +42,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 4,
-    name: 'Dark Matter Sea',
+    name: 'Morje temne snovi',
     description: 'Morje temne snovi',
     background: 'dark',
     enemyTypes: ['sniper', 'titan'],
@@ -52,7 +52,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 5,
-    name: 'Singularity Core',
+    name: 'Jedro singularnosti',
     description: 'Jedro singularnosti',
     background: 'singularity',
     enemyTypes: ['titan'],
@@ -62,7 +62,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 6,
-    name: 'Quantum Realm',
+    name: 'Kvantno kraljestvo',
     description: 'Kvantna dimenzija',
     background: 'quantum',
     enemyTypes: ['swarmer', 'sniper', 'titan'],
@@ -72,7 +72,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 7,
-    name: 'Cosmic Abyss',
+    name: 'Kozmično brezno',
     description: 'Kozmična brezno',
     background: 'abyss',
     enemyTypes: ['sniper', 'titan'],
@@ -82,7 +82,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 8,
-    name: 'Supernova Remnant',
+    name: 'Ostanek supernove',
     description: 'Ostanek supernove',
     background: 'supernova',
     enemyTypes: ['swarmer', 'sniper', 'titan'],
@@ -92,7 +92,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 9,
-    name: 'Event Horizon',
+    name: 'Obzorje dogodkov',
     description: 'Obzorje dogodkov',
     background: 'horizon',
     enemyTypes: ['titan'],
@@ -102,7 +102,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 10,
-    name: 'The Void Heart',
+    name: 'Srce praznine',
     description: 'Srce praznine - končni izziv',
     background: 'void',
     enemyTypes: ['swarmer', 'sniper', 'titan'],

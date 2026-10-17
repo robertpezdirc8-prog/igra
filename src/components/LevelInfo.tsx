@@ -8,7 +8,7 @@ interface LevelInfoProps {
 export function LevelInfo({ level, playerLevel }: LevelInfoProps) {
   // playerLevel is shown next to the level name (real engine data)
   return (
-    <div className="fixed bottom-4 left-4 z-30">
+    <div className="fixed bottom-48 left-4 z-30">
       <div
         className="bg-black/60 border-2 rounded-lg p-3 backdrop-blur-sm"
         style={{

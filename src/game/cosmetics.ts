@@ -14,7 +14,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   // Trails
   {
     id: 'fire_trail',
-    name: 'Fire Trail',
+    name: 'Ognjeni sled',
     description: 'Ognjeni sled za ladjo',
     icon: '🔥',
     type: 'trail',
@@ -25,7 +25,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   },
   {
     id: 'ice_trail',
-    name: 'Ice Trail',
+    name: 'Ledeni sled',
     description: 'Ledeni sled za ladjo',
     icon: '❄️',
     type: 'trail',
@@ -36,7 +36,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   },
   {
     id: 'lightning_trail',
-    name: 'Lightning Trail',
+    name: 'Električni sled',
     description: 'Električni sled za ladjo',
     icon: '⚡',
     type: 'trail',
@@ -47,7 +47,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   },
   {
     id: 'rainbow_trail',
-    name: 'Rainbow Trail',
+    name: 'Mavrični sled',
     description: 'Mavrični sled za ladjo',
     icon: '🌈',
     type: 'trail',
@@ -58,7 +58,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   },
   {
     id: 'void_trail',
-    name: 'Void Trail',
+    name: 'Sled praznine',
     description: 'Sled praznine',
     icon: '🌌',
     type: 'trail',
@@ -71,7 +71,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   // Auras
   {
     id: 'fire_aura',
-    name: 'Fire Aura',
+    name: 'Ognjena aura',
     description: 'Ognjena aura okoli ladje',
     icon: '🔥',
     type: 'aura',
@@ -82,7 +82,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   },
   {
     id: 'electric_aura',
-    name: 'Electric Aura',
+    name: 'Električna aura',
     description: 'Električna aura',
     icon: '⚡',
     type: 'aura',
@@ -93,7 +93,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   },
   {
     id: 'dark_aura',
-    name: 'Dark Aura',
+    name: 'Temna aura',
     description: 'Temna aura praznine',
     icon: '🌑',
     type: 'aura',
@@ -104,7 +104,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   },
   {
     id: 'cosmic_aura',
-    name: 'Cosmic Aura',
+    name: 'Kozmična aura',
     description: 'Kozmična aura zvezd',
     icon: '✨',
     type: 'aura',
@@ -117,7 +117,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   // Borders
   {
     id: 'golden_border',
-    name: 'Golden Border',
+    name: 'Zlati okvir',
     description: 'Zlati okvir',
     icon: '🏆',
     type: 'border',
@@ -128,7 +128,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   },
   {
     id: 'crystal_border',
-    name: 'Crystal Border',
+    name: 'Kristalni okvir',
     description: 'Kristalni okvir',
     icon: '💎',
     type: 'border',
@@ -139,7 +139,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   },
   {
     id: 'void_border',
-    name: 'Void Border',
+    name: 'Okvir praznine',
     description: 'Okvir praznine',
     icon: '🌌',
     type: 'border',
@@ -152,7 +152,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   // Ships
   {
     id: 'golden_ship',
-    name: 'Golden Ship',
+    name: 'Zlata ladja',
     description: 'Zlata ladja',
     icon: '🚀',
     type: 'ship',
@@ -163,7 +163,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   },
   {
     id: 'crystal_ship',
-    name: 'Crystal Ship',
+    name: 'Kristalna ladja',
     description: 'Kristalna ladja',
     icon: '💎',
     type: 'ship',
@@ -176,7 +176,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   // Effects
   {
     id: 'explosion_effect',
-    name: 'Mega Explosion',
+    name: 'Mega eksplozija',
     description: 'Večji eksplozijski efekti',
     icon: '💥',
     type: 'effect',
@@ -187,7 +187,7 @@ export const COSMETIC_ITEMS: CosmeticItem[] = [
   },
   {
     id: 'critical_effect',
-    name: 'Critical Flash',
+    name: 'Kritični blisk',
     description: 'Poseben efekt za kritične zadetke',
     icon: '⚡',
     type: 'effect',

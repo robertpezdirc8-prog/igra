@@ -130,7 +130,7 @@ export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, onShowSa
             VOID BREAKER
           </p>
           <p className="text-gray-500 font-mono text-[10px] sm:text-sm mt-2 sm:mt-4">
-            WebGPU Cosmic-Horror Rogue-Lite
+            WebGPU vertikalni vesoljski strelec
           </p>
         </div>
 

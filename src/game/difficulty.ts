@@ -17,7 +17,7 @@ export interface DifficultyMode {
 export const DIFFICULTY_MODES: DifficultyMode[] = [
   {
     id: 'easy',
-    name: 'Easy',
+    name: 'Lahko',
     description: 'Za začetnike',
     icon: '😊',
     enemyHpMultiplier: 0.7,
@@ -32,7 +32,7 @@ export const DIFFICULTY_MODES: DifficultyMode[] = [
   },
   {
     id: 'normal',
-    name: 'Normal',
+    name: 'Običajno',
     description: 'Standardna težavnost',
     icon: '😐',
     enemyHpMultiplier: 1.0,
@@ -47,7 +47,7 @@ export const DIFFICULTY_MODES: DifficultyMode[] = [
   },
   {
     id: 'hard',
-    name: 'Hard',
+    name: 'Težko',
     description: 'Za izkušene igralce',
     icon: '😠',
     enemyHpMultiplier: 1.5,
@@ -62,7 +62,7 @@ export const DIFFICULTY_MODES: DifficultyMode[] = [
   },
   {
     id: 'nightmare',
-    name: 'Nightmare',
+    name: 'Nočna mora',
     description: 'Za prave mojstre',
     icon: '💀',
     enemyHpMultiplier: 2.0,
@@ -77,7 +77,7 @@ export const DIFFICULTY_MODES: DifficultyMode[] = [
   },
   {
     id: 'impossible',
-    name: 'Impossible',
+    name: 'Nemogoče',
     description: 'Nemogoče - samo za norce',
     icon: '☠️',
     enemyHpMultiplier: 3.0,

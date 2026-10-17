@@ -229,11 +229,11 @@ export class GameEngine {
   private static readonly MEDAL_VALUES = [100, 200, 400, 800, 1600, 3200, 6400, 10000];
   // Sector identity — Gradius stage names with a mood tint per sector.
   private static readonly SECTORS: ReadonlyArray<{ name: string; subtitle: string; tint: string }> = [
-    { name: 'OUTPOST GATE', subtitle: 'border patrol', tint: 'rgba(64,255,255,0.045)' },
-    { name: 'ASTEROID FIELDS', subtitle: 'dense rock belt', tint: 'rgba(255,170,80,0.05)' },
-    { name: 'NEBULA VEIL', subtitle: 'ion storm zone', tint: 'rgba(180,100,255,0.055)' },
-    { name: 'SCRAP FLEET', subtitle: 'derelict armada', tint: 'rgba(255,110,110,0.05)' },
-    { name: 'VOID CITADEL', subtitle: 'enemy stronghold', tint: 'rgba(255,60,130,0.055)' },
+    { name: 'PREDSTRAŽA', subtitle: 'mejni nadzor', tint: 'rgba(64,255,255,0.045)' },
+    { name: 'ASTEROIDNA POLJA', subtitle: 'gost skalnat pas', tint: 'rgba(255,170,80,0.05)' },
+    { name: 'ZAVESA MEGLENICE', subtitle: 'pas ionskih neviht', tint: 'rgba(180,100,255,0.055)' },
+    { name: 'OLUPKOVNA FLOTA', subtitle: 'opuščena armada', tint: 'rgba(255,110,110,0.05)' },
+    { name: 'CITADELA PRAZNINE', subtitle: 'sovražnikova trdnjava', tint: 'rgba(255,60,130,0.055)' },
   ];
   // Elite affix table (Vampire Survivors / 10 Minutes Till Dawn lesson:
   // rare modified enemies create spike moments and jackpot rewards).
@@ -454,16 +454,16 @@ export class GameEngine {
 
   private generateUpgrades() {
     this.upgrades = [
-      { name: 'Plasma Overcharge', description: '+25% damage, +1 weapon level', icon: '⚡', apply: (p) => { p.weaponLevel++; } },
-      { name: 'Neural Reflexes', description: '+15% movement speed', icon: '🧠', apply: (p) => { p.speed *= 1.15; } },
-      { name: 'Void Shield', description: '+30 max shield, full restore', icon: '🛡️', apply: (p) => { p.maxShield += 30; p.shield = p.maxShield; } },
-      { name: 'Temporal Core', description: '+25 max energy, faster regen', icon: '⏱️', apply: (p) => { p.maxEnergy += 25; } },
-      { name: 'Critical Matrix', description: '+10% crit rate, +50% crit damage', icon: '💀', apply: (p) => { p.critRate += 0.1; p.critDmg += 0.5; } },
-      { name: 'Bio-Reconstruction', description: '+30 max HP, full heal', icon: '❤️', apply: (p) => { p.maxHp += 30; p.hp = p.maxHp; } },
-      { name: 'Split Plasma', description: 'Projectiles split into 3', icon: '🔱', apply: (p) => { p.weaponLevel += 2; } },
-      { name: 'Gravity Well', description: 'Unlock Gravity secondary weapon', icon: '🌀', apply: (p) => { p.secondaryWeapon = 'gravity'; } },
-      { name: 'Chain Lightning', description: 'Unlock Chain secondary weapon', icon: '⚡', apply: (p) => { p.secondaryWeapon = 'chain'; } },
-      { name: 'Temporal Stasis', description: 'Unlock Time Stop ability', icon: '⏸️', apply: (p) => { p.secondaryWeapon = 'temporal'; } },
+      { name: 'Napolnjena plazma', description: '+25% škode, +1 nivo orožja', icon: '⚡', apply: (p) => { p.weaponLevel++; } },
+      { name: 'Nevronski refleksi', description: '+15% hitrosti premikanja', icon: '🧠', apply: (p) => { p.speed *= 1.15; } },
+      { name: 'Ščit praznine', description: '+30 max ščita, polna obnova', icon: '🛡️', apply: (p) => { p.maxShield += 30; p.shield = p.maxShield; } },
+      { name: 'Temporalno jedro', description: '+25 max energije, hitrejša regeneracija', icon: '⏱️', apply: (p) => { p.maxEnergy += 25; } },
+      { name: 'Kritična matrika', description: '+10% kritičnosti, +50% kritične škode', icon: '💀', apply: (p) => { p.critRate += 0.1; p.critDmg += 0.5; } },
+      { name: 'Bio-rekonstrukcija', description: '+30 max HP, polno zdravljenje', icon: '❤️', apply: (p) => { p.maxHp += 30; p.hp = p.maxHp; } },
+      { name: 'Razcepljena plazma', description: 'Izstrelki se razcepijo na 3', icon: '🔱', apply: (p) => { p.weaponLevel += 2; } },
+      { name: 'Gravitacijski vrtinec', description: 'Odkleni gravitacijsko sekundarno orožje', icon: '🌀', apply: (p) => { p.secondaryWeapon = 'gravity'; } },
+      { name: 'Verižna molnja', description: 'Odkleni verižno sekundarno orožje', icon: '⚡', apply: (p) => { p.secondaryWeapon = 'chain'; } },
+      { name: 'Temporalna staza', description: 'Odkleni zaustavitev časa', icon: '⏸️', apply: (p) => { p.secondaryWeapon = 'temporal'; } },
     ];
   }
 
@@ -725,7 +725,7 @@ export class GameEngine {
     p.invincible = Math.max(p.invincible, 1.0);
     if (counter) {
       p.score += 500;
-      this.floatingTexts.push({ x: p.x, y: p.y - 40, text: 'COUNTER BOMB!', color: '#ffdd66', life: 1.4, maxLife: 1.4, vy: -1.2 });
+      this.floatingTexts.push({ x: p.x, y: p.y - 40, text: 'PROTIBOMBA!', color: '#ffdd66', life: 1.4, maxLife: 1.4, vy: -1.2 });
     } else {
       this.floatingTexts.push({ x: p.x, y: p.y - 40, text: 'BOMBA!', color: '#ff8866', life: 1, maxLife: 1, vy: -1.2 });
     }
@@ -1380,7 +1380,7 @@ export class GameEngine {
       this.sectorDamage = 0;
       this.sectorMedals = 0;
       this.waveAnnouncement = {
-        text: `SEKTOR ${sec}${sec <= 10 ? '/10' : ''} — ${info?.name ?? 'THE VOID'}`,
+        text: `SEKTOR ${sec}${sec <= 10 ? '/10' : ''} — ${info?.name ?? 'PRAZNINA'}`,
         subtext: `${plan.milestone} · ${count} sovražnikov`,
         timer: 2.8,
         color: '#66ffe0'
@@ -1398,8 +1398,8 @@ export class GameEngine {
       this.spawnMidBoss();
     } else {
       this.waveAnnouncement = {
-        text: `WAVE ${this.wave}`,
-        subtext: `${count} hostiles detected`,
+        text: `VAL ${this.wave}`,
+        subtext: `Zaznanih sovražnikov: ${count}`,
         timer: 2,
         color: '#00ffff'
       };
@@ -2027,7 +2027,7 @@ export class GameEngine {
           this.screenShake = Math.max(this.screenShake, 6);
           this.floatingTexts.push({
             x: e.x, y: e.y - e.size,
-            text: '\u26A0 RAGE', color: '#ff66ff',
+            text: '\u26A0 BES', color: '#ff66ff',
             life: 1, maxLife: 1, vy: -1.5
           });
         }
@@ -2458,7 +2458,7 @@ export class GameEngine {
     this.music.duck(1.8);
     this.floatingTexts.push({
       x: boss.x, y: boss.y - boss.size - 24,
-      text: '\u26A0 CORE BREACH', color: '#ff5544',
+      text: '\u26A0 PREBITJE JEDRA', color: '#ff5544',
       life: 1.2, maxLife: 1.2, vy: -1.2
     });
     this.audio.playExplosion();
@@ -2536,7 +2536,7 @@ export class GameEngine {
       m.desperate = true;
       this.floatingTexts.push({
         x: m.x, y: m.y - m.size,
-        text: '\u26A0 RAGE', color: '#ff8844',
+        text: '\u26A0 BES', color: '#ff8844',
         life: 1, maxLife: 1, vy: -1.5
       });
       this.screenShake = Math.max(this.screenShake, 5);
@@ -2883,7 +2883,7 @@ export class GameEngine {
 
     // Level up announcement
     this.waveAnnouncement = {
-      text: `LEVEL ${this.player.level}`,
+      text: `NIVO ${this.player.level}`,
       subtext: 'Izberi nadgradnjo!',
       timer: 2,
       color: '#ffaa00'
@@ -3482,12 +3482,12 @@ export class GameEngine {
             // Letter P (Raiden/Truxton): instant weapon level
             this.player.weaponLevel = Math.min(10, this.player.weaponLevel + 1);
             this.checkWeaponEvolution();
-            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: 'POWER UP!', color: '#ffcc00', life: 1.2, maxLife: 1.2, vy: -1.5 });
+            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: 'OROŽJE +1!', color: '#ffcc00', life: 1.2, maxLife: 1.2, vy: -1.5 });
             break;
           case 'speed':
             // Letter S: movement speed boost (capped)
             this.player.speed = Math.min(11, this.player.speed * 1.1);
-            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: 'SPEED UP!', color: '#00ffcc', life: 1.2, maxLife: 1.2, vy: -1.5 });
+            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: 'HITROST +1!', color: '#00ffcc', life: 1.2, maxLife: 1.2, vy: -1.5 });
             break;
           case 'bomb':
             // Letter B: +1 bomb stock
@@ -3891,7 +3891,15 @@ export class GameEngine {
         ctx.shadowColor = this.waveAnnouncement.color;
         ctx.shadowBlur = 20;
         ctx.fillStyle = this.waveAnnouncement.color;
-        ctx.font = 'bold 32px monospace';
+        // Auto-fit: long announcements shrink to stay readable on narrow screens.
+        let annFont = 32;
+        ctx.font = `bold ${annFont}px monospace`;
+        const annMaxW = w - 32;
+        const annW = ctx.measureText(this.waveAnnouncement.text).width;
+        if (annW > annMaxW) {
+          annFont = Math.max(16, Math.floor(annFont * annMaxW / annW));
+          ctx.font = `bold ${annFont}px monospace`;
+        }
         ctx.fillText(this.waveAnnouncement.text, w / 2, h * 0.2);
         ctx.shadowBlur = 0;
         ctx.fillStyle = 'rgba(255,255,255,0.7)';
@@ -3975,13 +3983,21 @@ export class GameEngine {
     ctx.shadowColor = '#ff2233';
     ctx.shadowBlur = 26;
     ctx.fillStyle = '#ff2233';
-    ctx.font = `bold ${Math.round(52 + pulse * 14)}px monospace`;
-    ctx.fillText('\u26A0 WARNING \u26A0', w / 2, h * 0.3);
+    // Auto-fit headline: the klaxon must fit narrow (portrait) screens.
+    let klaxonFont = Math.round(52 + pulse * 14);
+    ctx.font = `bold ${klaxonFont}px monospace`;
+    const klaxonMaxW = w - 24;
+    const klaxonW = ctx.measureText('\u26A0 POZOR! \u26A0').width;
+    if (klaxonW > klaxonMaxW) {
+      klaxonFont = Math.max(24, Math.floor(klaxonFont * klaxonMaxW / klaxonW));
+      ctx.font = `bold ${klaxonFont}px monospace`;
+    }
+    ctx.fillText('\u26A0 POZOR! \u26A0', w / 2, h * 0.3);
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 0.9;
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 17px monospace';
-    ctx.fillText('A HUGE FOE IS APPROACHING FAST', w / 2, h * 0.3 + 44);
+    ctx.fillText('VELIKI SOVRAŽNIK SE HITRO BLIŽA', w / 2, h * 0.3 + 44);
     ctx.restore();
   }
 
@@ -5380,35 +5396,35 @@ export class GameEngine {
 
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.font = '14px monospace';
-    ctx.fillText('A WebGPU Cosmic-Horror Rogue-Lite', w / 2, titleY + 70);
+    ctx.fillText('WebGPU vertikalni vesoljski strelec', w / 2, titleY + 70);
 
     // Start button
     const btnY = h * 0.55;
     const pulse = Math.sin(this.time * 3) * 0.3 + 0.7;
     ctx.fillStyle = `rgba(0, 255, 255, ${pulse})`;
     ctx.font = 'bold 20px monospace';
-    ctx.fillText('[ CLICK TO BEGIN ]', w / 2, btnY);
+    ctx.fillText('[ KLIKNI ZA ZAČETEK ]', w / 2, btnY);
 
     // Controls
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.font = '12px monospace';
-    ctx.fillText('WASD / Arrows - Move', w / 2, h * 0.7);
-    ctx.fillText('Mouse - Aim & Shoot', w / 2, h * 0.7 + 20);
-    ctx.fillText('Space - Dash (i-frames)', w / 2, h * 0.7 + 40);
-    ctx.fillText('Right Click - Secondary Weapon', w / 2, h * 0.7 + 60);
-    ctx.fillText('Q - Temporal Stasis', w / 2, h * 0.7 + 80);
+    ctx.fillText('WASD / puščice — premikanje', w / 2, h * 0.7);
+    ctx.fillText('Miška — ciljanje in streljanje', w / 2, h * 0.7 + 20);
+    ctx.fillText('Preslednica — dash (i-frames)', w / 2, h * 0.7 + 40);
+    ctx.fillText('Desni klik — sekundarno orožje', w / 2, h * 0.7 + 60);
+    ctx.fillText('Q — temporalna staza', w / 2, h * 0.7 + 80);
 
     // High score
     if (this.highScore > 0) {
       ctx.fillStyle = '#ffaa00';
       ctx.font = '14px monospace';
-      ctx.fillText(`HIGH SCORE: ${this.highScore.toLocaleString()}`, w / 2, h * 0.88);
+      ctx.fillText(`NAJBOLJŠI: ${this.highScore.toLocaleString()}`, w / 2, h * 0.88);
     }
 
     // WebGPU status
     ctx.fillStyle = this.webgpuSupported ? '#00ff88' : '#ff8800';
     ctx.font = '12px monospace';
-    ctx.fillText(this.webgpuSupported ? '● WebGPU ACTIVE - GPU Accelerated' : '● Canvas2D Mode', w / 2, h * 0.95);
+    ctx.fillText(this.webgpuSupported ? '● WebGPU AKTIVEN — pospešeno na GPU' : '● Canvas2D način', w / 2, h * 0.95);
 
     ctx.restore();
 
@@ -5483,9 +5499,15 @@ export class GameEngine {
     // Title with glitch effect
     ctx.fillStyle = '#ff0044';
     ctx.font = 'bold 42px monospace';
+    // Auto-fit: game-over headline must survive very narrow screens.
+    const goMaxW = w - 24;
+    const goW = ctx.measureText('PRAZNINA ZMAGA').width;
+    if (goW > goMaxW) {
+      ctx.font = `bold ${Math.max(24, Math.floor(42 * goMaxW / goW))}px monospace`;
+    }
     ctx.shadowColor = '#ff0044';
     ctx.shadowBlur = 20;
-    ctx.fillText('VOID CONSUMED', w / 2, h * 0.25);
+    ctx.fillText('PRAZNINA ZMAGA', w / 2, h * 0.25);
     ctx.shadowBlur = 0;
 
     // Offline hall of fame — top 5 local runs

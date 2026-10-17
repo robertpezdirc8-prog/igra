@@ -84,14 +84,14 @@ export function GameOverScreen({
         {/* Title */}
         <div className="text-center mb-8">
           <h1
-            className="text-6xl font-bold font-mono mb-2"
+            className="text-4xl sm:text-5xl md:text-6xl font-bold font-mono mb-2"
             style={{
               color: '#ff0044',
               textShadow: '0 0 30px rgba(255, 0, 68, 0.8), 0 0 60px rgba(255, 0, 68, 0.4)',
               animation: 'pulse 2s ease-in-out infinite'
             }}
           >
-            VOID CONSUMED
+            PRAZNINA ZMAGA
           </h1>
           <p className="text-gray-500 font-mono text-sm">Tvoja pot se je končala v praznini</p>
         </div>

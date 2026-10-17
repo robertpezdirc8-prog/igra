@@ -857,33 +857,33 @@ export class ClassicArcadeEngine {
     this.ctx.fillStyle = '#ffffff';
     this.ctx.font = 'bold 20px monospace';
     this.ctx.textAlign = 'left';
-    this.ctx.fillText(`SCORE: ${this.score}`, 20, 30);
+    this.ctx.fillText(`REZULTAT: ${this.score}`, 20, 30);
 
     // Lives
-    this.ctx.fillText(`LIVES: ${this.lives}`, 20, 60);
+    this.ctx.fillText(`ŽIVLJENJA: ${this.lives}`, 20, 60);
 
     // Stage
     this.ctx.textAlign = 'right';
-    this.ctx.fillText(`STAGE: ${this.stage}`, this.width - 20, 30);
+    this.ctx.fillText(`STOPNJA: ${this.stage}`, this.width - 20, 30);
 
     // Wave
     const wave = this.waveSystem.getCurrentWaveNumber();
     const totalWaves = this.waveSystem.getTotalWaves();
-    this.ctx.fillText(`WAVE: ${wave}/${totalWaves}`, this.width - 20, 60);
+    this.ctx.fillText(`VAL: ${wave}/${totalWaves}`, this.width - 20, 60);
 
     // Weapon
     const weapon = this.shooterSystem.getWeapon();
     this.ctx.textAlign = 'left';
-    this.ctx.fillText(`WEAPON: ${weapon.type.toUpperCase()} LV${weapon.level}`, 20, this.height - 60);
+    this.ctx.fillText(`OROŽJE: ${weapon.type.toUpperCase()} LV${weapon.level}`, 20, this.height - 60);
 
     // Armor
     const armor = this.shooterSystem.getArmor();
-    this.ctx.fillText(`ARMOR: ${armor.type.toUpperCase()}`, 20, this.height - 30);
+    this.ctx.fillText(`OKLEP: ${armor.type.toUpperCase()}`, 20, this.height - 30);
 
     // Bombs
     const bombs = this.shooterSystem.getBombs();
     this.ctx.textAlign = 'right';
-    this.ctx.fillText(`BOMBS: ${bombs}`, this.width - 20, this.height - 30);
+    this.ctx.fillText(`BOMBE: ${bombs}`, this.width - 20, this.height - 30);
   }
 
   // Public getters

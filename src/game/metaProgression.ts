@@ -21,7 +21,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   // Tier 1 - Basic unlocks
   {
     id: 'basic_dash',
-    name: 'Dash Ability',
+    name: 'Sposobnost dasha',
     description: 'Odkleni dash mehaniko za izogibanje napadom',
     icon: '💨',
     type: 'ability',
@@ -32,7 +32,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'basic_shield',
-    name: 'Shield System',
+    name: 'Sistem ščita',
     description: 'Odkleni ščit, ki absorbira škodo',
     icon: '🛡️',
     type: 'ability',
@@ -43,7 +43,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'basic_secondary',
-    name: 'Secondary Weapon',
+    name: 'Sekundarno orožje',
     description: 'Odkleni sekundarno orožje',
     icon: '🔫',
     type: 'weapon',
@@ -56,7 +56,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   // Tier 2 - Intermediate unlocks
   {
     id: 'double_dash',
-    name: 'Double Dash',
+    name: 'Dvojni dash',
     description: 'Dvojni dash za hitrejše gibanje',
     icon: '💨💨',
     type: 'ability',
@@ -67,7 +67,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'dash_damage',
-    name: 'Dash Damage',
+    name: 'Dash škoda',
     description: 'Dash povzroči škodo sovražnikom',
     icon: '💥',
     type: 'ability',
@@ -78,7 +78,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'shield_regen',
-    name: 'Shield Regeneration',
+    name: 'Regeneracija ščita',
     description: 'Ščit se samodejno regenerira',
     icon: '🔄',
     type: 'ability',
@@ -89,7 +89,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'shield_burst',
-    name: 'Shield Burst',
+    name: 'Eksplozija ščita',
     description: 'Ščit eksplodira in poškoduje sovražnike',
     icon: '💫',
     type: 'ability',
@@ -100,7 +100,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'secondary_upgrade',
-    name: 'Secondary Upgrade',
+    name: 'Nadgradnja sekundarnega',
     description: 'Izboljšaj sekundarno orožje',
     icon: '⬆️',
     type: 'weapon',
@@ -111,7 +111,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'dual_wield',
-    name: 'Dual Wield',
+    name: 'Dvojno nošenje',
     description: 'Uporabljaj dve sekundarni orožji hkrati',
     icon: '🔫🔫',
     type: 'weapon',
@@ -124,7 +124,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   // Tier 3 - Advanced unlocks
   {
     id: 'triple_dash',
-    name: 'Triple Dash',
+    name: 'Trojni dash',
     description: 'Trojni dash z še večjo hitrostjo',
     icon: '💨💨💨',
     type: 'ability',
@@ -135,7 +135,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'dash_explosion',
-    name: 'Dash Explosion',
+    name: 'Eksplozija dasha',
     description: 'Dash ustvari eksplozijo',
     icon: '💥💥',
     type: 'ability',
@@ -146,7 +146,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'shield_overcharge',
-    name: 'Shield Overcharge',
+    name: 'Prenapetost ščita',
     description: 'Ščit lahko preseže maksimalno vrednost',
     icon: '⚡',
     type: 'ability',
@@ -157,7 +157,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'shield_nova',
-    name: 'Shield Nova',
+    name: 'Nova ščita',
     description: 'Ščit ustvari novao, ki uniči vse projekte',
     icon: '🌟',
     type: 'ability',
@@ -168,7 +168,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'secondary_mastery',
-    name: 'Secondary Mastery',
+    name: 'Mojstrstvo sekundarnega',
     description: 'Sekundarno orožje dobi posebne sposobnosti',
     icon: '🎯',
     type: 'weapon',
@@ -179,7 +179,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'quad_wield',
-    name: 'Quad Wield',
+    name: 'Štirinošno nošenje',
     description: 'Uporabljaj štiri sekundarni orožji hkrati',
     icon: '🔫🔫🔫🔫',
     type: 'weapon',
@@ -192,7 +192,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   // Tier 4 - Expert unlocks
   {
     id: 'dash_master',
-    name: 'Dash Master',
+    name: 'Mojster dasha',
     description: 'Dash nima cooldowna',
     icon: '👑',
     type: 'ability',
@@ -203,7 +203,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'dash_nuke',
-    name: 'Dash Nuke',
+    name: 'Jedrski dash',
     description: 'Dash uniči vse sovražnike na zaslonu',
     icon: '☢️',
     type: 'ability',
@@ -214,7 +214,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'shield_infinity',
-    name: 'Infinite Shield',
+    name: 'Neskončen ščit',
     description: 'Ščit nikoli ne poči',
     icon: '♾️',
     type: 'ability',
@@ -225,7 +225,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'shield_god',
-    name: 'Shield God',
+    name: 'Bog ščita',
     description: 'Ščit te naredi nepremagljivega',
     icon: '🛡️✨',
     type: 'ability',
@@ -236,7 +236,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'secondary_ultimate',
-    name: 'Ultimate Secondary',
+    name: 'Vrhunsko sekundarno',
     description: 'Sekundarno orožje dobi ultimate sposobnost',
     icon: '⭐',
     type: 'weapon',
@@ -247,7 +247,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   },
   {
     id: 'weapon_god',
-    name: 'Weapon God',
+    name: 'Bog orožja',
     description: 'Vsa orožja so maksimalno izboljšana',
     icon: '🔱',
     type: 'weapon',
@@ -260,7 +260,7 @@ export const UNLOCK_TREE: UnlockNode[] = [
   // Tier 5 - God-tier unlocks
   {
     id: 'dash_god',
-    name: 'Dash God',
+    name: 'Bog dasha',
     description: 'Dash te teleportira kamor želiš',
     icon: '🌌',
     type: 'ability',

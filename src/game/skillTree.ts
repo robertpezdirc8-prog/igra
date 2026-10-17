@@ -27,7 +27,7 @@ export const SKILL_TREE: SkillTree = {
   offense: [
     {
       id: 'plasma_mastery',
-      name: 'Plasma Mastery',
+      name: 'Mojstrstvo plazme',
       description: 'Povečaj škodo plazma orožja',
       icon: '⚡',
       maxLevel: 5,
@@ -40,7 +40,7 @@ export const SKILL_TREE: SkillTree = {
     },
     {
       id: 'critical_strike',
-      name: 'Critical Strike',
+      name: 'Kritični udar',
       description: 'Povečaj možnost kritičnega zadetka',
       icon: '💥',
       maxLevel: 5,
@@ -55,7 +55,7 @@ export const SKILL_TREE: SkillTree = {
     },
     {
       id: 'rapid_fire',
-      name: 'Rapid Fire',
+      name: 'Hitrostrel',
       description: 'Povečaj hitrost streljanja',
       icon: '🔫',
       maxLevel: 5,
@@ -69,7 +69,7 @@ export const SKILL_TREE: SkillTree = {
     },
     {
       id: 'chain_reaction',
-      name: 'Chain Reaction',
+      name: 'Verižna reakcija',
       description: 'Streli se odbijajo na bližnje sovražnike',
       icon: '⚡',
       maxLevel: 3,
@@ -84,7 +84,7 @@ export const SKILL_TREE: SkillTree = {
     },
     {
       id: 'overcharge',
-      name: 'Overcharge',
+      name: 'Prenapetost',
       description: 'Občasno sprostiš dvojni strel',
       icon: '💫',
       maxLevel: 3,
@@ -101,7 +101,7 @@ export const SKILL_TREE: SkillTree = {
   defense: [
     {
       id: 'reinforced_hull',
-      name: 'Reinforced Hull',
+      name: 'Okrepljen trup',
       description: 'Povečaj maksimalno zdravje',
       icon: '❤️',
       maxLevel: 5,
@@ -114,7 +114,7 @@ export const SKILL_TREE: SkillTree = {
     },
     {
       id: 'shield_generator',
-      name: 'Shield Generator',
+      name: 'Generator ščita',
       description: 'Povečaj maksimalni ščit',
       icon: '🛡️',
       maxLevel: 5,
@@ -127,7 +127,7 @@ export const SKILL_TREE: SkillTree = {
     },
     {
       id: 'regeneration',
-      name: 'Regeneration',
+      name: 'Regeneracija',
       description: 'Zdravje se počasi obnovlja',
       icon: '💚',
       maxLevel: 3,
@@ -141,7 +141,7 @@ export const SKILL_TREE: SkillTree = {
     },
     {
       id: 'shield_recharge',
-      name: 'Shield Recharge',
+      name: 'Polnjenje ščita',
       description: 'Ščit se hitreje obnovlja',
       icon: '🔋',
       maxLevel: 3,
@@ -155,7 +155,7 @@ export const SKILL_TREE: SkillTree = {
     },
     {
       id: 'energy_shield',
-      name: 'Energy Shield',
+      name: 'Energijski ščit',
       description: 'Ščit absorbira del škode',
       icon: '✨',
       maxLevel: 3,
@@ -172,7 +172,7 @@ export const SKILL_TREE: SkillTree = {
   utility: [
     {
       id: 'swift_maneuvers',
-      name: 'Swift Maneuvers',
+      name: 'Hitri manevri',
       description: 'Povečaj hitrost gibanja',
       icon: '💨',
       maxLevel: 5,
@@ -185,7 +185,7 @@ export const SKILL_TREE: SkillTree = {
     },
     {
       id: 'energy_core',
-      name: 'Energy Core',
+      name: 'Energijsko jedro',
       description: 'Povečaj maksimalno energijo',
       icon: '⚡',
       maxLevel: 5,
@@ -198,7 +198,7 @@ export const SKILL_TREE: SkillTree = {
     },
     {
       id: 'dash_master',
-      name: 'Dash Master',
+      name: 'Mojster dasha',
       description: 'Skrajšaj cooldown dasha',
       icon: '⚡',
       maxLevel: 3,
@@ -212,7 +212,7 @@ export const SKILL_TREE: SkillTree = {
     },
     {
       id: 'energy_efficiency',
-      name: 'Energy Efficiency',
+      name: 'Energetska učinkovitost',
       description: 'Smanjšaj porabo energije',
       icon: '🔋',
       maxLevel: 3,
@@ -226,7 +226,7 @@ export const SKILL_TREE: SkillTree = {
     },
     {
       id: 'temporal_mastery',
-      name: 'Temporal Mastery',
+      name: 'Temporalno mojstrstvo',
       description: 'Podaljšaj trajanje časovne staze',
       icon: '⏱️',
       maxLevel: 3,

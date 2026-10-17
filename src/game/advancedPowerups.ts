@@ -51,7 +51,7 @@ export const ADVANCED_POWERUPS: PowerUp[] = [
   },
   {
     id: 'precision',
-    name: 'Precision Strike',
+    name: 'Natančen udar',
     description: 'Poveča možnost za kritične zadetke in škodo',
     category: 'offensive',
     duration: 12,
@@ -71,7 +71,7 @@ export const ADVANCED_POWERUPS: PowerUp[] = [
   },
   {
     id: 'rapidFire',
-    name: 'Rapid Fire',
+    name: 'Hitrostrel',
     description: 'Ekstremno poveča hitrost streljanja',
     category: 'offensive',
     duration: 10,
@@ -93,7 +93,7 @@ export const ADVANCED_POWERUPS: PowerUp[] = [
   // Defensive Power-ups
   {
     id: 'fortress',
-    name: 'Fortress',
+    name: 'Trdnjava',
     description: 'Dramatično poveča ščit in zdravje',
     category: 'defensive',
     duration: 20,
@@ -113,7 +113,7 @@ export const ADVANCED_POWERUPS: PowerUp[] = [
   },
   {
     id: 'regeneration',
-    name: 'Regeneration',
+    name: 'Regeneracija',
     description: 'Nenehno obnavlja zdravje in ščit',
     category: 'defensive',
     duration: 25,
@@ -133,7 +133,7 @@ export const ADVANCED_POWERUPS: PowerUp[] = [
   },
   {
     id: 'ironSkin',
-    name: 'Iron Skin',
+    name: 'Železna koža',
     description: 'Začasna nepremagljivost',
     category: 'defensive',
     duration: 5,
@@ -152,7 +152,7 @@ export const ADVANCED_POWERUPS: PowerUp[] = [
   // Utility Power-ups
   {
     id: 'speedDemon',
-    name: 'Speed Demon',
+    name: 'Hitrostni demon',
     description: 'Ekstremno poveča hitrost gibanja',
     category: 'utility',
     duration: 15,
@@ -171,7 +171,7 @@ export const ADVANCED_POWERUPS: PowerUp[] = [
   },
   {
     id: 'energySurge',
-    name: 'Energy Surge',
+    name: 'Energetski val',
     description: 'Poveča regeneracijo energije',
     category: 'utility',
     duration: 20,
@@ -190,7 +190,7 @@ export const ADVANCED_POWERUPS: PowerUp[] = [
   },
   {
     id: 'fortune',
-    name: 'Fortune',
+    name: 'Sreča',
     description: 'Poveča dobitke XP in zlata',
     category: 'utility',
     duration: 30,
@@ -212,7 +212,7 @@ export const ADVANCED_POWERUPS: PowerUp[] = [
   // Special Power-ups
   {
     id: 'timeWarp',
-    name: 'Time Warp',
+    name: 'Časovni zvinek',
     description: 'Upočasni čas za sovražnike',
     category: 'special',
     duration: 8,
@@ -229,7 +229,7 @@ export const ADVANCED_POWERUPS: PowerUp[] = [
   },
   {
     id: 'blackHole',
-    name: 'Black Hole',
+    name: 'Črna luknja',
     description: 'Privlači sovražnike in power-upe',
     category: 'special',
     duration: 10,
@@ -246,7 +246,7 @@ export const ADVANCED_POWERUPS: PowerUp[] = [
   },
   {
     id: 'phoenix',
-    name: 'Phoenix',
+    name: 'Feniks',
     description: 'Ob smrti se obnoviš z polnim zdravjem',
     category: 'special',
     duration: 0, // instant/triggered
@@ -278,7 +278,7 @@ export interface PowerUpCombo {
 export const POWERUP_COMBOS: PowerUpCombo[] = [
   {
     id: 'ultimateWarrior',
-    name: 'Ultimate Warrior',
+    name: 'Vrhunski bojevnik',
     description: 'Kombinacija berserkerja in fortress za maksimalno moč',
     requiredPowerUps: ['berserker', 'fortress'],
     bonusEffects: [
@@ -293,7 +293,7 @@ export const POWERUP_COMBOS: PowerUpCombo[] = [
   },
   {
     id: 'lightningSpeed',
-    name: 'Lightning Speed',
+    name: 'Bliskovita hitrost',
     description: 'Kombinacija speed demon in rapid fire za ekstremno hitrost',
     requiredPowerUps: ['speedDemon', 'rapidFire'],
     bonusEffects: [
@@ -308,7 +308,7 @@ export const POWERUP_COMBOS: PowerUpCombo[] = [
   },
   {
     id: 'criticalMaster',
-    name: 'Critical Master',
+    name: 'Mojster kritičnosti',
     description: 'Kombinacija precision in fortune za maksimalne dobitke',
     requiredPowerUps: ['precision', 'fortune'],
     bonusEffects: [

@@ -80,14 +80,14 @@ export function generateDailyChallenges(): DailyChallenge[] {
     },
     {
       id: 'combo_50',
-      name: 'Combo Master',
+      name: 'Mojster kombinacij',
       description: 'Doseži 50x combo',
       icon: '💥',
       difficulty: 'hard',
       rewards: [
         { type: 'xp', amount: 2000 },
         { type: 'skillPoint', amount: 2 },
-        { type: 'cosmetic', amount: 1, name: 'Golden Trail' }
+        { type: 'cosmetic', amount: 1, name: 'Zlati okvir' }
       ],
       condition: (stats) => stats.maxCombo >= 50,
       expiresAt: expiresAt.getTime()
@@ -114,7 +114,7 @@ export function generateDailyChallenges(): DailyChallenge[] {
       rewards: [
         { type: 'xp', amount: 2500 },
         { type: 'skillPoint', amount: 2 },
-        { type: 'cosmetic', amount: 1, name: 'Lightning Aura' }
+        { type: 'cosmetic', amount: 1, name: 'Električna aura' }
       ],
       condition: (stats) => stats.wave >= 15 && stats.survivalTime <= 600,
       expiresAt: expiresAt.getTime()

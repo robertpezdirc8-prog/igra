@@ -148,7 +148,7 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
               Končni rezultat: {score}
             </p>
             <p className="text-xl font-mono text-gray-400 mb-8">
-              Dosežen stage: {stage}
+              Dosežena stopnja: {stage}
             </p>
             <button
               onClick={handleStartGame}
@@ -169,7 +169,7 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
               className="text-5xl sm:text-6xl font-bold font-mono mb-4 text-green-400"
               style={{ textShadow: '0 0 30px rgba(0, 255, 0, 0.8)' }}
             >
-              STAGE CLEAR!
+              STOPNJA JASENA!
             </h2>
             <p className="text-3xl font-mono text-white mb-2">
               Rezultat: {score}
