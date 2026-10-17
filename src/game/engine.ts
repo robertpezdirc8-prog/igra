@@ -193,7 +193,26 @@ export class GameEngine {
   private missileVolleyTimer = 0;
   private medalChain = 0;
   private medalChainTimer = 0;
+  // Sector system: every 5 waves = one named sector with a boss finale,
+  // a fair difficulty budget and a Raiden-DX-style clear tally.
+  private sectorTally: { lines: Array<{ label: string; value: number }>; timer: number; shown: number } | null = null;
+  private sectorDamage = 0;
+  private sectorMedals = 0;
+  private waveDamage = 0;
+  private medalStreak = 0;
+  // Invisible adaptive assist: bullet pressure eases off when the player is
+  // getting hammered and cruises when they are untouched (rubber-banding).
+  private damageLog: number[] = [];
+  private assistMul = 1;
   private static readonly MEDAL_VALUES = [100, 200, 400, 800, 1600, 3200, 6400, 10000];
+  // Sector identity — Gradius stage names with a mood tint per sector.
+  private static readonly SECTORS: ReadonlyArray<{ name: string; subtitle: string; tint: string }> = [
+    { name: 'OUTPOST GATE', subtitle: 'border patrol', tint: 'rgba(64,255,255,0.045)' },
+    { name: 'ASTEROID FIELDS', subtitle: 'dense rock belt', tint: 'rgba(255,170,80,0.05)' },
+    { name: 'NEBULA VEIL', subtitle: 'ion storm zone', tint: 'rgba(180,100,255,0.055)' },
+    { name: 'SCRAP FLEET', subtitle: 'derelict armada', tint: 'rgba(255,110,110,0.05)' },
+    { name: 'VOID CITADEL', subtitle: 'enemy stronghold', tint: 'rgba(255,60,130,0.055)' },
+  ];
   private static readonly GRADIUS_SLOTS: readonly string[] = ['HITRO', 'RAKETA', 'DVOJNIK', 'LASER', 'OPCIJA', 'ŠČIT'];
   private upgrades: Upgrade[] = [];
   private highScore = 0;
@@ -865,6 +884,13 @@ export class GameEngine {
     this.missileVolleyTimer = 0;
     this.medalChain = 0;
     this.medalChainTimer = 0;
+    this.medalStreak = 0;
+    this.waveDamage = 0;
+    this.sectorDamage = 0;
+    this.sectorMedals = 0;
+    this.sectorTally = null;
+    this.damageLog = [];
+    this.assistMul = 1;
     this.bossKills = 0;
     this.gold = 0;
     this.maxCombo = 1;
@@ -1060,8 +1086,49 @@ export class GameEngine {
     this.levelChoices = choices;
   }
 
+  // ===== Sector logic (Gradius stage structure, Raiden pacing) =====
+
+  /** Sector number: waves 1–5 = sector 1, 6–10 = sector 2, ... */
+  private sector(): number {
+    return Math.floor((this.wave - 1) / 5) + 1;
+  }
+
+  /** Fair per-sector HP ramp: +12% per sector, capped at 2.2×. */
+  private sectorHpMul(): number {
+    return Math.min(2.2, 1 + (this.sector() - 1) * 0.12);
+  }
+
+  /** Bullet-speed budget: +6% per sector, capped at 1.35× so patterns stay
+   *  readable — times the invisible adaptive assist. */
+  private bulletSpeedMul(): number {
+    return Math.min(1.35, 1 + (this.sector() - 1) * 0.06) * this.assistMul;
+  }
+
+  /** Fire-rate budget: +5% per sector, capped at 1.3×. */
+  private fireRateMul(): number {
+    return Math.min(1.3, 1 + (this.sector() - 1) * 0.05);
+  }
+
+  /** Line-by-line sector tally payout (Raiden DX result-screen feel). */
+  private updateSectorTally() {
+    if (!this.sectorTally) return;
+    this.sectorTally.timer += this.deltaTime;
+    const targetShown = Math.min(
+      this.sectorTally.lines.length,
+      Math.floor(this.sectorTally.timer / 0.7) + 1
+    );
+    while (this.sectorTally.shown < targetShown) {
+      const line = this.sectorTally.lines[this.sectorTally.shown];
+      if (!line) break;
+      this.player.score += line.value;
+      this.sectorTally.shown++;
+    }
+    const end = 1 + this.sectorTally.lines.length * 0.7 + 2;
+    if (this.sectorTally.timer > end) this.sectorTally = null;
+  }
+
   private spawnWave() {
-    const count = 3 + this.wave * 2;
+    const count = Math.min(24, 3 + this.wave * 2);
     
     // Wave announcement
     if (this.wave % 5 === 0) {
@@ -1072,6 +1139,18 @@ export class GameEngine {
       this.bossWarningTimer = 3.6;
       this.klaxonTimer = 0.05;
       this.music.setBossMode(true);
+    } else if ((this.wave - 1) % 5 === 0) {
+      // First wave of a sector: a proper stage intro (Gradius stage card).
+      const sec = this.sector();
+      const info = GameEngine.SECTORS[(sec - 1) % GameEngine.SECTORS.length];
+      this.sectorDamage = 0;
+      this.sectorMedals = 0;
+      this.waveAnnouncement = {
+        text: `SEKTOR ${sec} — ${info?.name ?? 'THE VOID'}`,
+        subtext: `${info?.subtitle ?? 'unknown space'} · ${count} sovražnikov`,
+        timer: 2.8,
+        color: '#66ffe0'
+      };
     } else {
       this.waveAnnouncement = {
         text: `WAVE ${this.wave}`,
@@ -1082,7 +1161,8 @@ export class GameEngine {
     }
 
     this.waveTotalEnemies = count + (this.wave % 5 === 0 ? 1 : 0);
-    const hpMul = this.difficulty?.enemyHpMultiplier ?? 1;
+    // Fair per-sector HP ramp on top of the chosen difficulty mode.
+    const hpMul = (this.difficulty?.enemyHpMultiplier ?? 1) * this.sectorHpMul();
 
     // Choose formation based on wave (merged from webgpu-online-games-51d72)
     const formationTypes: Array<'line' | 'circle' | 'vshape' | 'random' | 'spiral'> =
@@ -1352,6 +1432,13 @@ export class GameEngine {
       this.bossActive || this.bossPending || hpFrac < 0.4 || this.wave >= 5 ? 2 : 1
     );
     this.updateBossWarning();
+    this.updateSectorTally();
+    // Adaptive assist: hits in the last 15 s of game time ease the bullet
+    // pressure off (invisible rubber band — the player just feels "fair").
+    this.damageLog = this.damageLog.filter((t) => this.gameTime - t < 15);
+    const recentHits = this.damageLog.length;
+    const targetAssist = recentHits >= 4 ? 0.88 : recentHits >= 2 ? 0.94 : 1.0;
+    this.assistMul += (targetAssist - this.assistMul) * Math.min(1, this.deltaTime * 2);
     this.updateAutoAim();
     this.pollGamepad();
     this.updatePlayer();
@@ -1678,12 +1765,12 @@ export class GameEngine {
         // Shooting based on AI decision
         if (aiResult.shouldAttack && e.shootTimer <= 0) {
           const shootInterval = e.type === 'swarmer' ? 1.5 : e.type === 'sniper' ? 2.5 : 3;
-          e.shootTimer = shootInterval;
+          e.shootTimer = shootInterval / this.fireRateMul();
           if (onScreen) this.enemyShoot(e, aiResult.attackAngle);
         } else if (e.shootTimer <= 0) {
           // Fallback to regular shooting if AI doesn't want to attack
           const shootInterval = e.type === 'swarmer' ? 1.5 : e.type === 'sniper' ? 2.5 : 3;
-          e.shootTimer = shootInterval;
+          e.shootTimer = shootInterval / this.fireRateMul();
           if (onScreen) this.enemyShoot(e);
         }
         
@@ -1901,6 +1988,7 @@ export class GameEngine {
     const dx = this.player.x - e.x;
     const dy = this.player.y - e.y;
     const dmgMul = this.difficulty?.enemyDamageMultiplier ?? 1;
+    const bSpeed = this.bulletSpeedMul();
 
     // Use AI-provided attack angle if available
     let baseAngle = Math.atan2(dy, dx);
@@ -1921,7 +2009,7 @@ export class GameEngine {
     if (e.type === 'swarmer') {
       this.bullets.push({
         x: e.x, y: e.y,
-        vx: Math.cos(baseAngle + aimOffset) * 4, vy: Math.sin(baseAngle + aimOffset) * 4,
+        vx: Math.cos(baseAngle + aimOffset) * 4 * bSpeed, vy: Math.sin(baseAngle + aimOffset) * 4 * bSpeed,
         size: 3, color: '#ff6644', damage: 8 * dmgMul,
         life: 3, type: 'enemy'
       });
@@ -1936,7 +2024,7 @@ export class GameEngine {
       // 30% of sniper volleys: a flowing sine-wave fan (danmaku variety —
       // three shots weave sideways instead of flying straight).
       if (Math.random() < 0.3) {
-        const speed = 5.5;
+        const speed = 5.5 * bSpeed;
         for (let i = -1; i <= 1; i++) {
           const angle = baseAngle + i * 0.22 + aimOffset;
           this.bullets.push({
@@ -1954,7 +2042,7 @@ export class GameEngine {
         const angle = baseAngle + i * 0.1 + aimOffset;
         this.bullets.push({
           x: e.x, y: e.y,
-          vx: Math.cos(angle) * 7, vy: Math.sin(angle) * 7,
+          vx: Math.cos(angle) * 7 * bSpeed, vy: Math.sin(angle) * 7 * bSpeed,
           size: 4, color: '#ffaa00', damage: 12 * dmgMul,
           life: 2.5, type: 'enemy'
         });
@@ -1964,7 +2052,7 @@ export class GameEngine {
         const angle = baseAngle + (Math.PI * 2 * i) / 6 + e.phase + aimOffset;
         this.bullets.push({
           x: e.x, y: e.y,
-          vx: Math.cos(angle) * 3, vy: Math.sin(angle) * 3,
+          vx: Math.cos(angle) * 3 * bSpeed, vy: Math.sin(angle) * 3 * bSpeed,
           size: 5, color: '#aa44ff', damage: 10 * dmgMul,
           life: 3, type: 'enemy'
         });
@@ -2184,6 +2272,21 @@ export class GameEngine {
 
     if (e.type === 'boss') {
       this.bossActive = false;
+      // Raiden DX style sector tally: base + no-miss + medal bonus, paid
+      // out line by line on the result panel (updateSectorTally).
+      const s = this.sector();
+      const tallyLines: Array<{ label: string; value: number }> = [
+        { label: `SEKTOR ${s} JASEN`, value: Math.round(1000 * s * scoreMul) },
+      ];
+      if (this.sectorDamage === 0) {
+        tallyLines.push({ label: 'BREZ ZADETKOV', value: Math.round(5000 * s * scoreMul) });
+      }
+      if (this.sectorMedals > 0) {
+        tallyLines.push({ label: `MEDALJE ×${this.sectorMedals}`, value: Math.round(this.sectorMedals * 100 * s * scoreMul) });
+      }
+      const tallyTotal = tallyLines.reduce((sum, l) => sum + l.value, 0);
+      tallyLines.push({ label: 'SKUPAJ', value: tallyTotal });
+      this.sectorTally = { lines: tallyLines, timer: 0, shown: 0 };
       // Boss death: huge double shockwave ring
       this.particles.push({
         x: e.x, y: e.y, vx: 0, vy: 0,
@@ -2511,6 +2614,13 @@ export class GameEngine {
     // Skill tree damage reduction (capped at 75%)
     amount *= Math.max(0.25, 1 - this.skillBonuses.damageReduction);
     this.damageTaken += amount;
+    // Reward-loop bookkeeping: wave/sector no-miss tracking, medal streak
+    // reset and the adaptive-assist pressure log.
+    this.waveDamage += amount;
+    this.sectorDamage += amount;
+    this.medalStreak = 0;
+    this.damageLog.push(this.gameTime);
+    if (this.damageLog.length > 40) this.damageLog.shift();
     if (p.shield > 0) {
       const shieldDmg = Math.min(p.shield, amount);
       p.shield -= shieldDmg;
@@ -2828,11 +2938,18 @@ export class GameEngine {
             // DoDonPachi medal chain: quick pickups multiply the value
             this.medalChain = Math.min(this.medalChain + 1, GameEngine.MEDAL_VALUES.length - 1);
             this.medalChainTimer = 2.4;
-            const medalValue = Math.round(GameEngine.MEDAL_VALUES[this.medalChain] * (this.difficulty?.scoreMultiplier ?? 1));
+            this.sectorMedals++;
+            // Raiden medal escalation: consecutive medals without taking a
+            // hit are worth up to double.
+            this.medalStreak++;
+            const streakMul = 1 + Math.min(this.medalStreak, 10) * 0.1;
+            const medalValue = Math.round(GameEngine.MEDAL_VALUES[this.medalChain] * streakMul * (this.difficulty?.scoreMultiplier ?? 1));
             this.player.score += medalValue;
             this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: `+${medalValue}`, color: '#ffd700', life: 1.1, maxLife: 1.1, vy: -1.6 });
             if (this.medalChain >= 2) {
               this.floatingTexts.push({ x: this.player.x, y: this.player.y - 46, text: `VERIGA ×${this.medalChain + 1}`, color: '#ffd700', life: 1, maxLife: 1, vy: -1 });
+            } else if (this.medalStreak >= 3) {
+              this.floatingTexts.push({ x: this.player.x, y: this.player.y - 46, text: `SERIJA ×${this.medalStreak}`, color: '#ffdd44', life: 1, maxLife: 1, vy: -1 });
             }
             break;
           }
@@ -3008,6 +3125,17 @@ export class GameEngine {
           text: `VAL JASEN +${bonus}`, color: '#ffdd44',
           life: 1.4, maxLife: 1.4, vy: -1.4
         });
+        // Perfect wave: untouched through the whole wave — bonus reward.
+        if (this.waveDamage === 0) {
+          const perfect = Math.round(300 * this.wave * (this.difficulty?.scoreMultiplier ?? 1));
+          this.player.score += perfect;
+          this.floatingTexts.push({
+            x: this.player.x, y: this.player.y - 76,
+            text: `BREZ ZADETKOV +${perfect}`, color: '#66ff88',
+            life: 1.6, maxLife: 1.6, vy: -1.4
+          });
+        }
+        this.waveDamage = 0;
         this.spawnWave();
         
         // Level up every 3 waves
@@ -3092,6 +3220,13 @@ export class GameEngine {
       ctx.fillRect(x, y, r, r * (1 + s.z * 0.5));
     }
     ctx.globalAlpha = 1;
+    // Sector mood wash — every sector carries its own color identity
+    // (the classic arcade stage-palette shift).
+    const sectorInfo = GameEngine.SECTORS[(this.sector() - 1) % GameEngine.SECTORS.length];
+    if (sectorInfo) {
+      ctx.fillStyle = sectorInfo.tint;
+      ctx.fillRect(0, 0, w, h);
+    }
   }
 
   private renderGame(ctx: CanvasRenderingContext2D) {
@@ -3140,7 +3275,45 @@ export class GameEngine {
         ctx.restore();
       }
     }
+    this.renderSectorTally(ctx, w, h);
     this.renderBossWarning(ctx, w, h);
+  }
+
+  /** Raiden DX-style result panel: SEKTOR JASEN / BREZ ZADETKOV / MEDALJE,
+   *  with lines appearing one by one and the total at the bottom. */
+  private renderSectorTally(ctx: CanvasRenderingContext2D, w: number, h: number) {
+    if (!this.sectorTally) return;
+    const tally = this.sectorTally;
+    const end = 1 + tally.lines.length * 0.7 + 2;
+    const alpha = Math.max(0, Math.min(1, (end - tally.timer) / 0.5));
+    const panelW = Math.min(400, w - 40);
+    const panelH = 64 + tally.lines.length * 32;
+    const px = w / 2 - panelW / 2;
+    const py = h * 0.34;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = 'rgba(8,10,26,0.85)';
+    ctx.fillRect(px, py, panelW, panelH);
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(px, py, panelW, panelH);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffd700';
+    ctx.font = 'bold 22px monospace';
+    ctx.fillText('SEKTOR JASEN', w / 2, py + 34);
+    ctx.font = 'bold 15px monospace';
+    for (let i = 0; i < tally.shown && i < tally.lines.length; i++) {
+      const line = tally.lines[i]!;
+      const ly = py + 66 + i * 30;
+      const last = i === tally.lines.length - 1;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = last ? '#ffffff' : '#9fd8ff';
+      ctx.fillText(line.label, px + 24, ly);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = last ? '#ffffff' : '#ffd700';
+      ctx.fillText(`+${line.value.toLocaleString('en-US')}`, px + panelW - 24, ly);
+    }
+    ctx.restore();
   }
 
   /** Gradius homage: full-screen WARNING klaxon while a boss approaches —
