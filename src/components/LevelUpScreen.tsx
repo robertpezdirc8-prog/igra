@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { t, useLang } from '../i18n';
 
 interface Upgrade {
   name: string;
@@ -12,6 +13,7 @@ interface LevelUpScreenProps {
 }
 
 export function LevelUpScreen({ upgrades, onSelectUpgrade }: LevelUpScreenProps) {
+  useLang();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   return (
@@ -43,10 +45,10 @@ export function LevelUpScreen({ upgrades, onSelectUpgrade }: LevelUpScreenProps)
               animation: 'pulse 2s ease-in-out infinite'
             }}
           >
-            IZBERI NADGRADNJO
+            {t('upgrade.title')}
           </h2>
           <p className="text-purple-400 font-mono text-sm">
-            Tvoja moč raste
+            {t('levelup.subtitle')}
           </p>
         </div>
 
@@ -113,7 +115,7 @@ export function LevelUpScreen({ upgrades, onSelectUpgrade }: LevelUpScreenProps)
                         animation: 'bounce 0.5s ease-in-out infinite'
                       }}
                     >
-                      ▼ IZBERI ▼
+                      {t('levelup.select')}
                     </div>
                   )}
                 </div>

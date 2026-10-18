@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Achievement } from '../game/achievements';
+import { t, useLang, localeTag } from '../i18n';
 
 interface AchievementUIProps {
   achievements: Achievement[];
@@ -19,6 +20,7 @@ interface AchievementUIProps {
 }
 
 export function AchievementUI({ achievements, unlockedIds, onUnlock, playerStats }: AchievementUIProps) {
+  useLang();
   const [showNotification, setShowNotification] = useState<Achievement | null>(null);
 
   useEffect(() => {
@@ -50,13 +52,13 @@ export function AchievementUI({ achievements, unlockedIds, onUnlock, playerStats
                 <div className="text-4xl">{showNotification.icon}</div>
               <div>
                 <div className="text-yellow-200 font-mono text-xs uppercase tracking-wider">
-                  Dosežek odklenjen!
+                  {t('ach.unlocked')}
                 </div>
                 <div className="text-white font-mono text-lg font-bold">
-                  {showNotification.title}
+                  {t('ach.' + showNotification.id + '.name')}
                 </div>
                 <div className="text-yellow-100 font-mono text-xs">
-                  {showNotification.description}
+                  {t('ach.' + showNotification.id + '.desc')}
                 </div>
               </div>            </div>
           </div>
@@ -69,10 +71,10 @@ export function AchievementUI({ achievements, unlockedIds, onUnlock, playerStats
           <span className="text-2xl">🏆</span>
           <div>
             <div className="text-yellow-400 font-mono text-sm font-bold">
-              Dosežki
+              {t('ach.title')}
             </div>
             <div className="text-gray-400 font-mono text-xs">
-              {unlockedCount}/{totalCount}
+              {t('ach.progress', { unlocked: unlockedCount, total: totalCount })}
             </div>
           </div>
         </div>
@@ -100,14 +102,15 @@ interface AchievementPanelProps {
 }
 
 export function AchievementPanel({ achievements, unlockedIds, onClose }: AchievementPanelProps) {
+  useLang();
   const unlockedCount = unlockedIds.length;
   const totalCount = achievements.length;
   const progress = (unlockedCount / totalCount) * 100;
 
   const categories = [
-    { id: 'level', name: 'Nivo', icon: '📈' },
-    { id: 'combat', name: 'Boj', icon: '⚔️' },
-    { id: 'survival', name: 'Preživetje', icon: '🛡️' }
+    { id: 'level', icon: '📈' },
+    { id: 'combat', icon: '⚔️' },
+    { id: 'survival', icon: '🛡️' }
   ];
 
   const [selectedCategory, setSelectedCategory] = useState('level');
@@ -128,10 +131,14 @@ export function AchievementPanel({ achievements, unlockedIds, onClose }: Achieve
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-4xl font-bold font-mono text-white mb-2">
-                🏆 DOSEŽKI
+                🏆 {t('ach.panelTitle')}
               </h2>
               <p className="text-yellow-200 font-mono text-sm">
-                {unlockedCount}/{totalCount} odklenjenih ({progress.toFixed(1)}%)
+                {t('ach.unlockedCount', {
+                  unlocked: unlockedCount,
+                  total: totalCount,
+                  percent: progress.toLocaleString(localeTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+                })}
               </p>
             </div>
           </div>
@@ -168,7 +175,7 @@ export function AchievementPanel({ achievements, unlockedIds, onClose }: Achieve
                   : 'bg-black/40 text-gray-400 hover:bg-black/60'
               }`}
             >
-              {cat.icon} {cat.name}
+              {cat.icon} {t('ach.cat.' + cat.id)}
             </button>
           ))}
         </div>
@@ -201,14 +208,14 @@ export function AchievementPanel({ achievements, unlockedIds, onClose }: Achieve
                           isUnlocked ? 'text-yellow-400' : 'text-gray-400'
                         }`}
                       >
-                        {achievement.title}
+                        {t('ach.' + achievement.id + '.name')}
                       </h3>
                       <p className="text-gray-300 font-mono text-sm mb-2">
-                        {achievement.description}
+                        {t('ach.' + achievement.id + '.desc')}
                       </p>
                       {isUnlocked && (
                         <div className="text-green-400 font-mono text-xs font-bold">
-                          ✓ ODKLENJENO
+                          {t('ach.unlockedBadge')}
                         </div>
                       )}
                     </div>
@@ -222,7 +229,7 @@ export function AchievementPanel({ achievements, unlockedIds, onClose }: Achieve
         {/* Footer */}
         <div className="bg-black/60 p-4 border-t border-yellow-500/50 flex-shrink-0">
           <div className="text-center text-gray-400 font-mono text-sm">
-            Odkleni vse dosežke za posebne nagrade!
+            {t('ach.footerNote')}
           </div>
         </div>
       </div>

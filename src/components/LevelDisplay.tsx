@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { t, useLang } from '../i18n';
 
 interface LevelDisplayProps {
   level: number;
@@ -7,6 +8,7 @@ interface LevelDisplayProps {
 }
 
 export function LevelDisplay({ level, xp, xpToNext }: LevelDisplayProps) {
+  useLang();
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [prevLevel, setPrevLevel] = useState(level);
 
@@ -32,7 +34,7 @@ export function LevelDisplay({ level, xp, xpToNext }: LevelDisplayProps) {
         {/* Level indicator */}
         <div className="flex items-center gap-4">
           <div className="text-center">
-            <p className="text-gray-400 font-mono text-xs uppercase tracking-wider">Nivo</p>
+            <p className="text-gray-400 font-mono text-xs uppercase tracking-wider">{t('level.label')}</p>
             <p
               className={`text-3xl font-bold font-mono ${showLevelUp ? 'animate-bounce' : ''}`}
               style={{
@@ -86,7 +88,7 @@ export function LevelDisplay({ level, xp, xpToNext }: LevelDisplayProps) {
                 textShadow: '0 0 20px rgba(255, 170, 0, 0.8), 0 0 40px rgba(255, 170, 0, 0.4)'
               }}
             >
-              LEVEL UP!
+              {t('level.levelUp')}
             </p>
           </div>
         )}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { UNLOCK_TREE, UnlockNode, MetaProgressionSystem } from '../game/metaProgression';
+import { t, useLang, localeTag } from '../i18n';
 
 interface MetaProgressionUIProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export function MetaProgressionUI({
   currency,
   onUnlock 
 }: MetaProgressionUIProps) {
+  useLang();
   const [selectedNode, setSelectedNode] = useState<UnlockNode | null>(null);
   const [progression] = useState(() => new MetaProgressionSystem());
 
@@ -60,18 +62,18 @@ export function MetaProgressionUI({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-4xl font-bold font-mono text-white mb-2">
-                🌳 META-PROGRESIJA
+                {t('meta.title')}
               </h2>
               <p className="text-purple-200 font-mono text-sm">
-                Odkleni nove sposobnosti in izboljšave
+                {t('meta.subtitle')}
               </p>
             </div>
             <div className="text-right">
               <div className="text-yellow-400 font-mono text-2xl font-bold">
-                💎 {currency}
+                💎 {currency.toLocaleString(localeTag())}
               </div>
               <div className="text-purple-300 font-mono text-sm mt-1">
-                Napredek: {progress.unlocked}/{progress.total} ({progress.percentage.toFixed(1)}%)
+                {t('meta.progressLine', { unlocked: progress.unlocked, total: progress.total, pct: progress.percentage.toLocaleString(localeTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })}
               </div>
             </div>
           </div>
@@ -181,29 +183,29 @@ export function MetaProgressionUI({
                   className="text-2xl font-bold font-mono mb-2"
                   style={{ color: getTierColor(selectedNode.tier) }}
                 >
-                  {selectedNode.name}
+                  {t('meta.' + selectedNode.id + '.name')}
                 </h3>
                 <div className="text-sm font-mono text-gray-400">
-                  {getTypeIcon(selectedNode.type)} {selectedNode.type.toUpperCase()} • TIER {selectedNode.tier}
+                  {getTypeIcon(selectedNode.type)} {t('meta.type.' + selectedNode.type)} • {t('meta.tier')} {selectedNode.tier}
                 </div>
               </div>
 
               <p className="text-gray-300 font-mono text-sm mb-6">
-                {selectedNode.description}
+                {t('meta.' + selectedNode.id + '.desc')}
               </p>
 
               {/* Requirement */}
               <div className="mb-6 p-4 bg-black/40 rounded-lg border border-gray-700">
-                <div className="text-gray-400 font-mono text-xs mb-2">ZAHTEVA:</div>
+                <div className="text-gray-400 font-mono text-xs mb-2">{t('meta.requirement')}</div>
                 <div className="text-white font-mono text-sm">
-                  {selectedNode.requirement.description}
+                  {t('meta.' + selectedNode.id + '.req')}
                 </div>
               </div>
 
               {/* Unlocks */}
               {selectedNode.unlocks.length > 0 && (
                 <div className="mb-6 p-4 bg-black/40 rounded-lg border border-gray-700">
-                  <div className="text-gray-400 font-mono text-xs mb-2">ODKLENE:</div>
+                  <div className="text-gray-400 font-mono text-xs mb-2">{t('meta.unlocksLabel')}</div>
                   <div className="space-y-2">
                     {selectedNode.unlocks.map(unlockId => {
                       const unlockNode = UNLOCK_TREE.find(n => n.id === unlockId);
@@ -211,7 +213,7 @@ export function MetaProgressionUI({
                       return (
                         <div key={unlockId} className="flex items-center gap-2 text-sm font-mono">
                           <span>{unlockNode.icon}</span>
-                          <span className="text-gray-300">{unlockNode.name}</span>
+                          <span className="text-gray-300">{t('meta.' + unlockId + '.name')}</span>
                         </div>
                       );
                     })}
@@ -223,7 +225,7 @@ export function MetaProgressionUI({
               <div className="mb-6">
                 {progression.isUnlocked(selectedNode.id) ? (
                   <div className="text-center text-green-400 font-mono font-bold text-lg">
-                    ✓ ODKLENJENO
+                    {t('meta.unlocked')}
                   </div>
                 ) : progression.canUnlock(selectedNode, playerStats) ? (
                   <button
@@ -234,11 +236,11 @@ export function MetaProgressionUI({
                     className="w-full px-6 py-3 bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white font-mono font-bold rounded-lg transition-all hover:scale-105"
                     style={{ boxShadow: '0 0 20px rgba(255, 170, 0, 0.5)' }}
                   >
-                    ODKLENI
+                    {t('meta.unlockAction')}
                   </button>
                 ) : (
                   <div className="text-center text-gray-500 font-mono">
-                    🔒 ZAKLENJENO
+                    {t('meta.locked')}
                   </div>
                 )}
               </div>
@@ -247,10 +249,10 @@ export function MetaProgressionUI({
               {availableUnlocks.length > 0 && (
                 <div className="p-4 bg-yellow-900/30 border border-yellow-500 rounded-lg">
                   <div className="text-yellow-400 font-mono text-sm font-bold mb-2">
-                    ⚡ NOVICH NA VOLJO:
+                    {t('meta.availableHeader')}
                   </div>
                   <div className="text-yellow-300 font-mono text-xs">
-                    {availableUnlocks.length} {availableUnlocks.length === 1 ? 'nova sposobnost' : 'novih sposobnosti'} za odklepanje!
+                    {availableUnlocks.length === 1 ? t('meta.availableOne') : t('meta.availableMany', { n: availableUnlocks.length })}
                   </div>
                 </div>
               )}
@@ -262,10 +264,10 @@ export function MetaProgressionUI({
         <div className="bg-black/60 p-4 border-t border-purple-500/50 flex-shrink-0">
           <div className="flex items-center justify-between text-sm font-mono">
             <div className="text-gray-400">
-              Napredek: {progress.unlocked}/{progress.total} sposobnosti odklenjenih
+              {t('meta.footerProgress', { unlocked: progress.unlocked, total: progress.total })}
             </div>
             <div className="text-gray-400">
-              Val: {playerStats.highestWave} • Bossi: {playerStats.bossKills} • Max Combo: {playerStats.maxCombo}x
+              {t('meta.footerStats', { wave: playerStats.highestWave, bosses: playerStats.bossKills, combo: playerStats.maxCombo })}
             </div>
           </div>
         </div>

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { t, useLang } from '../i18n';
 
 export function OrientationWarning() {
+  useLang();
   const [isPortrait, setIsPortrait] = useState(false);
 
   useEffect(() => {
@@ -25,10 +27,10 @@ export function OrientationWarning() {
       <div className="text-center p-8">
         <div className="text-8xl mb-8 animate-bounce">📱</div>
         <h2 className="text-3xl font-bold text-cyan-400 mb-4 font-mono">
-          Obrni telefon
+          {t('orient.title')}
         </h2>
         <p className="text-xl text-gray-300 mb-8 font-mono">
-          Za najboljšo izkušnjo obrni telefon v ležeči način
+          {t('orient.desc')}
         </p>
         <div className="text-6xl animate-pulse">↻</div>
         <p className="text-sm text-gray-500 mt-8 font-mono">

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from './Button';
+import { t, useLang } from '../i18n';
 
 interface TutorialOverlayProps {
   isOpen: boolean;
@@ -7,26 +8,27 @@ interface TutorialOverlayProps {
 }
 
 export function TutorialOverlay({ isOpen, onClose }: TutorialOverlayProps) {
+  useLang();
   const [currentStep, setCurrentStep] = useState(0);
 
   if (!isOpen) return null;
 
   const steps = [
     {
-      title: 'DOBRODOŠLI V ATHERIA',
-      description: 'Igra vesoljskega horrorja z ekstremno težavnostjo',
+      title: t('tut.welcomeTitle'),
+      description: t('tut.descWelcome'),
       content: (
         <div className="text-center">
           <div className="text-6xl mb-4">🚀</div>
           <p className="text-gray-300 font-mono text-sm">
-            Premagaj neskončne valove sovražnikov in postani Void Breaker
+            {t('tut.welcomeBody')}
           </p>
         </div>
       )
     },
     {
-      title: 'GIBANJE',
-      description: 'Uporabi WASD ali puščice za premikanje',
+      title: t('tut.moveTitle'),
+      description: t('tut.moveDesc'),
       content: (
         <div className="text-center">
           <div className="grid grid-cols-3 gap-2 w-32 mx-auto mb-4">
@@ -37,77 +39,77 @@ export function TutorialOverlay({ isOpen, onClose }: TutorialOverlayProps) {
             <div className="bg-cyan-500/30 border-2 border-cyan-400 rounded p-2 text-cyan-400 font-mono">S</div>
             <div className="bg-cyan-500/30 border-2 border-cyan-400 rounded p-2 text-cyan-400 font-mono">D</div>
           </div>
-          <p className="text-gray-400 font-mono text-xs">ALI UPORABI PUŠČICE NA TIPKOVNICI</p>
+          <p className="text-gray-400 font-mono text-xs">{t('tut.moveAlt')}</p>
         </div>
       )
     },
     {
-      title: 'STRELJANJE',
-      description: 'Klikni z miško za streljanje v smeri kazalca',
+      title: t('tut.shootTitle'),
+      description: t('tut.descShoot'),
       content: (
         <div className="text-center">
           <div className="text-6xl mb-4">🎯</div>
           <p className="text-gray-300 font-mono text-sm">
-            Levi klik miške = Streljanje<br/>
-            Ciljaj s kazalcem miške
+            {t('tut.shootLine1')}<br/>
+            {t('tut.shootLine2')}
           </p>
         </div>
       )
     },
     {
-      title: 'DASH',
-      description: 'Pritisni SPACE za hiter premik z nedotakljivostjo',
+      title: t('tut.dashTitle'),
+      description: t('tut.descDash'),
       content: (
         <div className="text-center">
           <div className="text-6xl mb-4">⚡</div>
           <p className="text-gray-300 font-mono text-sm">
-            SPACE = Dash<br/>
-            <span className="text-cyan-400">Kratka nedotakljivost med dashom</span>
+            {t('tut.dashLine1')}<br/>
+            <span className="text-cyan-400">{t('tut.dashLine2')}</span>
           </p>
           <p className="text-gray-500 font-mono text-xs mt-2">
-            Porabi 20 energije
+            {t('tut.dashCost')}
           </p>
         </div>
       )
     },
     {
-      title: 'SEKUNDARNO OROŽJE',
-      description: 'Desni klik za aktivacijo sekundarnega orožja',
+      title: t('tut.secondaryTitle'),
+      description: t('tut.descSecondary'),
       content: (
         <div className="text-center">
           <div className="text-6xl mb-4">🌀</div>
           <p className="text-gray-300 font-mono text-sm">
-            Desni klik miške = Sekundarno orožje<br/>
-            <span className="text-purple-400">Gravity Well, Chain Lightning, ali Temporal Stasis</span>
+            {t('tut.secondaryLine1')}<br/>
+            <span className="text-purple-400">{t('tut.secondaryLine2')}</span>
           </p>
           <p className="text-gray-500 font-mono text-xs mt-2">
-            Odkleni z nadgradnjami
+            {t('tut.secondaryUnlock')}
           </p>
         </div>
       )
     },
     {
-      title: 'NADGRADNJE',
-      description: 'Vsakih 3 valov izberi nadgradnjo',
+      title: t('tut.upgradesTitle'),
+      description: t('tut.descUpgrades'),
       content: (
         <div className="text-center">
           <div className="text-6xl mb-4">⬆️</div>
           <p className="text-gray-300 font-mono text-sm">
-            Izbiraj med 3 naključnimi nadgradnjami<br/>
-            <span className="text-yellow-400">Izboljšaj orožje, hitrost, ščit...</span>
+            {t('tut.upgradesLine1')}<br/>
+            <span className="text-yellow-400">{t('tut.upgradesLine2')}</span>
           </p>
         </div>
       )
     },
     {
-      title: 'PRIpravljen?',
-      description: 'Čas je, da postaneš Void Breaker',
+      title: t('tut.readyTitle'),
+      description: t('tut.readyDesc'),
       content: (
         <div className="text-center">
           <div className="text-6xl mb-4">💀</div>
           <p className="text-red-400 font-mono text-sm">
-            OPOZORILO: Igra je ekstremno težavna<br/>
-            <span className="text-gray-400">Vsaka napaka je tvoja krivda</span>
+            {t('tut.readyLine1')}<br/>
+            <span className="text-gray-400">{t('tut.readyLine2')}</span>
           </p>
         </div>
       )
@@ -163,11 +165,11 @@ export function TutorialOverlay({ isOpen, onClose }: TutorialOverlayProps) {
         <div className="flex gap-4">
           {currentStep > 0 && (
             <Button onClick={handlePrev} variant="secondary" className="flex-1">
-              ← NAZAJ
+              {t('tut.back')}
             </Button>
           )}
           <Button onClick={handleNext} variant="primary" className="flex-1">
-            {currentStep === steps.length - 1 ? 'ZAČNI IGRO' : 'NAPREJ →'}
+            {currentStep === steps.length - 1 ? t('menu.start') : t('tut.next')}
           </Button>
         </div>
 
@@ -177,7 +179,7 @@ export function TutorialOverlay({ isOpen, onClose }: TutorialOverlayProps) {
             onClick={onClose}
             className="w-full mt-4 text-gray-500 font-mono text-xs hover:text-gray-400 transition-colors"
           >
-            PRESKOČI VODNIK
+            {t('tut.skip')}
           </button>
         )}
       </div>

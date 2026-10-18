@@ -1,3 +1,5 @@
+import { t, useLang, localeTag } from '../i18n';
+
 interface Achievement {
   id: string;
   title: string;
@@ -14,6 +16,7 @@ interface AchievementPanelProps {
 }
 
 export function AchievementPanel({ isOpen, achievements, onClose }: AchievementPanelProps) {
+  useLang();
   if (!isOpen) return null;
 
   const unlockedCount = achievements.filter(a => a.unlocked).length;
@@ -26,14 +29,14 @@ export function AchievementPanel({ isOpen, achievements, onClose }: AchievementP
           className="text-3xl font-bold text-yellow-400 font-mono mb-2 text-center"
           style={{ textShadow: '0 0 15px rgba(255, 170, 0, 0.5)' }}
         >
-          DOSEŽKI
+          {t('ach.panelTitle')}
         </h2>
 
         {/* Progress */}
         <div className="mb-6">
           <div className="flex justify-between text-sm font-mono mb-2">
-            <span className="text-gray-400">Napredek</span>
-            <span className="text-yellow-400">{unlockedCount} / {achievements.length}</span>
+            <span className="text-gray-400">{t('ach.progressLabel')}</span>
+            <span className="text-yellow-400">{t('ach.progress', { unlocked: unlockedCount, total: achievements.length })}</span>
           </div>
           <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
             <div
@@ -79,14 +82,14 @@ export function AchievementPanel({ isOpen, achievements, onClose }: AchievementP
                       achievement.unlocked ? 'text-yellow-400' : 'text-gray-500'
                     }`}
                   >
-                    {achievement.title}
+                    {t('ach.' + achievement.id + '.name')}
                   </h3>
                   <p className="text-gray-400 font-mono text-xs">
-                    {achievement.description}
+                    {t('ach.' + achievement.id + '.desc')}
                   </p>
                   {achievement.unlocked && achievement.unlockedAt && (
                     <p className="text-gray-600 font-mono text-xs mt-1">
-                      Odklenjeno: {new Date(achievement.unlockedAt).toLocaleDateString('sl-SI')}
+                      {t('ach.unlockedAt', { date: new Date(achievement.unlockedAt).toLocaleDateString(localeTag()) })}
                     </p>
                   )}
                 </div>
@@ -106,7 +109,7 @@ export function AchievementPanel({ isOpen, achievements, onClose }: AchievementP
           onClick={onClose}
           className="w-full px-6 py-3 bg-yellow-500/20 border-2 border-yellow-400 text-yellow-400 font-mono uppercase tracking-wider hover:bg-yellow-500/30 hover:border-yellow-300 transition-all rounded"
         >
-          ZAPRI
+          {t('ach.close')}
         </button>
       </div>
     </div>

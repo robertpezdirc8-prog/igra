@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { t, useLang, localeTag } from '../i18n';
 
 interface ComboDisplayProps {
   combo: number;
@@ -9,6 +10,7 @@ interface ComboDisplayProps {
 }
 
 export function ComboDisplay({ combo, multiplier, compact }: ComboDisplayProps) {
+  useLang();
   const [animate, setAnimate] = useState(false);
 
   useEffect(() => {
@@ -55,7 +57,7 @@ export function ComboDisplay({ combo, multiplier, compact }: ComboDisplayProps) 
             style={{ textShadow: getComboGlow() }}>
             {combo}x
           </span>
-          <span className="font-mono text-[9px] text-gray-400 uppercase tracking-wider">combo</span>
+          <span className="font-mono text-[9px] text-gray-400 uppercase tracking-wider">{t('combo.compact')}</span>
         </div>
       </div>
     );
@@ -74,7 +76,7 @@ export function ComboDisplay({ combo, multiplier, compact }: ComboDisplayProps) 
       >
         <div className="text-center">
           <p className="text-gray-400 font-mono text-xs uppercase tracking-wider mb-1">
-            Combo
+            {t('combo.title')}
           </p>
           <p
             className={`text-4xl font-bold font-mono ${getComboColor()}`}
@@ -85,7 +87,9 @@ export function ComboDisplay({ combo, multiplier, compact }: ComboDisplayProps) 
             {combo}x
           </p>
           <p className="text-gray-400 font-mono text-xs mt-1">
-            Multiplier: {multiplier.toFixed(1)}x
+            {t('combo.multiplier', {
+              value: multiplier.toLocaleString(localeTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+            })}
           </p>
         </div>
 

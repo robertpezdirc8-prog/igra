@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { SkillNode, canUnlockSkill, getSkillCost, SkillTree, SKILL_TREE } from '../game/skillTree';
+import { t, useLang } from '../i18n';
 
 interface SkillTreeUIProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface SkillTreeUIProps {
 }
 
 export function SkillTreeUI({ isOpen, onClose, skillPoints, skillTree, onUnlockSkill }: SkillTreeUIProps) {
+  useLang();
   const [selectedBranch, setSelectedBranch] = useState<'offense' | 'defense' | 'utility'>('offense');
 
   if (!isOpen) return null;
@@ -26,9 +28,9 @@ export function SkillTreeUI({ isOpen, onClose, skillPoints, skillTree, onUnlockS
   };
 
   const branchNames = {
-    offense: 'Ofenziva',
-    defense: 'Defenziva',
-    utility: 'Uporabnost'
+    offense: t('skill.branch.offense'),
+    defense: t('skill.branch.defense'),
+    utility: t('skill.branch.utility')
   };
 
   const currentBranch = tree[selectedBranch];
@@ -43,17 +45,17 @@ export function SkillTreeUI({ isOpen, onClose, skillPoints, skillTree, onUnlockS
         <div className="absolute top-0 left-0 right-0 h-16 bg-black/80 border-b-2 flex items-center justify-between px-6"
              style={{ borderColor: colors.primary }}>
           <h2 className="text-3xl font-bold font-mono" style={{ color: colors.primary }}>
-            SKILL TREE
+            {t('skill.title')}
           </h2>
           <div className="flex items-center gap-4">
             <div className="text-xl font-mono" style={{ color: colors.secondary }}>
-              Skill Points: {skillPoints}
+              {t('skill.points', { points: skillPoints })}
             </div>
             <button
               onClick={onClose}
               className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-mono rounded transition-colors"
             >
-              ZAPRI
+              {t('skill.close')}
             </button>
           </div>
         </div>
@@ -118,6 +120,7 @@ interface SkillNodeUIProps {
 }
 
 function SkillNodeUI({ skill, canUnlock, skillPoints, cost, color, onUnlock, isLast }: SkillNodeUIProps) {
+  useLang();
   const isMaxed = skill.currentLevel >= skill.maxLevel;
   const canAfford = skillPoints >= cost;
   const isUnlocked = skill.currentLevel > 0;
@@ -147,11 +150,11 @@ function SkillNodeUI({ skill, canUnlock, skillPoints, cost, color, onUnlock, isL
 
         {/* Name */}
         <h3 className="text-xl font-bold font-mono text-center mb-2" style={{ color: isUnlocked ? color : '#fff' }}>
-          {skill.name}
+          {t('skill.' + skill.id + '.name')}
         </h3>
 
         {/* Description */}
-        <p className="text-sm text-gray-400 text-center mb-4">{skill.description}</p>
+        <p className="text-sm text-gray-400 text-center mb-4">{t('skill.' + skill.id + '.desc')}</p>
 
         {/* Level indicator */}
         <div className="flex justify-center gap-1 mb-4">
@@ -171,7 +174,7 @@ function SkillNodeUI({ skill, canUnlock, skillPoints, cost, color, onUnlock, isL
         {!isMaxed && (
           <div className="text-center">
             <div className="text-sm font-mono mb-2" style={{ color: canAfford ? '#fff' : '#666' }}>
-              Cost: {cost} SP
+              {t('skill.cost', { cost })}
             </div>
             {canUnlock && canAfford && (
               <button
@@ -182,12 +185,12 @@ function SkillNodeUI({ skill, canUnlock, skillPoints, cost, color, onUnlock, isL
                   boxShadow: `0 0 15px ${color}`
                 }}
               >
-                UGOTOVI
+                {t('skill.unlock')}
               </button>
             )}
             {!canUnlock && (
               <div className="text-xs text-gray-500 font-mono">
-                {skill.requires ? `Zahteva: ${skill.requires.join(', ')}` : ''}
+                {skill.requires ? t('skill.requires', { list: skill.requires.map(id => t('skill.' + id + '.name')).join(', ') }) : ''}
               </div>
             )}
           </div>
@@ -195,7 +198,7 @@ function SkillNodeUI({ skill, canUnlock, skillPoints, cost, color, onUnlock, isL
 
         {isMaxed && (
           <div className="text-center text-lg font-bold font-mono" style={{ color }}>
-            MAX LEVEL
+            {t('skill.maxLevel')}
           </div>
         )}
 
@@ -205,7 +208,7 @@ function SkillNodeUI({ skill, canUnlock, skillPoints, cost, color, onUnlock, isL
             <div className="text-xs text-gray-400 font-mono">
               {skill.effects.map((effect, i) => (
                 <div key={i}>
-                  +{effect.value}{effect.type === 'percentage' ? '%' : ''} {effect.stat}
+                  +{effect.value}{effect.type === 'percentage' ? '%' : ''} {t('skill.stat.' + effect.stat)}
                 </div>
               ))}
             </div>

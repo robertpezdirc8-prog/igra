@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { DailyChallenge, generateDailyChallenges, getTimeUntilReset, checkChallengeCompletion, PlayerStats } from '../game/dailyChallenges';
+import { t, useLang } from '../i18n';
 
 interface DailyChallengesUIProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ export function DailyChallengesUI({
   completedChallenges,
   onCompleteChallenge 
 }: DailyChallengesUIProps) {
+  useLang();
   const [challenges, setChallenges] = useState<DailyChallenge[]>([]);
   const [timeUntilReset, setTimeUntilReset] = useState('');
 
@@ -45,11 +47,12 @@ export function DailyChallengesUI({
     hard: { bg: 'from-red-600 to-red-800', border: '#f87171', text: '#f87171' }
   };
 
-  const difficultyNames = {
-    easy: 'Enostavno',
-    medium: 'Srednje',
-    hard: 'Težko'
+  const cosmeticNameKeys: Record<string, string> = {
+    'Zlati okvir': 'chal.cosmetic.goldFrame',
+    'Električna aura': 'chal.cosmetic.electricAura'
   };
+  const cosmeticName = (name?: string): string =>
+    name ? (cosmeticNameKeys[name] ? t(cosmeticNameKeys[name]) : name) : '';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md">
@@ -60,15 +63,15 @@ export function DailyChallengesUI({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-3xl font-bold font-mono text-white">
-                🎯 DNEVNI IZZIVI
+                🎯 {t('chal.title')}
               </h2>
               <p className="text-purple-200 font-mono text-sm mt-1">
-                Novi izzivi vsak dan
+                {t('chal.subtitle')}
               </p>
             </div>
             <div className="text-right">
               <div className="text-white font-mono text-lg">
-                Ponastavitev čez
+                {t('chal.resetsIn')}
               </div>
               <div className="text-yellow-300 font-mono text-2xl font-bold">
                 {timeUntilReset}
@@ -110,7 +113,7 @@ export function DailyChallengesUI({
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-xl font-bold font-mono text-white">
-                        {challenge.name}
+                        {t('chal.' + challenge.id + '.name')}
                       </h3>
                       <span
                         className="px-3 py-1 rounded-full text-xs font-mono font-bold"
@@ -120,26 +123,26 @@ export function DailyChallengesUI({
                           border: `1px solid ${colors.border}`
                         }}
                       >
-                        {difficultyNames[challenge.difficulty]}
+                        {t('chal.diff.' + challenge.difficulty)}
                       </span>
                     </div>
 
                     <p className="text-gray-300 font-mono text-sm mb-4">
-                      {challenge.description}
+                      {t('chal.' + challenge.id + '.desc')}
                     </p>
 
                     {/* Rewards */}
                     <div className="flex items-center gap-2 mb-4">
-                      <span className="text-gray-400 font-mono text-xs">NAGRADE:</span>
+                      <span className="text-gray-400 font-mono text-xs">{t('chal.rewards')}</span>
                       {challenge.rewards.map((reward, i) => (
                         <span
                           key={i}
                           className="px-2 py-1 bg-yellow-600/30 border border-yellow-500 rounded text-yellow-300 font-mono text-xs"
                         >
-                          {reward.type === 'xp' && `⭐ ${reward.amount} XP`}
-                          {reward.type === 'gold' && `💰 ${reward.amount} Gold`}
-                          {reward.type === 'skillPoint' && `🌟 ${reward.amount} Skill Point${reward.amount > 1 ? 's' : ''}`}
-                          {reward.type === 'cosmetic' && `✨ ${reward.name}`}
+                          {reward.type === 'xp' && `⭐ ${reward.amount} ${t('chal.rewardXp')}`}
+                          {reward.type === 'gold' && `💰 ${reward.amount} ${t('chal.rewardGold')}`}
+                          {reward.type === 'skillPoint' && `🌟 ${reward.amount} ${t(reward.amount > 1 ? 'chal.rewardSkillPoints' : 'chal.rewardSkillPoint')}`}
+                          {reward.type === 'cosmetic' && `✨ ${cosmeticName(reward.name)}`}
                         </span>
                       ))}
                     </div>
@@ -153,20 +156,20 @@ export function DailyChallengesUI({
                           boxShadow: '0 0 20px rgba(74, 222, 128, 0.5)'
                         }}
                       >
-                        ✓ ZAKLJUČI
+                        {t('chal.complete')}
                       </button>
                     )}
 
                     {isCompleted && (
                       <div className="flex items-center gap-2 text-green-400 font-mono font-bold">
                         <span className="text-2xl">✓</span>
-                        <span>ZAKLJUČENO</span>
+                        <span>{t('chal.completed')}</span>
                       </div>
                     )}
 
                     {!isCompleted && !canComplete && (
                       <div className="text-gray-500 font-mono text-sm">
-                        V napredku...
+                        {t('chal.inProgress')}
                       </div>
                     )}
                   </div>
@@ -190,7 +193,7 @@ export function DailyChallengesUI({
         {/* Footer */}
         <div className="bg-black/60 p-4 border-t border-purple-500/50">
           <p className="text-center text-gray-400 font-mono text-xs">
-            Izzivi se ponastavijo vsak dan ob polnoči. Zaključi vse tri za bonus nagrado!
+            {t('chal.footerNote')}
           </p>
         </div>
       </div>

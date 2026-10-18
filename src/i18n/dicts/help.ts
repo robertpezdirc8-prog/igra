@@ -1,0 +1,302 @@
+/**
+ * i18n dict — pomoč/HUD (tutoriali, save/load, leaderboard, level-up, manjši prikazi).
+ *
+ * Pokrite komponente: TutorialOverlay, InteractiveTutorial, SaveLoadUI,
+ * StatsLeaderboardUI, LevelUpScreen, LevelUpChoiceScreen, HUD (ComboCounter/
+ * WaveAnnouncement), ScoreDisplay, ComboDisplay, MiniMap, ArcadeGame.
+ * Notification.tsx nima lastnega besedila (message prihaja iz App prek notify.*).
+ *
+ * Pravilo: sl = izvorno besedilo UI, en = prevod. Nizi, ki so v izvirniku že
+ * angleški (COMBO, MINIMAP, LEVEL …), ostanejo v obeh jezikih enaki.
+ */
+const sl = {
+  // ── TutorialOverlay (statični vodnik) ──
+  'tut.welcomeTitle': 'DOBRODOŠLI V ATHERIA',
+  'tut.descWelcome': 'Igra vesoljskega horrorja z ekstremno težavnostjo',
+  'tut.welcomeBody': 'Premagaj neskončne valove sovražnikov in postani Void Breaker',
+  'tut.moveTitle': 'GIBANJE',
+  'tut.moveDesc': 'Uporabi WASD ali puščice za premikanje',
+  'tut.moveAlt': 'ALI UPORABI PUŠČICE NA TIPKOVNICI',
+  'tut.shootTitle': 'STRELJANJE',
+  'tut.descShoot': 'Klikni z miško za streljanje v smeri kazalca',
+  'tut.shootLine1': 'Levi klik miške = Streljanje',
+  'tut.shootLine2': 'Ciljaj s kazalcem miške',
+  'tut.dashTitle': 'DASH',
+  'tut.descDash': 'Pritisni SPACE za hiter premik z nedotakljivostjo',
+  'tut.dashLine1': 'SPACE = Dash',
+  'tut.dashLine2': 'Kratka nedotakljivost med dashom',
+  'tut.dashCost': 'Porabi 20 energije',
+  'tut.secondaryTitle': 'SEKUNDARNO OROŽJE',
+  'tut.descSecondary': 'Desni klik za aktivacijo sekundarnega orožja',
+  'tut.secondaryLine1': 'Desni klik miške = Sekundarno orožje',
+  'tut.secondaryLine2': 'Gravity Well, Chain Lightning, ali Temporal Stasis',
+  'tut.secondaryUnlock': 'Odkleni z nadgradnjami',
+  'tut.upgradesTitle': 'NADGRADNJE',
+  'tut.descUpgrades': 'Vsakih 3 valov izberi nadgradnjo',
+  'tut.upgradesLine1': 'Izbiraj med 3 naključnimi nadgradnjami',
+  'tut.upgradesLine2': 'Izboljšaj orožje, hitrost, ščit...',
+  'tut.readyTitle': 'PRIpravljen?',
+  'tut.readyDesc': 'Čas je, da postaneš Void Breaker',
+  'tut.readyLine1': 'OPOZORILO: Igra je ekstremno težavna',
+  'tut.readyLine2': 'Vsaka napaka je tvoja krivda',
+  'tut.back': '← NAZAJ',
+  'tut.next': 'NAPREJ →',
+  'tut.skip': 'PRESKOČI VODNIK',
+
+  // ── InteractiveTutorial ──
+  'tut.guideTitle': '📚 VODNIK',
+  'tut.stepOf': 'Korak {n} od {total}',
+  'tut.skipShort': 'PRESKOČI',
+  'tut.actionNext': 'Naslednji',
+  'tut.actionStart': 'Začni igro',
+  'tut.iWelcomeTitle': 'Dobrodošli v ATHERIA!',
+  'tut.iMoveTitle': 'Gibanje',
+  'tut.iShootTitle': 'Streljanje',
+  'tut.iDashTitle': 'Dash',
+  'tut.iSecondaryTitle': 'Sekundarno orožje',
+  'tut.iUpgradesTitle': 'Nadgradnje',
+  'tut.iReadyTitle': 'Pripravljen?',
+  'tut.iMoveDesc': 'Uporabi WASD ali puščice za premikanje ladje',
+  'tut.iReadyDesc': 'Čas je, da postaneš Void Breaker!',
+  'tut.leftClick': 'Levi klik',
+  'tut.rightClick': 'Desni klik',
+
+  // ── SaveLoadUI ──
+  'save.title': '💾 SHRANJEVANJE IGRE',
+  'save.codeCopied': 'Koda kopirana v odložišče!',
+  'save.importSuccess': 'Shranjena igra uspešno uvožena!',
+  'save.importError': 'Napaka pri uvozu. Preverite kodo.',
+  'save.deleteConfirm': 'Ali ste prepričani? Vsi napredki bodo izgubljeni!',
+  'save.deleted': 'Shranjena igra izbrisana.',
+  'save.current': 'Trenutna shranjena igra',
+  'save.lastSaved': 'Nazadnje shranjeno:',
+  'save.highScore': 'Najboljši rezultat:',
+  'save.playTime': 'Skupni čas igranja:',
+  'save.gamesPlayed': 'Odigrane igre:',
+  'save.highestWave': 'Najvišji val:',
+  'save.highestLevel': 'Najvišji nivo:',
+  'save.saveGame': '💾 SHRANI IGRO',
+  'save.loadGame': '📂 NALOŽI IGRO',
+  'save.exportImport': '📤 IZVOZI / UVOZI',
+  'save.deleteGame': '🗑️ IZBRIŠI SHRANJENO IGRO',
+  'save.exportLabel': 'Izvozi shranjeno igro:',
+  'save.copyCode': 'Kopiraj kodo v odložišče',
+  'save.importLabel': 'Uvozi shranjeno igro:',
+  'save.pastePlaceholder': 'Prilepite kodo tukaj...',
+  'save.importButton': 'Uvozi',
+  'save.footer': 'Shranjena igra se samodejno shrani v brskalnik. Uporabite izvoz/uvoz za prenos med napravami.',
+
+  // ── StatsLeaderboardUI ──
+  'stats.title': '📊 STATISTIKA & LEADERBOARD',
+  'stats.tabStats': '📈 STATISTIKA',
+  'stats.tabLeaderboard': '🏆 LEADERBOARD',
+  'stats.gamesPlayed': 'Odigrane igre',
+  'stats.totalPlayTime': 'Skupni čas igranja',
+  'stats.totalScore': 'Skupni rezultat',
+  'stats.bestScore': 'Najboljši rezultat',
+  'stats.enemiesKilled': 'Ubijeni sovražniki',
+  'stats.bossesKilled': 'Ubijeni bossi',
+  'stats.highestWave': 'Najvišji val',
+  'stats.highestLevel': 'Najvišji nivo',
+  'stats.maxCombo': 'Največji combo',
+  'stats.damageDealt': 'Skupna škoda',
+  'stats.damageTaken': 'Prejeta škoda',
+  'stats.itemsCollected': 'Zbrani predmeti',
+  'stats.deaths': 'Smrti',
+  'stats.avgTime': 'Povprečni čas',
+  'stats.achievements': 'Odklenjeni dosežki',
+  'stats.yourRank': 'VAŠA UVRSTITEV',
+  'stats.entryLine': 'Val {wave} • Nivo {level} • {date}',
+  'stats.you': 'VI',
+  'stats.points': 'TOČK',
+
+  // ── LevelUpScreen + LevelUpChoiceScreen ──
+  'levelup.subtitle': 'Tvoja moč raste',
+  'levelup.select': '▼ IZBERI ▼',
+  'levelup.levelTitle': 'LEVEL {level}',
+  'levelup.choiceSubtitle': 'Izberi nadgradnjo',
+  'levelup.rarity.common': 'pogosto',
+  'levelup.rarity.rare': 'redko',
+  'levelup.rarity.epic': 'epično',
+  'levelup.rarity.legendary': 'legendarno',
+
+  // ── HUD.tsx: ComboCounter + WaveAnnouncement ──
+  'hud.voidBreach': '⚠ PREBITJE PRAZNINE ⚠',
+  'hud.bossIncoming': 'BOSS SE BLIŽA',
+  'hud.hostilesDetected': '{n} zaznanih sovražnikov',
+
+  // ── ScoreDisplay ──
+  'score.label': 'Rezultat',
+  'score.wave': 'Val',
+  'score.combo': 'Combo',
+  'score.fps': 'FPS:',
+  'score.seed': 'SEED:',
+  'score.webgpu': '● WebGPU',
+  'score.canvas': '● Canvas2D',
+
+  // ── ComboDisplay ──
+  'combo.big': 'COMBO',
+  'combo.label': 'COMBO',
+  'combo.title': 'Combo',
+  'combo.compact': 'combo',
+  'combo.multiplier': 'Multiplier: {value}x',
+
+  // ── MiniMap ──
+  'minimap.label': 'MINIMAP',
+
+  // ── ArcadeGame (mini igra tarč) ──
+  'arcade.points': 'TOČKE: {score}',
+  'arcade.time': 'ČAS: {time}s',
+  'arcade.close': 'ZAPRI',
+  'arcade.ready': 'PRIPRAVLJEN?',
+  'arcade.tapHint': 'Klikaj na tarče in zberi čim več točk v 30 sekundah!',
+  'arcade.runOver': 'IGRA KONČANA!'
+} as const;
+
+type Keys = keyof typeof sl;
+
+const en: Record<Keys, string> = {
+  // ── TutorialOverlay (static guide) ──
+  'tut.welcomeTitle': 'WELCOME TO ATHERIA',
+  'tut.descWelcome': 'A space horror game with extreme difficulty',
+  'tut.welcomeBody': 'Survive endless waves of enemies and become the Void Breaker',
+  'tut.moveTitle': 'MOVEMENT',
+  'tut.moveDesc': 'Use WASD or the arrow keys to move',
+  'tut.moveAlt': 'OR USE THE ARROW KEYS',
+  'tut.shootTitle': 'SHOOTING',
+  'tut.descShoot': 'Click the mouse to shoot toward the cursor',
+  'tut.shootLine1': 'Left mouse click = Shoot',
+  'tut.shootLine2': 'Aim with the mouse cursor',
+  'tut.dashTitle': 'DASH',
+  'tut.descDash': 'Press SPACE for a quick dash with invincibility',
+  'tut.dashLine1': 'SPACE = Dash',
+  'tut.dashLine2': 'Brief invincibility while dashing',
+  'tut.dashCost': 'Costs 20 energy',
+  'tut.secondaryTitle': 'SECONDARY WEAPON',
+  'tut.descSecondary': 'Right click to activate your secondary weapon',
+  'tut.secondaryLine1': 'Right mouse click = Secondary weapon',
+  'tut.secondaryLine2': 'Gravity Well, Chain Lightning, or Temporal Stasis',
+  'tut.secondaryUnlock': 'Unlock via upgrades',
+  'tut.upgradesTitle': 'UPGRADES',
+  'tut.descUpgrades': 'Choose an upgrade every 3 waves',
+  'tut.upgradesLine1': 'Pick from 3 random upgrades',
+  'tut.upgradesLine2': 'Upgrade weapons, speed, shield...',
+  'tut.readyTitle': 'READY?',
+  'tut.readyDesc': 'Time to become the Void Breaker',
+  'tut.readyLine1': 'WARNING: The game is extremely hard',
+  'tut.readyLine2': 'Every mistake is your own fault',
+  'tut.back': '← BACK',
+  'tut.next': 'NEXT →',
+  'tut.skip': 'SKIP GUIDE',
+
+  // ── InteractiveTutorial ──
+  'tut.guideTitle': '📚 GUIDE',
+  'tut.stepOf': 'Step {n} of {total}',
+  'tut.skipShort': 'SKIP',
+  'tut.actionNext': 'Next',
+  'tut.actionStart': 'Start game',
+  'tut.iWelcomeTitle': 'Welcome to ATHERIA!',
+  'tut.iMoveTitle': 'Movement',
+  'tut.iShootTitle': 'Shooting',
+  'tut.iDashTitle': 'Dash',
+  'tut.iSecondaryTitle': 'Secondary weapon',
+  'tut.iUpgradesTitle': 'Upgrades',
+  'tut.iReadyTitle': 'Ready?',
+  'tut.iMoveDesc': 'Use WASD or the arrow keys to move the ship',
+  'tut.iReadyDesc': 'Time to become the Void Breaker!',
+  'tut.leftClick': 'Left click',
+  'tut.rightClick': 'Right click',
+
+  // ── SaveLoadUI ──
+  'save.title': '💾 SAVE GAME',
+  'save.codeCopied': 'Code copied to clipboard!',
+  'save.importSuccess': 'Save game imported successfully!',
+  'save.importError': 'Import failed. Check the code.',
+  'save.deleteConfirm': 'Are you sure? All progress will be lost!',
+  'save.deleted': 'Save game deleted.',
+  'save.current': 'Current save game',
+  'save.lastSaved': 'Last saved:',
+  'save.highScore': 'High score:',
+  'save.playTime': 'Total play time:',
+  'save.gamesPlayed': 'Games played:',
+  'save.highestWave': 'Highest wave:',
+  'save.highestLevel': 'Highest level:',
+  'save.saveGame': '💾 SAVE GAME',
+  'save.loadGame': '📂 LOAD GAME',
+  'save.exportImport': '📤 EXPORT / IMPORT',
+  'save.deleteGame': '🗑️ DELETE SAVE GAME',
+  'save.exportLabel': 'Export save game:',
+  'save.copyCode': 'Copy code to clipboard',
+  'save.importLabel': 'Import save game:',
+  'save.pastePlaceholder': 'Paste code here...',
+  'save.importButton': 'Import',
+  'save.footer': 'Your save is stored automatically in the browser. Use export/import to transfer between devices.',
+
+  // ── StatsLeaderboardUI ──
+  'stats.title': '📊 STATISTICS & LEADERBOARD',
+  'stats.tabStats': '📈 STATISTICS',
+  'stats.tabLeaderboard': '🏆 LEADERBOARD',
+  'stats.gamesPlayed': 'Games played',
+  'stats.totalPlayTime': 'Total play time',
+  'stats.totalScore': 'Total score',
+  'stats.bestScore': 'Best score',
+  'stats.enemiesKilled': 'Enemies killed',
+  'stats.bossesKilled': 'Bosses killed',
+  'stats.highestWave': 'Highest wave',
+  'stats.highestLevel': 'Highest level',
+  'stats.maxCombo': 'Max combo',
+  'stats.damageDealt': 'Total damage',
+  'stats.damageTaken': 'Damage taken',
+  'stats.itemsCollected': 'Items collected',
+  'stats.deaths': 'Deaths',
+  'stats.avgTime': 'Average time',
+  'stats.achievements': 'Achievements unlocked',
+  'stats.yourRank': 'YOUR RANK',
+  'stats.entryLine': 'Wave {wave} • Level {level} • {date}',
+  'stats.you': 'YOU',
+  'stats.points': 'POINTS',
+
+  // ── LevelUpScreen + LevelUpChoiceScreen ──
+  'levelup.subtitle': 'Your power grows',
+  'levelup.select': '▼ SELECT ▼',
+  'levelup.levelTitle': 'LEVEL {level}',
+  'levelup.choiceSubtitle': 'Choose an upgrade',
+  'levelup.rarity.common': 'common',
+  'levelup.rarity.rare': 'rare',
+  'levelup.rarity.epic': 'epic',
+  'levelup.rarity.legendary': 'legendary',
+
+  // ── HUD.tsx: ComboCounter + WaveAnnouncement ──
+  'hud.voidBreach': '⚠ VOID BREACH ⚠',
+  'hud.bossIncoming': 'BOSS INCOMING',
+  'hud.hostilesDetected': '{n} hostiles detected',
+
+  // ── ScoreDisplay ──
+  'score.label': 'Score',
+  'score.wave': 'Wave',
+  'score.combo': 'Combo',
+  'score.fps': 'FPS:',
+  'score.seed': 'SEED:',
+  'score.webgpu': '● WebGPU',
+  'score.canvas': '● Canvas2D',
+
+  // ── ComboDisplay ──
+  'combo.big': 'COMBO',
+  'combo.label': 'COMBO',
+  'combo.title': 'Combo',
+  'combo.compact': 'combo',
+  'combo.multiplier': 'Multiplier: {value}x',
+
+  // ── MiniMap ──
+  'minimap.label': 'MINIMAP',
+
+  // ── ArcadeGame (target-click mini game) ──
+  'arcade.points': 'POINTS: {score}',
+  'arcade.time': 'TIME: {time}s',
+  'arcade.close': 'CLOSE',
+  'arcade.ready': 'READY?',
+  'arcade.tapHint': 'Click the targets and rack up as many points as you can in 30 seconds!',
+  'arcade.runOver': 'RUN COMPLETE!'
+};
+
+export const dict = { sl, en };

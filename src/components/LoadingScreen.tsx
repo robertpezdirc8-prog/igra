@@ -1,27 +1,29 @@
 import { useEffect, useState } from 'react';
 import { pseudoRandom } from '../utils/pseudoRandom';
+import { t, useLang } from '../i18n';
 
 interface LoadingScreenProps {
   onComplete: () => void;
 }
 
 export function LoadingScreen({ onComplete }: LoadingScreenProps) {
+  useLang();
   const [progress, setProgress] = useState(0);
-  const [loadingText, setLoadingText] = useState('Inicializacija...');
+  const [loadingKey, setLoadingKey] = useState('loading.init');
 
   useEffect(() => {
     const loadingSteps = [
-      { text: 'Inicializacija WebGPU...', progress: 20 },
-      { text: 'Nalaganje tekstur...', progress: 40 },
-      { text: 'Generiranje zvokov...', progress: 60 },
-      { text: 'Priprava fizike...', progress: 80 },
-      { text: 'Zagon igre...', progress: 100 }
+      { key: 'loading.webgpu', progress: 20 },
+      { key: 'loading.textures', progress: 40 },
+      { key: 'loading.sounds', progress: 60 },
+      { key: 'loading.physics', progress: 80 },
+      { key: 'loading.starting', progress: 100 }
     ];
 
     let currentStep = 0;
     const interval = setInterval(() => {
       if (currentStep < loadingSteps.length) {
-        setLoadingText(loadingSteps[currentStep].text);
+        setLoadingKey(loadingSteps[currentStep].key);
         setProgress(loadingSteps[currentStep].progress);
         currentStep++;
       } else {
@@ -72,7 +74,7 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
           />
         </div>
         <div className="mt-4 text-center">
-          <p className="text-cyan-400 font-mono text-sm">{loadingText}</p>
+          <p className="text-cyan-400 font-mono text-sm">{t(loadingKey)}</p>
           <p className="text-gray-500 font-mono text-xs mt-1">{progress}%</p>
         </div>
       </div>

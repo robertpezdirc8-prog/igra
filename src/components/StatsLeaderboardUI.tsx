@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { GameStats, getGameStats, LeaderboardEntry, getLeaderboard, getPlayerRank, formatPlayTime, formatNumber } from '../game/statsSystem';
+import { t, useLang } from '../i18n';
 
 interface StatsLeaderboardUIProps {
   isOpen: boolean;
@@ -7,6 +8,7 @@ interface StatsLeaderboardUIProps {
 }
 
 export function StatsLeaderboardUI({ isOpen, onClose }: StatsLeaderboardUIProps) {
+  useLang();
   const [activeTab, setActiveTab] = useState<'stats' | 'leaderboard'>('stats');
   const [stats, setStats] = useState<GameStats | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -27,21 +29,21 @@ export function StatsLeaderboardUI({ isOpen, onClose }: StatsLeaderboardUIProps)
   if (!isOpen || !stats) return null;
 
   const statItems = [
-    { label: 'Odigrane igre', value: stats.totalGamesPlayed, icon: '🎮' },
-    { label: 'Skupni čas igranja', value: formatPlayTime(stats.totalTimePlayed), icon: '⏱️' },
-    { label: 'Skupni rezultat', value: formatNumber(stats.totalScore), icon: '🏆' },
-    { label: 'Najboljši rezultat', value: formatNumber(stats.highestScore), icon: '⭐' },
-    { label: 'Ubijeni sovražniki', value: formatNumber(stats.totalEnemiesKilled), icon: '💀' },
-    { label: 'Ubijeni bossi', value: stats.totalBossKills, icon: '👹' },
-    { label: 'Najvišji val', value: stats.highestWave, icon: '🌊' },
-    { label: 'Najvišji nivo', value: stats.highestLevel, icon: '📈' },
-    { label: 'Največji combo', value: `${stats.highestCombo}x`, icon: '💥' },
-    { label: 'Skupna škoda', value: formatNumber(stats.totalDamageDealt), icon: '⚔️' },
-    { label: 'Prejeta škoda', value: formatNumber(stats.totalDamageTaken), icon: '🛡️' },
-    { label: 'Zbrani predmeti', value: stats.totalItemsCollected, icon: '📦' },
-    { label: 'Smrti', value: stats.totalDeaths, icon: '☠️' },
-    { label: 'Povprečni čas', value: formatPlayTime(stats.averageSurvivalTime), icon: '⏳' },
-    { label: 'Odklenjeni dosežki', value: stats.achievementsUnlocked, icon: '🏅' }
+    { label: t('stats.gamesPlayed'), value: stats.totalGamesPlayed, icon: '🎮' },
+    { label: t('stats.totalPlayTime'), value: formatPlayTime(stats.totalTimePlayed), icon: '⏱️' },
+    { label: t('stats.totalScore'), value: formatNumber(stats.totalScore), icon: '🏆' },
+    { label: t('stats.bestScore'), value: formatNumber(stats.highestScore), icon: '⭐' },
+    { label: t('stats.enemiesKilled'), value: formatNumber(stats.totalEnemiesKilled), icon: '💀' },
+    { label: t('stats.bossesKilled'), value: stats.totalBossKills, icon: '👹' },
+    { label: t('stats.highestWave'), value: stats.highestWave, icon: '🌊' },
+    { label: t('stats.highestLevel'), value: stats.highestLevel, icon: '📈' },
+    { label: t('stats.maxCombo'), value: `${stats.highestCombo}x`, icon: '💥' },
+    { label: t('stats.damageDealt'), value: formatNumber(stats.totalDamageDealt), icon: '⚔️' },
+    { label: t('stats.damageTaken'), value: formatNumber(stats.totalDamageTaken), icon: '🛡️' },
+    { label: t('stats.itemsCollected'), value: stats.totalItemsCollected, icon: '📦' },
+    { label: t('stats.deaths'), value: stats.totalDeaths, icon: '☠️' },
+    { label: t('stats.avgTime'), value: formatPlayTime(stats.averageSurvivalTime), icon: '⏳' },
+    { label: t('stats.achievements'), value: stats.achievementsUnlocked, icon: '🏅' }
   ];
 
   return (
@@ -51,7 +53,7 @@ export function StatsLeaderboardUI({ isOpen, onClose }: StatsLeaderboardUIProps)
         {/* Header */}
         <div className="relative bg-gradient-to-r from-yellow-600 to-orange-600 p-6 flex-shrink-0">
           <h2 className="text-3xl font-bold font-mono text-white">
-            📊 STATISTIKA & LEADERBOARD
+            {t('stats.title')}
           </h2>
           <button
             onClick={onClose}
@@ -71,7 +73,7 @@ export function StatsLeaderboardUI({ isOpen, onClose }: StatsLeaderboardUIProps)
                 : 'bg-black/40 text-gray-400 hover:bg-black/60'
             }`}
           >
-            📈 STATISTIKA
+            {t('stats.tabStats')}
           </button>
           <button
             onClick={() => setActiveTab('leaderboard')}
@@ -81,7 +83,7 @@ export function StatsLeaderboardUI({ isOpen, onClose }: StatsLeaderboardUIProps)
                 : 'bg-black/40 text-gray-400 hover:bg-black/60'
             }`}
           >
-            🏆 LEADERBOARD
+            {t('stats.tabLeaderboard')}
           </button>
         </div>
 
@@ -116,7 +118,7 @@ export function StatsLeaderboardUI({ isOpen, onClose }: StatsLeaderboardUIProps)
                 <div className="bg-yellow-600/20 border-2 border-yellow-500 rounded-lg p-4 mb-4">
                   <div className="text-center">
                     <div className="text-yellow-400 font-mono text-sm mb-1">
-                      VAŠA UVRSTITEV
+                      {t('stats.yourRank')}
                     </div>
                     <div className="text-yellow-300 font-mono text-4xl font-bold">
                       #{playerRank}
@@ -159,12 +161,12 @@ export function StatsLeaderboardUI({ isOpen, onClose }: StatsLeaderboardUIProps)
                       </span>
                       {entry.isPlayer && (
                         <span className="px-2 py-0.5 bg-yellow-500/30 border border-yellow-500 rounded text-yellow-400 font-mono text-xs">
-                          VI
+                          {t('stats.you')}
                         </span>
                       )}
                     </div>
                     <div className="text-gray-400 font-mono text-xs mt-1">
-                      Val {entry.wave} • Nivo {entry.level} • {entry.date}
+                      {t('stats.entryLine', { wave: entry.wave, level: entry.level, date: entry.date })}
                     </div>
                   </div>
 
@@ -174,7 +176,7 @@ export function StatsLeaderboardUI({ isOpen, onClose }: StatsLeaderboardUIProps)
                       {formatNumber(entry.score)}
                     </div>
                     <div className="text-gray-500 font-mono text-xs">
-                      TOČK
+                      {t('stats.points')}
                     </div>
                   </div>
                 </div>

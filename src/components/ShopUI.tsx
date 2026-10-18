@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { COSMETIC_ITEMS, CosmeticItem, getRarityColor, getRarityName, canAffordCosmetic } from '../game/cosmetics';
+import { COSMETIC_ITEMS, CosmeticItem, getRarityColor, canAffordCosmetic } from '../game/cosmetics';
+import { t, useLang, localeTag } from '../i18n';
 
 interface ShopUIProps {
   isOpen: boolean;
@@ -24,17 +25,18 @@ export function ShopUI({
   onEquip,
   playerLevel
 }: ShopUIProps) {
+  useLang();
   const [selectedCategory, setSelectedCategory] = useState<CosmeticItem['type']>('trail');
   const [selectedItem, setSelectedItem] = useState<CosmeticItem | null>(null);
 
   if (!isOpen) return null;
 
   const categories: { type: CosmeticItem['type']; name: string; icon: string }[] = [
-    { type: 'trail', name: 'Sledi', icon: '✨' },
-    { type: 'aura', name: 'Aure', icon: '💫' },
-    { type: 'border', name: 'Okvirji', icon: '🖼️' },
-    { type: 'ship', name: 'Ladje', icon: '🚀' },
-    { type: 'effect', name: 'Efekti', icon: '💥' }
+    { type: 'trail', name: t('shop.cat.trail'), icon: '✨' },
+    { type: 'aura', name: t('shop.cat.aura'), icon: '💫' },
+    { type: 'border', name: t('shop.cat.border'), icon: '🖼️' },
+    { type: 'ship', name: t('shop.cat.ship'), icon: '🚀' },
+    { type: 'effect', name: t('shop.cat.effect'), icon: '💥' }
   ];
 
   // Show ALL items so new players see the full catalogue; items above the
@@ -53,23 +55,23 @@ export function ShopUI({
         <div className="relative bg-gradient-to-r from-purple-600 to-pink-600 p-6 flex-shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-3xl font-bold font-mono text-white">
-              🛍️ TRGOVINA
+              {t('shop.title')}
             </h2>
             <div className="flex items-center gap-6">
               <div className="text-right">
                 <div className="text-yellow-400 font-mono text-xl font-bold">
-                  💰 {gold.toLocaleString()}
+                  💰 {gold.toLocaleString(localeTag())}
                 </div>
                 <div className="text-purple-300 font-mono text-sm">
-                  Zlato
+                  {t('shop.gold')}
                 </div>
               </div>
               <div className="text-right">
                 <div className="text-purple-400 font-mono text-xl font-bold">
-                  💎 {gems.toLocaleString()}
+                  💎 {gems.toLocaleString(localeTag())}
                 </div>
                 <div className="text-purple-300 font-mono text-sm">
-                  Dragulji
+                  {t('shop.gems')}
                 </div>
               </div>
             </div>
@@ -131,33 +133,33 @@ export function ShopUI({
                     <div className="text-center">
                       <div className="text-5xl mb-2" style={locked ? { filter: 'grayscale(80%)' } : undefined}>{item.icon}</div>
                       <h3 className="font-mono font-bold text-white text-sm mb-1">
-                        {item.name}
+                        {t('cosmetics.' + item.id + '.name')}
                       </h3>
                       <div
                         className="text-xs font-mono font-bold mb-2"
                         style={{ color: rarityColor }}
                       >
-                        {getRarityName(item.rarity)}
+                        {t('shop.rarity.' + item.rarity)}
                       </div>
                       {locked ? (
                         <div className="text-gray-400 font-mono text-xs">
-                          🔒 Nivo {item.unlockLevel}
+                          {t('shop.levelLock', { level: item.unlockLevel })}
                         </div>
                       ) : !owned ? (
                         <div className="text-sm font-mono">
                           <span style={{ color: item.currency === 'gold' ? '#facc15' : '#a855f7' }}>
-                            {item.currency === 'gold' ? '💰' : '💎'} {item.price}
+                            {item.currency === 'gold' ? '💰' : '💎'} {item.price.toLocaleString(localeTag())}
                           </span>
                         </div>
                       ) : null}
                       {owned && !equipped && (
                         <div className="text-green-400 font-mono text-xs">
-                          ✓ V LASTI
+                          {t('shop.owned')}
                         </div>
                       )}
                       {equipped && (
                         <div className="text-green-400 font-mono text-xs font-bold">
-                          ✓ OPREMLJENO
+                          {t('shop.equipped')}
                         </div>
                       )}
                     </div>
@@ -173,27 +175,27 @@ export function ShopUI({
               <div className="text-center mb-6">
                 <div className="text-7xl mb-4">{selectedItem.icon}</div>
                 <h3 className="text-2xl font-bold font-mono text-white mb-2">
-                  {selectedItem.name}
+                  {t('cosmetics.' + selectedItem.id + '.name')}
                 </h3>
                 <div
                   className="text-sm font-mono font-bold mb-4"
                   style={{ color: getRarityColor(selectedItem.rarity) }}
                 >
-                  {getRarityName(selectedItem.rarity)}
+                  {t('shop.rarity.' + selectedItem.rarity)}
                 </div>
               </div>
 
               <p className="text-gray-300 font-mono text-sm mb-6">
-                {selectedItem.description}
+                {t('cosmetics.' + selectedItem.id + '.desc')}
               </p>
 
               {!isOwned(selectedItem) && (
                 <div className="mb-6">
-                  <div className="text-gray-400 font-mono text-xs mb-2">CENA:</div>
+                  <div className="text-gray-400 font-mono text-xs mb-2">{t('shop.priceLabel')}</div>
                   <div className="text-2xl font-mono font-bold" style={{
                     color: selectedItem.currency === 'gold' ? '#facc15' : '#a855f7'
                   }}>
-                    {selectedItem.currency === 'gold' ? '💰' : '💎'} {selectedItem.price}
+                    {selectedItem.currency === 'gold' ? '💰' : '💎'} {selectedItem.price.toLocaleString(localeTag())}
                   </div>
                 </div>
               )}
@@ -201,7 +203,7 @@ export function ShopUI({
               {!isOwned(selectedItem) ? (
                 isLevelLocked(selectedItem) ? (
                   <div className="w-full text-center px-6 py-3 bg-gray-800 text-gray-400 font-mono font-bold rounded-lg">
-                    🔒 ZAKLENJENO — Nivo {selectedItem.unlockLevel}
+                    {t('shop.lockedLevel', { level: selectedItem.unlockLevel })}
                   </div>
                 ) : (
                   <button
@@ -213,7 +215,7 @@ export function ShopUI({
                     disabled={!canAffordCosmetic(selectedItem, gold, gems)}
                     className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed text-white font-mono font-bold rounded-lg transition-all"
                   >
-                    KUPI
+                    {t('shop.buy')}
                   </button>
                 )
               ) : !isEquipped(selectedItem) ? (
@@ -221,11 +223,11 @@ export function ShopUI({
                   onClick={() => onEquip(selectedItem)}
                   className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-mono font-bold rounded-lg transition-all"
                 >
-                  OPREMI
+                  {t('shop.equip')}
                 </button>
               ) : (
                 <div className="text-center text-green-400 font-mono font-bold">
-                  ✓ OPREMLJENO
+                  {t('shop.equipped')}
                 </div>
               )}
             </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { WeatherType } from '../game/weatherSystem';
+import { t, useLang } from '../i18n';
 
 interface WeatherDisplayProps {
   currentWeather: WeatherType;
@@ -12,24 +13,25 @@ export const WeatherDisplay: React.FC<WeatherDisplayProps> = ({
   intensity,
   timeRemaining
 }) => {
+  useLang();
   const getWeatherInfo = (weather: WeatherType) => {
     switch (weather) {
       case 'clear':
-        return { icon: '☀️', name: 'Jasno', color: '#ffdd00', description: 'Čisto nebo, brez posebnih efektov' };
+        return { icon: '☀️', name: t('weather.clear.name'), color: '#ffdd00', description: t('weather.clear.desc') };
       case 'rain':
-        return { icon: '🌧️', name: 'Dež', color: '#4488ff', description: 'Dež zmanjša vidljivost' };
+        return { icon: '🌧️', name: t('weather.rain.name'), color: '#4488ff', description: t('weather.rain.desc') };
       case 'snow':
-        return { icon: '🌨️', name: 'Sneg', color: '#aaccff', description: 'Sneg upočasni gibanje' };
+        return { icon: '🌨️', name: t('weather.snow.name'), color: '#aaccff', description: t('weather.snow.desc') };
       case 'storm':
-        return { icon: '⛈️', name: 'Nevihta', color: '#222244', description: 'Nevihta z bliskanjem in močnim dežjem' };
+        return { icon: '⛈️', name: t('weather.storm.name'), color: '#222244', description: t('weather.storm.desc') };
       case 'fog':
-        return { icon: '🌫️', name: 'Megla', color: '#888888', description: 'Megla močno zmanjša vidljivost' };
+        return { icon: '🌫️', name: t('weather.fog.name'), color: '#888888', description: t('weather.fog.desc') };
       case 'sandstorm':
-        return { icon: '🌪️', name: 'Peščeni vihar', color: '#aa8844', description: 'Peščeni vihar zmanjša vidljivost in natančnost' };
+        return { icon: '🌪️', name: t('weather.sandstorm.name'), color: '#aa8844', description: t('weather.sandstorm.desc') };
       case 'meteor':
-        return { icon: '☄️', name: 'Meteorski dež', color: '#ff4400', description: 'Meteoriti padajo z neba' };
+        return { icon: '☄️', name: t('weather.meteor.name'), color: '#ff4400', description: t('weather.meteor.desc') };
       default:
-        return { icon: '❓', name: 'Neznano', color: '#ffffff', description: '' };
+        return { icon: '❓', name: t('weather.unknown'), color: '#ffffff', description: '' };
     }
   };
 
@@ -59,7 +61,7 @@ export const WeatherDisplay: React.FC<WeatherDisplayProps> = ({
       {/* Intensity bar */}
       <div className="mb-2">
         <div className="flex justify-between text-xs text-gray-400 mb-1">
-          <span>Intenzivnost</span>
+          <span>{t('weather.intensity')}</span>
           <span>{Math.round(intensity * 100)}%</span>
         </div>
         <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
@@ -77,54 +79,54 @@ export const WeatherDisplay: React.FC<WeatherDisplayProps> = ({
       {/* Time remaining */}
       {timeRemaining >= 0 && (
         <div className="text-sm text-gray-400">
-          Preostali čas: <span style={{ color: weatherInfo.color }}>{formatTime(timeRemaining)}</span>
+          {t('weather.timeRemaining')} <span style={{ color: weatherInfo.color }}>{formatTime(timeRemaining)}</span>
         </div>
       )}
 
       {/* Weather effects indicator */}
       <div className="mt-3 pt-3 border-t border-gray-700">
-        <div className="text-xs text-gray-400 mb-2">Efekti:</div>
+        <div className="text-xs text-gray-400 mb-2">{t('weather.effects')}</div>
         <div className="space-y-1 text-xs">
           {currentWeather === 'rain' && (
             <>
-              <div className="text-blue-400">• Vidljivost: -30%</div>
-              <div className="text-blue-400">• Atmosfera</div>
+              <div className="text-blue-400">• {t('weather.fx.visibility')}: -30%</div>
+              <div className="text-blue-400">• {t('weather.fx.atmosphere')}</div>
             </>
           )}
           {currentWeather === 'snow' && (
             <>
-              <div className="text-cyan-400">• Hitrost gibanja: -20%</div>
-              <div className="text-cyan-400">• Vidljivost: -20%</div>
+              <div className="text-cyan-400">• {t('weather.fx.moveSpeed')}: -20%</div>
+              <div className="text-cyan-400">• {t('weather.fx.visibility')}: -20%</div>
             </>
           )}
           {currentWeather === 'storm' && (
             <>
-              <div className="text-purple-400">• Vidljivost: -50%</div>
-              <div className="text-purple-400">• Možnost strele</div>
-              <div className="text-purple-400">• Hitrost gibanja: -30%</div>
+              <div className="text-purple-400">• {t('weather.fx.visibility')}: -50%</div>
+              <div className="text-purple-400">• {t('weather.fx.lightning')}</div>
+              <div className="text-purple-400">• {t('weather.fx.moveSpeed')}: -30%</div>
             </>
           )}
           {currentWeather === 'fog' && (
             <>
-              <div className="text-gray-400">• Vidljivost: -70%</div>
-              <div className="text-gray-400">• Domet: -50%</div>
+              <div className="text-gray-400">• {t('weather.fx.visibility')}: -70%</div>
+              <div className="text-gray-400">• {t('weather.fx.range')}: -50%</div>
             </>
           )}
           {currentWeather === 'sandstorm' && (
             <>
-              <div className="text-orange-400">• Vidljivost: -60%</div>
-              <div className="text-orange-400">• Natančnost: -40%</div>
-              <div className="text-orange-400">• Hitrost gibanja: -25%</div>
+              <div className="text-orange-400">• {t('weather.fx.visibility')}: -60%</div>
+              <div className="text-orange-400">• {t('weather.fx.accuracy')}: -40%</div>
+              <div className="text-orange-400">• {t('weather.fx.moveSpeed')}: -25%</div>
             </>
           )}
           {currentWeather === 'meteor' && (
             <>
-              <div className="text-red-400">• Nevarnost: Visoka</div>
-              <div className="text-red-400">• Naključna škoda</div>
+              <div className="text-red-400">• {t('weather.fx.dangerHigh')}</div>
+              <div className="text-red-400">• {t('weather.fx.randomDamage')}</div>
             </>
           )}
           {currentWeather === 'clear' && (
-            <div className="text-green-400">• Brez negativnih efektov</div>
+            <div className="text-green-400">• {t('weather.fx.none')}</div>
           )}
         </div>
       </div>
@@ -142,18 +144,19 @@ export const WeatherSelector: React.FC<WeatherSelectorProps> = ({
   currentWeather,
   onWeatherChange
 }) => {
+  useLang();
   const [selectedWeather, setSelectedWeather] = React.useState<WeatherType>(currentWeather);
   const [intensity, setIntensity] = React.useState(1.0);
   const [duration, setDuration] = React.useState(60);
 
   const weathers: Array<{ type: WeatherType; icon: string; name: string }> = [
-    { type: 'clear', icon: '☀️', name: 'Jasno' },
-    { type: 'rain', icon: '🌧️', name: 'Dež' },
-    { type: 'snow', icon: '🌨️', name: 'Sneg' },
-    { type: 'storm', icon: '⛈️', name: 'Nevihta' },
-    { type: 'fog', icon: '🌫️', name: 'Megla' },
-    { type: 'sandstorm', icon: '🌪️', name: 'Peščeni vihar' },
-    { type: 'meteor', icon: '☄️', name: 'Meteorski dež' }
+    { type: 'clear', icon: '☀️', name: t('weather.clear.name') },
+    { type: 'rain', icon: '🌧️', name: t('weather.rain.name') },
+    { type: 'snow', icon: '🌨️', name: t('weather.snow.name') },
+    { type: 'storm', icon: '⛈️', name: t('weather.storm.name') },
+    { type: 'fog', icon: '🌫️', name: t('weather.fog.name') },
+    { type: 'sandstorm', icon: '🌪️', name: t('weather.sandstorm.name') },
+    { type: 'meteor', icon: '☄️', name: t('weather.meteor.name') }
   ];
 
   const handleApply = () => {
@@ -162,11 +165,11 @@ export const WeatherSelector: React.FC<WeatherSelectorProps> = ({
 
   return (
     <div className="fixed bottom-4 left-4 bg-black/90 border-2 border-cyan-500 rounded-lg p-4 min-w-[300px] backdrop-blur-sm z-40">
-      <h3 className="text-lg font-bold text-cyan-400 mb-3">Nastavitve vremena</h3>
+      <h3 className="text-lg font-bold text-cyan-400 mb-3">{t('weather.settings')}</h3>
 
       {/* Weather type selector */}
       <div className="mb-4">
-        <div className="text-sm text-gray-400 mb-2">Tip vremena:</div>
+        <div className="text-sm text-gray-400 mb-2">{t('weather.typeLabel')}</div>
         <div className="grid grid-cols-4 gap-2">
           {weathers.map(weather => (
             <button
@@ -188,7 +191,7 @@ export const WeatherSelector: React.FC<WeatherSelectorProps> = ({
       {/* Intensity slider */}
       <div className="mb-4">
         <div className="flex justify-between text-sm text-gray-400 mb-2">
-          <span>Intenzivnost</span>
+          <span>{t('weather.intensity')}</span>
           <span>{Math.round(intensity * 100)}%</span>
         </div>
         <input
@@ -205,7 +208,7 @@ export const WeatherSelector: React.FC<WeatherSelectorProps> = ({
       {/* Duration slider */}
       <div className="mb-4">
         <div className="flex justify-between text-sm text-gray-400 mb-2">
-          <span>Trajanje</span>
+          <span>{t('weather.duration')}</span>
           <span>{duration === -1 ? '∞' : `${duration}s`}</span>
         </div>
         <input
@@ -218,7 +221,7 @@ export const WeatherSelector: React.FC<WeatherSelectorProps> = ({
           className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-400"
         />
         <div className="text-xs text-gray-500 mt-1">
-          -1 = neskončno trajanje
+          {t('weather.infiniteHint')}
         </div>
       </div>
 
@@ -227,7 +230,7 @@ export const WeatherSelector: React.FC<WeatherSelectorProps> = ({
         onClick={handleApply}
         className="w-full px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white font-bold rounded transition-all"
       >
-        Uporabi vreme
+        {t('weather.apply')}
       </button>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { t, useLang } from '../i18n';
 
 interface InteractiveTutorialProps {
   isOpen: boolean;
@@ -7,6 +8,7 @@ interface InteractiveTutorialProps {
 }
 
 export function InteractiveTutorial({ isOpen, onClose, onComplete }: InteractiveTutorialProps) {
+  useLang();
   const [currentStep, setCurrentStep] = useState(0);
   const [, setCompleted] = useState(false);
 
@@ -15,52 +17,52 @@ export function InteractiveTutorial({ isOpen, onClose, onComplete }: Interactive
 
   const steps = [
     {
-      title: 'Dobrodošli v ATHERIA!',
-      description: 'Igra vesoljskega horrorja z ekstremno težavnostjo',
+      title: t('tut.iWelcomeTitle'),
+      description: t('tut.descWelcome'),
       icon: '🚀',
-      action: 'Naslednji',
+      action: t('tut.actionNext'),
       highlight: null
     },
     {
-      title: 'Gibanje',
-      description: 'Uporabi WASD ali puščice za premikanje ladje',
+      title: t('tut.iMoveTitle'),
+      description: t('tut.iMoveDesc'),
       icon: '🎮',
-      action: 'Naslednji',
+      action: t('tut.actionNext'),
       highlight: 'movement'
     },
     {
-      title: 'Streljanje',
-      description: 'Klikni z miško za streljanje v smeri kazalca',
+      title: t('tut.iShootTitle'),
+      description: t('tut.descShoot'),
       icon: '🎯',
-      action: 'Naslednji',
+      action: t('tut.actionNext'),
       highlight: 'shooting'
     },
     {
-      title: 'Dash',
-      description: 'Pritisni SPACE za hiter premik z nedotakljivostjo',
+      title: t('tut.iDashTitle'),
+      description: t('tut.descDash'),
       icon: '⚡',
-      action: 'Naslednji',
+      action: t('tut.actionNext'),
       highlight: 'dash'
     },
     {
-      title: 'Sekundarno orožje',
-      description: 'Desni klik za aktivacijo sekundarnega orožja',
+      title: t('tut.iSecondaryTitle'),
+      description: t('tut.descSecondary'),
       icon: '🌀',
-      action: 'Naslednji',
+      action: t('tut.actionNext'),
       highlight: 'secondary'
     },
     {
-      title: 'Nadgradnje',
-      description: 'Vsakih 3 valov izberi nadgradnjo',
+      title: t('tut.iUpgradesTitle'),
+      description: t('tut.descUpgrades'),
       icon: '⬆️',
-      action: 'Naslednji',
+      action: t('tut.actionNext'),
       highlight: 'upgrades'
     },
     {
-      title: 'Pripravljen?',
-      description: 'Čas je, da postaneš Void Breaker!',
+      title: t('tut.iReadyTitle'),
+      description: t('tut.iReadyDesc'),
       icon: '💀',
-      action: 'Začni igro',
+      action: t('tut.actionStart'),
       highlight: null
     }
   ];
@@ -101,16 +103,16 @@ export function InteractiveTutorial({ isOpen, onClose, onComplete }: Interactive
         {/* Header */}
         <div className="relative bg-gradient-to-r from-cyan-600 to-blue-600 p-6">
           <h2 className="text-3xl font-bold font-mono text-white">
-            📚 VODNIK
+            {t('tut.guideTitle')}
           </h2>
           <p className="text-cyan-200 font-mono text-sm mt-1">
-            Korak {currentStep + 1} od {steps.length}
+            {t('tut.stepOf', { n: currentStep + 1, total: steps.length })}
           </p>
           <button
             onClick={handleSkip}
             className="absolute top-4 right-4 px-4 py-2 bg-black/50 hover:bg-black/70 text-white font-mono text-sm rounded transition-colors"
           >
-            PRESKOČI
+            {t('tut.skipShort')}
           </button>
         </div>
 
@@ -160,7 +162,7 @@ export function InteractiveTutorial({ isOpen, onClose, onComplete }: Interactive
             <div className="mb-6">
               <div className="inline-block bg-black/60 border border-cyan-500/50 rounded-lg p-4">
                 <div className="text-4xl">🖱️</div>
-                <div className="text-cyan-400 font-mono text-sm mt-2">Levi klik</div>
+                <div className="text-cyan-400 font-mono text-sm mt-2">{t('tut.leftClick')}</div>
               </div>
             </div>
           )}
@@ -179,7 +181,7 @@ export function InteractiveTutorial({ isOpen, onClose, onComplete }: Interactive
             <div className="mb-6">
               <div className="inline-block bg-black/60 border border-cyan-500/50 rounded-lg p-4">
                 <div className="text-4xl">🖱️</div>
-                <div className="text-cyan-400 font-mono text-sm mt-2">Desni klik</div>
+                <div className="text-cyan-400 font-mono text-sm mt-2">{t('tut.rightClick')}</div>
               </div>
             </div>
           )}

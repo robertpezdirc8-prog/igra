@@ -1,3 +1,5 @@
+import { t, useLang, localeTag } from '../i18n';
+
 interface ScoreDisplayProps {
   score: number;
   wave: number;
@@ -8,11 +10,12 @@ interface ScoreDisplayProps {
 }
 
 export function ScoreDisplay({ score, wave, combo, fps, seed, webgpuSupported }: ScoreDisplayProps) {
+  useLang();
   return (
     <div className="fixed top-4 right-4 z-30 text-right">
       {/* Score */}
       <div className="mb-4">
-        <p className="text-gray-500 font-mono text-xs uppercase tracking-wider">Rezultat</p>
+        <p className="text-gray-500 font-mono text-xs uppercase tracking-wider">{t('score.label')}</p>
         <p
           className="text-3xl font-bold font-mono"
           style={{
@@ -20,13 +23,13 @@ export function ScoreDisplay({ score, wave, combo, fps, seed, webgpuSupported }:
             textShadow: '0 0 15px rgba(0, 255, 255, 0.6)'
           }}
         >
-          {score.toLocaleString()}
+          {score.toLocaleString(localeTag())}
         </p>
       </div>
 
       {/* Wave */}
       <div className="mb-4">
-        <p className="text-gray-500 font-mono text-xs uppercase tracking-wider">Val</p>
+        <p className="text-gray-500 font-mono text-xs uppercase tracking-wider">{t('score.wave')}</p>
         <p
           className="text-2xl font-bold font-mono"
           style={{
@@ -41,7 +44,7 @@ export function ScoreDisplay({ score, wave, combo, fps, seed, webgpuSupported }:
       {/* Combo */}
       {combo > 1 && (
         <div className="mb-4 animate-pulse">
-          <p className="text-gray-500 font-mono text-xs uppercase tracking-wider">Combo</p>
+          <p className="text-gray-500 font-mono text-xs uppercase tracking-wider">{t('score.combo')}</p>
           <p
             className="text-2xl font-bold font-mono"
             style={{
@@ -57,16 +60,16 @@ export function ScoreDisplay({ score, wave, combo, fps, seed, webgpuSupported }:
       {/* Technical info */}
       <div className="mt-6 pt-4 border-t border-gray-700">
         <p className="text-gray-600 font-mono text-xs">
-          FPS: <span className={fps >= 50 ? 'text-green-400' : fps >= 30 ? 'text-yellow-400' : 'text-red-400'}>{fps}</span>
+          {t('score.fps')} <span className={fps >= 50 ? 'text-green-400' : fps >= 30 ? 'text-yellow-400' : 'text-red-400'}>{fps}</span>
         </p>
         <p className="text-gray-600 font-mono text-xs mt-1">
-          SEED: <span className="text-gray-400">{seed}</span>
+          {t('score.seed')} <span className="text-gray-400">{seed}</span>
         </p>
         <p className="text-gray-600 font-mono text-xs mt-1">
           {webgpuSupported ? (
-            <span className="text-green-400">● WebGPU</span>
+            <span className="text-green-400">{t('score.webgpu')}</span>
           ) : (
-            <span className="text-yellow-400">● Canvas2D</span>
+            <span className="text-yellow-400">{t('score.canvas')}</span>
           )}
         </p>
       </div>

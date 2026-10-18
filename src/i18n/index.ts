@@ -14,6 +14,11 @@
 
 import { useSyncExternalStore } from 'react';
 
+import { dict as metaDict } from './dicts/meta';
+import { dict as progressDict } from './dicts/progress';
+import { dict as worldDict } from './dicts/world';
+import { dict as helpDict } from './dicts/help';
+
 export type Language = 'sl' | 'en';
 const LANGUAGES: Language[] = ['sl', 'en'];
 export function isLanguage(v: unknown): v is Language {
@@ -60,7 +65,7 @@ export function localeTag(): string {
   return current === 'sl' ? 'sl-SI' : 'en-US';
 }
 
-const sl = {
+const slBase = {
   // ── Common ──
   'common.mainMenu': 'GLAVNI MENI',
   'common.save': 'SHRANI',
@@ -283,7 +288,7 @@ const sl = {
   'app.soundOff': 'Utišaj zvok'
 };
 
-const en: Record<keyof typeof sl, string> = {
+const enBase: Record<keyof typeof slBase, string> = {
   // ── Common ──
   'common.mainMenu': 'MAIN MENU',
   'common.save': 'SAVE',
@@ -504,6 +509,23 @@ const en: Record<keyof typeof sl, string> = {
   'notify.guideDone': 'Guide complete!',
   'app.soundOn': 'Unmute sound',
   'app.soundOff': 'Mute sound'
+};
+
+/** Merged dictionaries — core (slBase/enBase) + Faza 2 modules (meta, progress, world, help). */
+const sl = {
+  ...slBase,
+  ...metaDict.sl,
+  ...progressDict.sl,
+  ...worldDict.sl,
+  ...helpDict.sl,
+};
+
+const en: Record<keyof typeof sl, string> = {
+  ...enBase,
+  ...metaDict.en,
+  ...progressDict.en,
+  ...worldDict.en,
+  ...helpDict.en,
 };
 
 type Dict = typeof sl;

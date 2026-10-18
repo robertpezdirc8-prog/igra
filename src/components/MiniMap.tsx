@@ -1,3 +1,5 @@
+import { t, useLang } from '../i18n';
+
 interface MiniMapProps {
   playerX: number;
   playerY: number;
@@ -7,6 +9,7 @@ interface MiniMapProps {
 }
 
 export function MiniMap({ playerX, playerY, enemies, worldWidth, worldHeight }: MiniMapProps) {
+  useLang();
   const mapSize = 120;
   const scaleX = mapSize / worldWidth;
   const scaleY = mapSize / worldHeight;
@@ -79,7 +82,7 @@ export function MiniMap({ playerX, playerY, enemies, worldWidth, worldHeight }: 
 
       {/* Label */}
       <div className="text-center mt-1">
-        <p className="text-cyan-400/60 font-mono text-xs">MINIMAP</p>
+        <p className="text-cyan-400/60 font-mono text-xs">{t('minimap.label')}</p>
       </div>
     </div>
   );

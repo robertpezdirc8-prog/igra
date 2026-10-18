@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { pseudoRandom } from '../utils/pseudoRandom';
+import { t, useLang } from '../i18n';
 
 interface LevelUpChoice {
   id: string;
@@ -15,7 +16,16 @@ interface LevelUpChoiceScreenProps {
   level: number;
 }
 
+/** Rarity badge label keys — exhaustive over the rarity union. */
+const RARITY_KEYS: Record<LevelUpChoice['rarity'], string> = {
+  common: 'levelup.rarity.common',
+  rare: 'levelup.rarity.rare',
+  epic: 'levelup.rarity.epic',
+  legendary: 'levelup.rarity.legendary'
+};
+
 export function LevelUpChoiceScreen({ choices, onSelect, level }: LevelUpChoiceScreenProps) {
+  useLang();
   const [hoveredChoice, setHoveredChoice] = useState<string | null>(null);
 
   const getRarityColor = (rarity: LevelUpChoice['rarity']) => {
@@ -56,10 +66,10 @@ export function LevelUpChoiceScreen({ choices, onSelect, level }: LevelUpChoiceS
               animation: 'levelUpTitle 1s ease-out'
             }}
           >
-            LEVEL {level}
+            {t('levelup.levelTitle', { level })}
           </h1>
           <p className="text-yellow-400/70 font-mono text-lg">
-            Izberi nadgradnjo
+            {t('levelup.choiceSubtitle')}
           </p>
         </div>
 
@@ -98,7 +108,7 @@ export function LevelUpChoiceScreen({ choices, onSelect, level }: LevelUpChoiceS
                       boxShadow: colors.glow
                     }}
                   >
-                    {choice.rarity}
+                    {t(RARITY_KEYS[choice.rarity])}
                   </div>
 
                   {/* Icon */}
@@ -137,7 +147,7 @@ export function LevelUpChoiceScreen({ choices, onSelect, level }: LevelUpChoiceS
                         animation: 'bounce 0.5s ease-in-out infinite'
                       }}
                     >
-                      ▼ IZBERI ▼
+                      {t('levelup.select')}
                     </div>
                   )}
                 </div>

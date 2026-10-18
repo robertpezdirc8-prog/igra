@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { t, useLang } from '../i18n';
 
 interface DailyReward {
   day: number;
@@ -25,6 +26,7 @@ const REWARDS: Omit<DailyReward, 'claimed'>[] = [
 ];
 
 export function DailyRewardsUI({ isOpen, onClose, onClaim }: DailyRewardsUIProps) {
+  useLang();
   const [rewards, setRewards] = useState<DailyReward[]>([]);
   const [currentDay, setCurrentDay] = useState(1);
   const [canClaim, setCanClaim] = useState(false);
@@ -103,10 +105,10 @@ export function DailyRewardsUI({ isOpen, onClose, onClaim }: DailyRewardsUIProps
   if (!isOpen) return null;
 
   const rewardNames: Record<string, string> = {
-    gold: 'Zlato',
-    xp: 'XP',
-    skillPoint: 'Skill Point',
-    gem: 'Gem'
+    gold: t('daily.reward.gold'),
+    xp: t('daily.reward.xp'),
+    skillPoint: t('daily.reward.skillPoint'),
+    gem: t('daily.reward.gem')
   };
 
   return (
@@ -116,10 +118,10 @@ export function DailyRewardsUI({ isOpen, onClose, onClaim }: DailyRewardsUIProps
         {/* Header */}
         <div className="relative bg-gradient-to-r from-yellow-600 to-orange-600 p-6">
           <h2 className="text-3xl font-bold font-mono text-white">
-            🎁 DNEVNE NAGRADE
+            🎁 {t('daily.title')}
           </h2>
           <p className="text-yellow-200 font-mono text-sm mt-1">
-            Prijavi se vsak dan in prejmi nagrade!
+            {t('daily.subtitle')}
           </p>
           <button
             onClick={onClose}
@@ -146,7 +148,7 @@ export function DailyRewardsUI({ isOpen, onClose, onClaim }: DailyRewardsUIProps
                 <div className="text-center">
                   <div className="text-3xl mb-2">{reward.icon}</div>
                   <div className="text-xs font-mono text-gray-400 mb-1">
-                    Dan {reward.day}
+                    {t('daily.day', { day: reward.day })}
                   </div>
                   <div className="text-sm font-mono font-bold" style={{
                     color: reward.claimed ? '#4ade80' : i + 1 === currentDay ? '#facc15' : '#9ca3af'
@@ -171,14 +173,14 @@ export function DailyRewardsUI({ isOpen, onClose, onClaim }: DailyRewardsUIProps
                 className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-mono font-bold text-xl rounded-lg transition-all hover:scale-110"
                 style={{ boxShadow: '0 0 30px rgba(250, 204, 21, 0.5)' }}
               >
-                🎁 ZAHTEVAJ NAGRAVO DNEVA {currentDay}
+                {t('daily.claimButton', { day: currentDay })}
               </button>
             ) : (
               <div className="text-gray-400 font-mono text-lg">
-                ✓ Današnja nagrada že zahtevana!
+                {t('daily.claimedToday')}
                 <br />
                 <span className="text-sm">
-                  Vrni se jutri za novo nagrado
+                  {t('daily.comeBackTomorrow')}
                 </span>
               </div>
             )}
@@ -188,7 +190,7 @@ export function DailyRewardsUI({ isOpen, onClose, onClaim }: DailyRewardsUIProps
         {/* Footer */}
         <div className="bg-black/60 p-4 border-t border-yellow-500/50">
           <p className="text-center text-gray-400 font-mono text-xs">
-            Nagrade se ponastavijo vsakih 7 dni. Ne pozabi se prijaviti vsak dan!
+            {t('daily.footerNote')}
           </p>
         </div>
       </div>

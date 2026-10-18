@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { t, useLang } from '../i18n';
 
 interface HUDBarProps {
   label: string;
@@ -76,6 +77,7 @@ interface ComboCounterProps {
 }
 
 export function ComboCounter({ combo, isVisible }: ComboCounterProps) {
+  useLang();
   if (!isVisible || combo <= 1) return null;
 
   return (
@@ -103,7 +105,7 @@ export function ComboCounter({ combo, isVisible }: ComboCounterProps) {
             textShadow: '0 0 10px rgba(255, 136, 0, 0.6)'
           }}
         >
-          COMBO
+          {t('combo.big')}
         </div>
       </div>
     </div>
@@ -117,6 +119,7 @@ interface WaveAnnouncementProps {
 }
 
 export function WaveAnnouncement({ wave, isBoss, isVisible }: WaveAnnouncementProps) {
+  useLang();
   if (!isVisible) return null;
 
   return (
@@ -131,7 +134,7 @@ export function WaveAnnouncement({ wave, isBoss, isVisible }: WaveAnnouncementPr
               : '0 0 30px rgba(0, 255, 255, 0.8), 0 0 60px rgba(0, 255, 255, 0.4)'
           }}
         >
-          {isBoss ? '⚠ VOID BREACH ⚠' : `WAVE ${wave}`}
+          {isBoss ? t('hud.voidBreach') : t('hud.waveN', { n: wave })}
         </div>
         <div
           className="text-xl font-mono"
@@ -142,7 +145,7 @@ export function WaveAnnouncement({ wave, isBoss, isVisible }: WaveAnnouncementPr
               : '0 0 15px rgba(136, 255, 255, 0.6)'
           }}
         >
-          {isBoss ? 'BOSS INCOMING' : `${3 + wave * 2} hostiles detected`}
+          {isBoss ? t('hud.bossIncoming') : t('hud.hostilesDetected', { n: 3 + wave * 2 })}
         </div>
       </div>
     </div>

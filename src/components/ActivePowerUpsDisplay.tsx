@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { PowerUp, PowerUpManager, getPowerUpVisualStyles } from '../game/advancedPowerups';
+import { t, useLang } from '../i18n';
 
 interface ActivePowerUpsDisplayProps {
   powerUpManager: PowerUpManager;
@@ -10,6 +11,7 @@ export const ActivePowerUpsDisplay: React.FC<ActivePowerUpsDisplayProps> = ({
   powerUpManager,
   updateInterval = 100
 }) => {
+  useLang();
   const [activePowerUps, setActivePowerUps] = useState<PowerUp[]>([]);
   const [timeRemaining, setTimeRemaining] = useState<Map<string, number>>(new Map());
 
@@ -55,10 +57,10 @@ export const ActivePowerUpsDisplay: React.FC<ActivePowerUpsDisplayProps> = ({
               <span className="text-2xl">{powerUp.icon}</span>
               <div className="flex-1">
                 <div className="font-bold text-sm" style={{ color: powerUp.color }}>
-                  {powerUp.name}
+                  {t(`power.${powerUp.id}.name`)}
                 </div>
                 <div className="text-xs text-gray-400">
-                  {powerUp.description}
+                  {t(`power.${powerUp.id}.desc`)}
                 </div>
               </div>
             </div>
@@ -67,16 +69,16 @@ export const ActivePowerUpsDisplay: React.FC<ActivePowerUpsDisplayProps> = ({
             <div className="text-xs mb-2">
               {powerUp.effects.map((effect, index) => (
                 <div key={index} className="text-gray-300">
-                  {effect.type === 'damage' && `Škoda: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
-                  {effect.type === 'speed' && `Hitrost: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
-                  {effect.type === 'fireRate' && `Hitrost streljanja: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
-                  {effect.type === 'shield' && `Ščit: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
-                  {effect.type === 'health' && `Zdravje: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
-                  {effect.type === 'energy' && `Energija: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
-                  {effect.type === 'critChance' && `Kritična možnost: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
-                  {effect.type === 'critDamage' && `Kritična škoda: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
-                  {effect.type === 'xpGain' && `XP dobitki: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
-                  {effect.type === 'goldGain' && `Zlato: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
+                  {effect.type === 'damage' && `${t('power.stat.damage')}: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
+                  {effect.type === 'speed' && `${t('power.stat.speed')}: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
+                  {effect.type === 'fireRate' && `${t('power.stat.fireRate')}: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
+                  {effect.type === 'shield' && `${t('power.stat.shield')}: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
+                  {effect.type === 'health' && `${t('power.stat.health')}: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
+                  {effect.type === 'energy' && `${t('power.stat.energy')}: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
+                  {effect.type === 'critChance' && `${t('power.stat.critChance')}: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
+                  {effect.type === 'critDamage' && `${t('power.stat.critDamage')}: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
+                  {effect.type === 'xpGain' && `${t('power.stat.xpGain')}: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
+                  {effect.type === 'goldGain' && `${t('power.stat.goldGain')}: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
                 </div>
               ))}
             </div>
@@ -149,6 +151,7 @@ interface ActiveCombosDisplayProps {
 export const ActiveCombosDisplay: React.FC<ActiveCombosDisplayProps> = ({
   powerUpManager
 }) => {
+  useLang();
   const [activeCombos, setActiveCombos] = useState<any[]>([]);
 
   useEffect(() => {
@@ -179,24 +182,24 @@ export const ActiveCombosDisplay: React.FC<ActiveCombosDisplayProps> = ({
             <span className="text-3xl">🌟</span>
             <div className="flex-1">
               <div className="font-bold text-yellow-400 text-lg">
-                {combo.name}
+                {t(`power.combo.${combo.id}.name`)}
               </div>
               <div className="text-xs text-gray-300">
-                {combo.description}
+                {t(`power.combo.${combo.id}.desc`)}
               </div>
             </div>
           </div>
 
           <div className="text-xs">
-            <div className="text-yellow-300 font-bold mb-1">Bonus efekti:</div>
+            <div className="text-yellow-300 font-bold mb-1">{t('power.bonusEffects')}</div>
             {combo.bonusEffects.map((effect: any, index: number) => (
               <div key={index} className="text-gray-200">
-                {effect.type === 'damage' && `Škoda: +${effect.value}${effect.isPercentage ? '%' : ''}`}
-                {effect.type === 'shield' && `Ščit: +${effect.value}${effect.isPercentage ? '%' : ''}`}
-                {effect.type === 'speed' && `Hitrost: +${effect.value}${effect.isPercentage ? '%' : ''}`}
-                {effect.type === 'fireRate' && `Hitrost streljanja: +${effect.value}${effect.isPercentage ? '%' : ''}`}
-                {effect.type === 'critChance' && `Kritična možnost: +${effect.value}${effect.isPercentage ? '%' : ''}`}
-                {effect.type === 'goldGain' && `Zlato: +${effect.value}${effect.isPercentage ? '%' : ''}`}
+                {effect.type === 'damage' && `${t('power.stat.damage')}: +${effect.value}${effect.isPercentage ? '%' : ''}`}
+                {effect.type === 'shield' && `${t('power.stat.shield')}: +${effect.value}${effect.isPercentage ? '%' : ''}`}
+                {effect.type === 'speed' && `${t('power.stat.speed')}: +${effect.value}${effect.isPercentage ? '%' : ''}`}
+                {effect.type === 'fireRate' && `${t('power.stat.fireRate')}: +${effect.value}${effect.isPercentage ? '%' : ''}`}
+                {effect.type === 'critChance' && `${t('power.stat.critChance')}: +${effect.value}${effect.isPercentage ? '%' : ''}`}
+                {effect.type === 'goldGain' && `${t('power.stat.goldGain')}: +${effect.value}${effect.isPercentage ? '%' : ''}`}
               </div>
             ))}
           </div>
@@ -226,6 +229,7 @@ export const PowerUpNotification: React.FC<PowerUpNotificationProps> = ({
   powerUp,
   onDismiss
 }) => {
+  useLang();
   useEffect(() => {
     const timer = setTimeout(onDismiss, 3000);
     return () => clearTimeout(timer);
@@ -244,20 +248,20 @@ export const PowerUpNotification: React.FC<PowerUpNotificationProps> = ({
       <div className="text-center">
         <div className="text-6xl mb-4 animate-pulse">{powerUp.icon}</div>
         <div className="text-2xl font-bold mb-2" style={{ color: powerUp.color }}>
-          {powerUp.name}
+          {t(`power.${powerUp.id}.name`)}
         </div>
         <div className="text-gray-300 mb-4">
-          {powerUp.description}
+          {t(`power.${powerUp.id}.desc`)}
         </div>
         
         <div className="text-sm mb-4">
           {powerUp.effects.map((effect, index) => (
             <div key={index} className="text-gray-200">
-              {effect.type === 'damage' && `Škoda: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
-              {effect.type === 'speed' && `Hitrost: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
-              {effect.type === 'fireRate' && `Hitrost streljanja: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
-              {effect.type === 'shield' && `Ščit: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
-              {effect.type === 'health' && `Zdravje: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
+              {effect.type === 'damage' && `${t('power.stat.damage')}: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
+              {effect.type === 'speed' && `${t('power.stat.speed')}: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
+              {effect.type === 'fireRate' && `${t('power.stat.fireRate')}: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
+              {effect.type === 'shield' && `${t('power.stat.shield')}: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
+              {effect.type === 'health' && `${t('power.stat.health')}: ${effect.value > 0 ? '+' : ''}${effect.value}${effect.isPercentage ? '%' : ''}`}
             </div>
           ))}
         </div>
@@ -270,7 +274,7 @@ export const PowerUpNotification: React.FC<PowerUpNotificationProps> = ({
             border: `2px solid ${powerUp.color}`
           }}
         >
-          {powerUp.duration > 0 ? `Trajanje: ${powerUp.duration}s` : 'Takojšnji učinek'}
+          {powerUp.duration > 0 ? t('power.duration', { n: powerUp.duration }) : t('power.instant')}
         </div>
       </div>
     </div>

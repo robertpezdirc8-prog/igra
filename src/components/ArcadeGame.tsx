@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { t, useLang } from '../i18n';
 
 interface ArcadeGameProps {
   isOpen: boolean;
@@ -7,6 +8,7 @@ interface ArcadeGameProps {
 }
 
 export function ArcadeGame({ isOpen, onClose, onComplete }: ArcadeGameProps) {
+  useLang();
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(30);
   const [targets, setTargets] = useState<Array<{ id: number; x: number; y: number; size: number }>>([]);
@@ -100,15 +102,15 @@ export function ArcadeGame({ isOpen, onClose, onComplete }: ArcadeGameProps) {
         <div className="absolute top-0 left-0 right-0 h-16 bg-black/80 border-b-2 border-purple-500 flex items-center justify-between px-6 z-10">
           <div className="flex items-center gap-6">
             <h2 className="text-2xl font-bold font-mono text-purple-400">
-              🎯 ARKADNA IGRA
+              {t('menu.arcade')}
             </h2>
             {isPlaying && (
               <>
                 <div className="text-xl font-mono text-yellow-400">
-                  TOČKE: {score}
+                  {t('arcade.points', { score })}
                 </div>
                 <div className={`text-xl font-mono ${timeLeft <= 10 ? 'text-red-400 animate-pulse' : 'text-green-400'}`}>
-                  ČAS: {timeLeft}s
+                  {t('arcade.time', { time: timeLeft })}
                 </div>
               </>
             )}
@@ -117,7 +119,7 @@ export function ArcadeGame({ isOpen, onClose, onComplete }: ArcadeGameProps) {
             onClick={onClose}
             className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-mono rounded transition-colors"
           >
-            ZAPRI
+            {t('arcade.close')}
           </button>
         </div>
 
@@ -127,17 +129,17 @@ export function ArcadeGame({ isOpen, onClose, onComplete }: ArcadeGameProps) {
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
                 <h3 className="text-4xl font-bold font-mono text-purple-400 mb-4">
-                  PRIPRAVLJEN?
+                  {t('arcade.ready')}
                 </h3>
                 <p className="text-gray-400 font-mono mb-8">
-                  Klikaj na tarče in zberi čim več točk v 30 sekundah!
+                  {t('arcade.tapHint')}
                 </p>
                 <button
                   onClick={startGame}
                   className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-mono font-bold text-xl rounded-lg transition-all hover:scale-110"
                   style={{ boxShadow: '0 0 30px rgba(168, 85, 247, 0.5)' }}
                 >
-                  ZAČNI IGRO
+                  {t('menu.start')}
                 </button>
               </div>
             </div>
@@ -169,10 +171,10 @@ export function ArcadeGame({ isOpen, onClose, onComplete }: ArcadeGameProps) {
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
                 <h3 className="text-5xl font-bold font-mono text-yellow-400 mb-4">
-                  IGRA KONČANA!
+                  {t('arcade.runOver')}
                 </h3>
                 <p className="text-3xl font-mono text-purple-400 mb-8">
-                  Končni rezultat: {score}
+                  {t('arcade.finalScore', { score })}
                 </p>
                 <div className="flex gap-4 justify-center">
                   <button
@@ -180,14 +182,14 @@ export function ArcadeGame({ isOpen, onClose, onComplete }: ArcadeGameProps) {
                     className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-mono font-bold rounded-lg transition-all hover:scale-110"
                     style={{ boxShadow: '0 0 20px rgba(74, 222, 128, 0.5)' }}
                   >
-                    IGRAJ ZNOVA
+                    {t('arcade.playAgain')}
                   </button>
                   <button
                     onClick={onClose}
                     className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-mono font-bold rounded-lg transition-all hover:scale-110"
                     style={{ boxShadow: '0 0 20px rgba(168, 85, 247, 0.5)' }}
                   >
-                    ZAPRI
+                    {t('arcade.close')}
                   </button>
                 </div>
               </div>

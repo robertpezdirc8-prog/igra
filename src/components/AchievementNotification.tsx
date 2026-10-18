@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { t, useLang } from '../i18n';
 
 interface Achievement {
   id: string;
@@ -13,6 +14,7 @@ interface AchievementNotificationProps {
 }
 
 export function AchievementNotification({ achievement, onClose }: AchievementNotificationProps) {
+  useLang();
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
@@ -56,7 +58,7 @@ export function AchievementNotification({ achievement, onClose }: AchievementNot
           {/* Content */}
           <div className="flex-1">
             <p className="text-yellow-400 font-mono text-xs uppercase tracking-wider mb-1">
-              Dosežek odklenjen!
+              {t('ach.unlocked')}
             </p>
             <h3
               className="text-lg font-bold font-mono mb-1"
@@ -65,10 +67,10 @@ export function AchievementNotification({ achievement, onClose }: AchievementNot
                 textShadow: '0 0 10px rgba(255, 170, 0, 0.6)'
               }}
             >
-              {achievement.title}
+              {t('ach.' + achievement.id + '.name')}
             </h3>
             <p className="text-gray-400 font-mono text-xs">
-              {achievement.description}
+              {t('ach.' + achievement.id + '.desc')}
             </p>
           </div>
         </div>

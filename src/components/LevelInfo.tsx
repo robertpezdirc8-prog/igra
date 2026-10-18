@@ -1,4 +1,5 @@
 import type { Level } from '../game/levels';
+import { t, useLang } from '../i18n';
 
 interface LevelInfoProps {
   level: Level;
@@ -6,6 +7,7 @@ interface LevelInfoProps {
 }
 
 export function LevelInfo({ level, playerLevel }: LevelInfoProps) {
+  useLang();
   // playerLevel is shown next to the level name (real engine data)
   return (
     <div className="fixed bottom-48 left-4 z-30">
@@ -36,13 +38,13 @@ export function LevelInfo({ level, playerLevel }: LevelInfoProps) {
                 textShadow: `0 0 10px ${level.color}88`
               }}
             >
-              {level.name}
+              {t(`level.${level.id}.name`)}
             </p>
             <p className="text-gray-400 font-mono text-xs">
-              {level.description}
+              {t(`level.${level.id}.desc`)}
             </p>
             <p className="text-gray-500 font-mono text-[10px]">
-              Igralec: nivo {playerLevel}
+              {t('level.playerLevel', { level: playerLevel })}
             </p>
           </div>
         </div>
