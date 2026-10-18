@@ -116,6 +116,14 @@ export class ClassicArcadeEngine {
     };
 
     this.setupInput();
+
+    // Debug/testing hook: lets devtools & test harnesses inspect the live
+    // engine (enemy counts, wave timers, forcing a game-over for the
+    // initials-screen flow). Harmless in production — read-only unless
+    // someone deliberately pokes it from the console.
+    if (typeof window !== 'undefined') {
+      (window as unknown as Record<string, unknown>).__classicArcade = this;
+    }
   }
 
   private setupInput() {
@@ -132,8 +140,9 @@ export class ClassicArcadeEngine {
         }
       }
 
-      // Bomb
-      if (e.key === 'b' || e.key === 'B') {
+      // Bomb (only mid-run — 'B' typed on the game-over initials screen
+      // must not consume a bomb)
+      if ((e.key === 'b' || e.key === 'B') && (this.state === 'playing' || this.state === 'bossfight')) {
         this.useBomb();
       }
     };
