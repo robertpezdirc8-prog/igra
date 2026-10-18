@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from './Button';
+import { BulletVisibility } from '../game/saveSystem';
 
 interface SettingsMenuProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface SettingsMenuProps {
     touchSensitivity?: number;
     leftHanded?: boolean;
     bigButtons?: boolean;
+    bulletVisibility?: BulletVisibility;
   };
   onSettingsChange: (settings: any) => void;
 }
@@ -106,6 +108,35 @@ export function SettingsMenu({ isOpen, onClose, settings, onSettingsChange }: Se
                 }`}
               />
             </button>
+          </div>
+
+          {/* Bullet visibility (color-blind accessibility) */}
+          <div>
+            <label className="block text-sm font-mono text-gray-400 mb-1">
+              VIDNOST NABOJEV
+            </label>
+            <p className="text-xs font-mono text-gray-500 mb-2">
+              Nasprotnikovo streljanje jasneje vidno (dostopnost)
+            </p>
+            <div className="flex gap-2">
+              {(['standard', 'contrast', 'mono'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  aria-pressed={localSettings.bulletVisibility === mode}
+                  aria-label={`Vidnost nabojev: ${
+                    mode === 'standard' ? 'Običajno' : mode === 'contrast' ? 'Visok kontrast' : 'Enobarvno'
+                  }`}
+                  onClick={() => setLocalSettings({ ...localSettings, bulletVisibility: mode })}
+                  className={`flex-1 px-3 py-2 font-mono text-xs border-2 rounded transition-all ${
+                    (localSettings.bulletVisibility ?? 'standard') === mode
+                      ? 'bg-cyan-500/30 border-cyan-400 text-cyan-400'
+                      : 'bg-gray-800/50 border-gray-600 text-gray-400 hover:border-gray-500'
+                  }`}
+                >
+                  {mode === 'standard' ? 'OBIČAJNO' : mode === 'contrast' ? 'KONTRAST' : 'ENOBARVNO'}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Auto-Aim for Mobile */}

@@ -6,6 +6,7 @@ import { getLevelForPlayer } from './levels';
 import { getEnvironmentForLevel, renderEnvironment } from './environment';
 import { DifficultyMode } from './difficulty';
 import { SkillBonuses, defaultSkillBonuses } from './skillTree';
+import { BulletVisibility } from './saveSystem';
 import { WeatherSystem, EnvironmentalHazardsSystem, WeatherType } from './weatherSystem';
 import { AdvancedEnemyAI, BossAI, FormationSystem } from './enemyAI';
 import { PowerUpManager, ADVANCED_POWERUPS, POWERUP_COMBOS } from './advancedPowerups';
@@ -151,6 +152,7 @@ export interface GameStats {
   gold: number; fps: number; seed: string;
   gameStartTime: number;
   shotsFired: number; hitsLanded: number;
+  grazeCount: number;
   damageTaken: number; itemsCollected: number;
   webgpuSupported: boolean;
   playerLevel: number; playerXp: number; xpToNext: number;
@@ -279,6 +281,8 @@ export class GameEngine {
   private bossKills = 0;
   private shotsFired = 0;
   private hitsLanded = 0;
+  // Risk/reward tally: near-misses threaded past enemy bullets (grazes)
+  private grazeCount = 0;
   private damageTaken = 0;
   private itemsCollected = 0;
   private waveTotalEnemies = 0;
@@ -289,6 +293,8 @@ export class GameEngine {
   private difficulty: DifficultyMode | null = null;
   private skillBonuses: SkillBonuses = defaultSkillBonuses();
   private startingXp = 0;
+  // Color-blind accessibility: how enemy bullets are drawn (hitboxes never change)
+  private bulletVisibility: BulletVisibility = 'standard';
   // Mobile input state
   private mobileMove: Vec2 = { x: 0, y: 0 };
   private mobileShooting = false;
@@ -556,6 +562,14 @@ export class GameEngine {
   /** Apply persistent skill-tree bonuses (takes effect on the next startGame). */
   setSkillBonuses(bonuses: SkillBonuses) {
     this.skillBonuses = { ...defaultSkillBonuses(), ...bonuses };
+  }
+
+  /** Enemy-bullet visibility mode (color-blind accessibility, render-only). */
+  setBulletVisibility(mode: BulletVisibility) {
+    this.bulletVisibility = mode;
+  }
+  getBulletVisibility(): BulletVisibility {
+    return this.bulletVisibility;
   }
 
   /** XP granted automatically at the start of the next run (daily reward). */
@@ -1084,6 +1098,7 @@ export class GameEngine {
     this.maxCombo = 1;
     this.shotsFired = 0;
     this.hitsLanded = 0;
+    this.grazeCount = 0;
     this.damageTaken = 0;
     this.itemsCollected = 0;
     this.levelChoices = [];
@@ -3130,6 +3145,7 @@ export class GameEngine {
       const grazeR = hitR + 16;
       if (d2 < grazeR * grazeR) {
         b.grazed = true;
+        this.grazeCount++;
         p.score += Math.round(20 * (this.difficulty?.scoreMultiplier ?? 1));
         p.energy = Math.min(p.maxEnergy, p.energy + 2);
         for (let j = 0; j < 2; j++) {
@@ -4962,27 +4978,47 @@ export class GameEngine {
         // ── Enemy plasma orbs ───
         // Anatomy of a Shmup rule: enemy shots must ALWAYS read. Pulsing
         // white outline + motion teardrop + halo + hot core.
-        const pulse = 0.45 + 0.3 * Math.sin(this.time * 9 + b.x * 0.08 + b.y * 0.05);
-        ctx.lineWidth = 1.5;
-        ctx.strokeStyle = `rgba(255, 255, 255, ${pulse.toFixed(2)})`;
-        ctx.beginPath();
-        ctx.arc(0, 0, b.size + 2.2, 0, Math.PI * 2);
-        ctx.stroke();
+        // Color-blind modes (render-only, hitbox untouched):
+        //  contrast — dark backing plate + solid white ring under every shot
+        //  mono     — whole shot forced to one danger color (red)
+        const vis = this.bulletVisibility;
+        if (vis !== 'standard') {
+          // Dark plate first: guarantees separation from any background/bullet.
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
+          ctx.beginPath();
+          ctx.arc(0, 0, b.size * 2.6, 0, Math.PI * 2);
+          ctx.fill();
+          // Solid white ring at 95% — never fades like the standard pulse.
+          ctx.lineWidth = 2.8;
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx.beginPath();
+          ctx.arc(0, 0, b.size + 2.2, 0, Math.PI * 2);
+          ctx.stroke();
+        } else {
+          const pulse = 0.45 + 0.3 * Math.sin(this.time * 9 + b.x * 0.08 + b.y * 0.05);
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = `rgba(255, 255, 255, ${pulse.toFixed(2)})`;
+          ctx.beginPath();
+          ctx.arc(0, 0, b.size + 2.2, 0, Math.PI * 2);
+          ctx.stroke();
+        }
 
         ctx.rotate(ang);
+        const drawColor = vis === 'mono' ? '#ff2244' : b.color;
         ctx.globalCompositeOperation = 'lighter';
         // Motion teardrop tail — energy smeared opposite the travel
         const tail = ctx.createLinearGradient(-b.size * 3.2, 0, b.size * 0.4, 0);
         tail.addColorStop(0, 'transparent');
-        tail.addColorStop(1, b.color + '77');
+        tail.addColorStop(1, drawColor + '77');
         ctx.fillStyle = tail;
         ctx.beginPath();
         ctx.ellipse(-b.size * 1.2, 0, b.size * 2.0, b.size * 0.62, 0, 0, Math.PI * 2);
         ctx.fill();
         // Soft halo
         const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, b.size * 2.1);
-        halo.addColorStop(0, b.color + 'cc');
-        halo.addColorStop(0.55, b.color + '44');
+        halo.addColorStop(0, drawColor + 'cc');
+        halo.addColorStop(0.55, drawColor + '44');
         halo.addColorStop(1, 'transparent');
         ctx.fillStyle = halo;
         ctx.beginPath();
@@ -4990,7 +5026,7 @@ export class GameEngine {
         ctx.fill();
         ctx.globalCompositeOperation = 'source-over';
         // Colored core + white-hot center
-        ctx.fillStyle = b.color;
+        ctx.fillStyle = drawColor;
         ctx.beginPath();
         ctx.arc(0, 0, b.size, 0, Math.PI * 2);
         ctx.fill();
@@ -5575,6 +5611,7 @@ export class GameEngine {
       gameStartTime: this.gameStartTime,
       shotsFired: this.shotsFired,
       hitsLanded: this.hitsLanded,
+      grazeCount: this.grazeCount,
       damageTaken: Math.floor(this.damageTaken),
       itemsCollected: this.itemsCollected,
       webgpuSupported: this.webgpuSupported,

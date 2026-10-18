@@ -1,5 +1,15 @@
 import { SKILL_TREE, SkillTree } from './skillTree';
 
+// Color-blind accessibility (XAG principle: never rely on hue alone).
+// 'standard' — original per-enemy colors; 'contrast' — dark backing plate
+// + solid white ring on every enemy shot; 'mono' — all enemy shots forced
+// to one danger color. Pure render-layer choice: hitboxes never change.
+export type BulletVisibility = 'standard' | 'contrast' | 'mono';
+const BULLET_VISIBILITIES: BulletVisibility[] = ['standard', 'contrast', 'mono'];
+export function isBulletVisibility(v: unknown): v is BulletVisibility {
+  return typeof v === 'string' && (BULLET_VISIBILITIES as string[]).includes(v);
+}
+
 export interface SaveData {
   version: string;
   timestamp: number;
@@ -35,6 +45,7 @@ export interface SaveData {
     touchSensitivity: number;
     leftHanded: boolean;
     bigButtons: boolean;
+    bulletVisibility: BulletVisibility;
   };
   cosmetics: {
     unlocked: string[];
@@ -86,7 +97,8 @@ export function createDefaultSaveData(): SaveData {
       particles: 'high',
       touchSensitivity: 1.2,
       leftHanded: false,
-      bigButtons: false
+      bigButtons: false,
+      bulletVisibility: 'standard'
     },
     cosmetics: {
       unlocked: ['default'],
@@ -129,6 +141,14 @@ export function loadGame(): SaveData | null {
       return migrateSaveData(data);
     }
 
+    // Sanitize settings even when the version matches: older 2.0.0 saves
+    // predate newer keys (bulletVisibility) and corrupt edits are possible.
+    if (!data.settings || typeof data.settings !== 'object') {
+      data.settings = createDefaultSaveData().settings;
+    } else if (!isBulletVisibility(data.settings.bulletVisibility)) {
+      data.settings.bulletVisibility = 'standard';
+    }
+
     return data;
   } catch (error) {
     console.error('Failed to load game:', error);
@@ -168,9 +188,12 @@ function migrateSaveData(oldData: any): SaveData {
     newData.achievements = oldData.achievements;
   }
   
-  // Migrate settings
+  // Migrate settings (unknown/corrupt values fall back to defaults)
   if (oldData.settings) {
     newData.settings = { ...newData.settings, ...oldData.settings };
+    if (!isBulletVisibility(newData.settings.bulletVisibility)) {
+      newData.settings.bulletVisibility = 'standard';
+    }
   }
 
   // v1.0.0 -> v2.0.0: new fields

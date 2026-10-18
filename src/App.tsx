@@ -64,6 +64,7 @@ import type { WeatherType } from './game/weatherSystem';
 import { ALL_ACHIEVEMENTS, checkAchievements, Achievement } from './game/achievements';
 import { CosmeticItem, canAffordCosmetic } from './game/cosmetics';
 import { updateGameStats, addToLeaderboard } from './game/statsSystem';
+import { BulletVisibility } from './game/saveSystem';
 
 type GameState = 'loading' | 'menu' | 'playing' | 'paused' | 'levelup' | 'levelchoice' | 'gameover';
 
@@ -76,6 +77,7 @@ interface Settings {
   touchSensitivity: number;
   leftHanded: boolean;
   bigButtons: boolean;
+  bulletVisibility: BulletVisibility;
 }
 
 // Keys the game consumes - preventDefault is applied ONLY to these while
@@ -93,6 +95,7 @@ const emptyStats: GameStats = {
   isBossWave: false, bossPresent: false,
   gold: 0, fps: 60, seed: '', gameStartTime: 0,
   shotsFired: 0, hitsLanded: 0, damageTaken: 0, itemsCollected: 0,
+  grazeCount: 0,
   webgpuSupported: false, playerLevel: 1, playerXp: 0, xpToNext: 100
 };
 
@@ -353,6 +356,10 @@ export default function App() {
     // Apply persisted control/audio settings to the fresh engine (the
     // change-handler only fires on the NEXT settings edit).
     if (saveDataRef.current) engine.applySettings(saveDataRef.current.settings);
+    // Restore persisted enemy-bullet visibility (color-blind accessibility)
+    if (saveDataRef.current?.settings.bulletVisibility) {
+      engine.setBulletVisibility(saveDataRef.current.settings.bulletVisibility);
+    }
     // Restore persisted mute AFTER settings so it wins over applySettings.
     if (saveDataRef.current?.settings.muted) engine.setMuted(true);
 
@@ -660,6 +667,9 @@ export default function App() {
     // (e.g. muted) — dropping the rest would desync the mute UI.
     setSettings(s => ({ ...s, ...newSettings }));
     engineRef.current?.applySettings(newSettings);
+    if (newSettings.bulletVisibility) {
+      engineRef.current?.setBulletVisibility(newSettings.bulletVisibility);
+    }
     persistSave(d => ({ ...d, settings: { ...d.settings, ...newSettings } }));
   }, [persistSave]);
 
@@ -1010,6 +1020,12 @@ export default function App() {
           highScore={Math.max(saveData?.player.highScore ?? 0, finalStats?.score ?? 0)}
           isNewHighScore={(finalStats?.score ?? 0) > (saveData?.player.highScore ?? 0) && (finalStats?.score ?? 0) > 0}
           playerLevel={finalStats?.playerLevel ?? 1}
+          accuracy={
+            (finalStats?.shotsFired ?? 0) > 0
+              ? Math.round(((finalStats?.hitsLanded ?? 0) / (finalStats?.shotsFired ?? 1)) * 100)
+              : 0
+          }
+          grazeCount={finalStats?.grazeCount ?? 0}
           onRestart={handleStartGame}
           onMainMenu={handleMainMenu}
         />

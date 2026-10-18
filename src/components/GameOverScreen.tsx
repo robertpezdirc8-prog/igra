@@ -14,6 +14,10 @@ interface GameOverScreenProps {
   highScore: number;
   isNewHighScore: boolean;
   playerLevel: number;
+  /** Hits ÷ shots × 100, rounded. 0 when no shots were fired. */
+  accuracy: number;
+  /** Near-misses threaded past enemy bullets (shmup risk/reward). */
+  grazeCount: number;
   onRestart: () => void;
   onMainMenu: () => void;
 }
@@ -29,6 +33,8 @@ export function GameOverScreen({
   highScore,
   isNewHighScore,
   playerLevel,
+  accuracy,
+  grazeCount,
   onRestart,
   onMainMenu
 }: GameOverScreenProps) {
@@ -52,6 +58,8 @@ export function GameOverScreen({
     { label: 'Skupna škoda', value: Math.floor(totalDamage).toLocaleString(), color: '#ffff00' },
     { label: 'Čas preživetja', value: `${Math.floor(survivalTime)}s`, color: '#00ff88' },
     { label: 'Največji combo', value: `${maxCombo}x`, color: '#ff00ff' },
+    { label: 'Natančnost', value: `${accuracy}%`, color: '#66ff99' },
+    { label: 'Odmiki', value: grazeCount.toString(), color: '#cc99ff' },
     { label: 'Osebni rekord', value: highScore.toLocaleString(), color: '#ffffff' }
   ];
 
