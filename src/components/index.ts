@@ -48,11 +48,7 @@ export { DifficultySelectUI } from './DifficultySelectUI';
 export { MetaProgressionUI } from './MetaProgressionUI';
 
 // Advanced systems UI (merged from webgpu-online-games-51d72)
-export { AchievementUI } from './AchievementUI';
 export { ActivePowerUpsDisplay, ActiveCombosDisplay, PowerUpNotification } from './ActivePowerUpsDisplay';
-export { EnemyAIDisplay, AIBehaviorLegend } from './EnemyAIDisplay';
-export { EnemyVisualEffects } from './EnemyVisualEffects';
-export { FormationVisualization, FormationSelector } from './FormationVisualization';
 export { WeatherDisplay, WeatherSelector } from './WeatherDisplay';
 
 // Decorative in-game overlays (merged from webgpu-online-games-51d72)

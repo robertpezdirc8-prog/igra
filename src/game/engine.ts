@@ -3168,6 +3168,11 @@ export class GameEngine {
         }
         this.audio.playGraze();
         this.proceduralAudio.playGraze();
+        // Hit-stop: a single ~1-frame freeze makes the near-miss FELT
+        // (same juice the boss kill uses, scaled down). Deliberately tiny —
+        // dense curtains can chain grazes every few frames and a longer
+        // freeze would stutter the whole swarm.
+        this.hitStop = Math.max(this.hitStop, 0.018);
       }
     }
     return false;

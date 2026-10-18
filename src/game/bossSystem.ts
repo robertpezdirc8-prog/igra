@@ -1,6 +1,8 @@
 // Boss System - Classic Arcade Style
 // Inspired by Alpha Mission II, Image Fight, and Varth
 
+import { t } from '../i18n';
+
 export interface BossPhase {
   id: number;
   hpThreshold: number; // percentage (0-100)
@@ -32,7 +34,8 @@ export interface BossMovementPattern {
 
 export interface Boss {
   id: string;
-  name: string;
+  /** i18n dictionary key (e.g. 'classicboss.spider') — localized at render time. */
+  nameKey: string;
   hp: number;
   maxHp: number;
   phases: BossPhase[];
@@ -60,7 +63,7 @@ export class BossSystem {
     const bosses: Record<string, Omit<Boss, 'currentPhase' | 'x' | 'y'>> = {
       'stage_1_boss': {
         id: 'stage_1_boss',
-        name: 'MECHA SPIDER',
+        nameKey: 'classicboss.spider',
         hp: 500,
         maxHp: 500,
         phases: [
@@ -120,7 +123,7 @@ export class BossSystem {
       },
       'stage_2_boss': {
         id: 'stage_2_boss',
-        name: 'SATELLITE FORTRESS',
+        nameKey: 'classicboss.fortress',
         hp: 800,
         maxHp: 800,
         phases: [
@@ -205,7 +208,7 @@ export class BossSystem {
       },
       'final_boss': {
         id: 'final_boss',
-        name: 'VOID EMPEROR',
+        nameKey: 'classicboss.emperor',
         hp: 1500,
         maxHp: 1500,
         phases: [
@@ -602,14 +605,14 @@ export class BossSystem {
     ctx.lineWidth = 2;
     ctx.strokeRect(x, y, barWidth, barHeight);
 
-    // Boss name
+    // Boss name (localized at render time)
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 16px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(boss.name, ctx.canvas.width / 2, y - 10);
+    ctx.fillText(t(boss.nameKey), ctx.canvas.width / 2, y - 10);
 
     // Phase indicator
     ctx.font = '12px monospace';
-    ctx.fillText(`FAZA ${boss.currentPhase + 1}/${boss.phases.length}`, ctx.canvas.width / 2, y + barHeight + 15);
+    ctx.fillText(t('boss.phase', { n: boss.currentPhase + 1, total: boss.phases.length }), ctx.canvas.width / 2, y + barHeight + 15);
   }
 }

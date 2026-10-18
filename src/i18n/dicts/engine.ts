@@ -90,6 +90,12 @@ const sl = {
   'boss.skull': 'LOBANJA-NIČELA',
   'boss.station': 'POSTAJA NIČ',
   'boss.titan': 'VOID TITAN',
+
+  // ── Klasični arkadni bossi (BossSystem) + faza ──
+  'classicboss.spider': 'MEHANSKI PAJEK',
+  'classicboss.fortress': 'SATELITSKA TRDNJAVA',
+  'classicboss.emperor': 'VLADAR PRAZNINE',
+  'boss.phase': 'FAZA {n}/{total}',
 } as const;
 
 type Keys = keyof typeof sl;
@@ -179,6 +185,12 @@ const en: Record<Keys, string> = {
   'boss.skull': 'SKULL-NEXUS',
   'boss.station': 'STATION ZERO',
   'boss.titan': 'VOID TITAN',
+
+  // ── Classic arcade bosses (BossSystem) + phase ──
+  'classicboss.spider': 'MECHA SPIDER',
+  'classicboss.fortress': 'SATELLITE FORTRESS',
+  'classicboss.emperor': 'VOID EMPEROR',
+  'boss.phase': 'PHASE {n}/{total}',
 };
 
 export const dict = { sl, en };
