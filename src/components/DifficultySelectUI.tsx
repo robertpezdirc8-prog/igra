@@ -1,4 +1,5 @@
 import { DIFFICULTY_MODES, DifficultyMode, getDifficultyColor } from '../game/difficulty';
+import { t, useLang } from '../i18n';
 
 interface DifficultySelectUIProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ export function DifficultySelectUI({
   playerLevel,
   currentDifficulty
 }: DifficultySelectUIProps) {
+  useLang();
   if (!isOpen) return null;
 
   const availableDifficulties = DIFFICULTY_MODES.filter(d => d.unlockLevel <= playerLevel);
@@ -26,10 +28,10 @@ export function DifficultySelectUI({
         {/* Header */}
         <div className="relative bg-gradient-to-r from-red-600 to-orange-600 p-6">
           <h2 className="text-3xl font-bold font-mono text-white">
-            ⚔️ IZBERI TEŽAVNOST
+            {t('difficulty.title')}
           </h2>
           <p className="text-red-200 font-mono text-sm mt-1">
-            Višja težavnost = večje nagrade
+            {t('difficulty.subtitle')}
           </p>
           <button
             onClick={onClose}
@@ -69,45 +71,45 @@ export function DifficultySelectUI({
                         className="text-2xl font-bold font-mono"
                         style={{ color }}
                       >
-                        {difficulty.name}
+                        {t(`difficulty.name.${difficulty.id}`)}
                       </h3>
                       {isCurrent && (
                         <span className="px-3 py-1 bg-green-500/30 border border-green-500 rounded text-green-400 font-mono text-xs">
-                          ✓ TRENUTNO
+                          {t('difficulty.current')}
                         </span>
                       )}
                     </div>
 
                     <p className="text-gray-300 font-mono text-sm mb-4">
-                      {difficulty.description}
+                      {t(`difficulty.desc.${difficulty.id}`)}
                     </p>
 
                     {/* Multipliers */}
                     <div className="grid grid-cols-3 gap-4 text-xs font-mono">
                       <div>
-                        <div className="text-gray-400 mb-1">Sovražniki</div>
+                        <div className="text-gray-400 mb-1">{t('difficulty.enemies')}</div>
                         <div style={{ color }}>
-                          HP: {Math.round(difficulty.enemyHpMultiplier * 100)}%
+                          {t('difficulty.hp')}: {Math.round(difficulty.enemyHpMultiplier * 100)}%
                           <br />
-                          Škoda: {Math.round(difficulty.enemyDamageMultiplier * 100)}%
+                          {t('difficulty.damage')}: {Math.round(difficulty.enemyDamageMultiplier * 100)}%
                           <br />
-                          Hitrost: {Math.round(difficulty.enemySpeedMultiplier * 100)}%
+                          {t('difficulty.speed')}: {Math.round(difficulty.enemySpeedMultiplier * 100)}%
                         </div>
                       </div>
                       <div>
-                        <div className="text-gray-400 mb-1">Igralec</div>
+                        <div className="text-gray-400 mb-1">{t('difficulty.player')}</div>
                         <div style={{ color }}>
-                          Škoda: {Math.round(difficulty.playerDamageMultiplier * 100)}%
+                          {t('difficulty.damage')}: {Math.round(difficulty.playerDamageMultiplier * 100)}%
                         </div>
                       </div>
                       <div>
-                        <div className="text-gray-400 mb-1">Nagrade</div>
+                        <div className="text-gray-400 mb-1">{t('difficulty.rewards')}</div>
                         <div style={{ color }}>
                           XP: {Math.round(difficulty.xpMultiplier * 100)}%
                           <br />
-                          Zlato: {Math.round(difficulty.goldMultiplier * 100)}%
+                          {t('difficulty.gold')}: {Math.round(difficulty.goldMultiplier * 100)}%
                           <br />
-                          Točke: {Math.round(difficulty.scoreMultiplier * 100)}%
+                          {t('difficulty.points')}: {Math.round(difficulty.scoreMultiplier * 100)}%
                         </div>
                       </div>
                     </div>
@@ -127,7 +129,7 @@ export function DifficultySelectUI({
           {DIFFICULTY_MODES.filter(d => d.unlockLevel > playerLevel).length > 0 && (
             <div className="mt-6 pt-6 border-t border-gray-700">
               <p className="text-gray-500 font-mono text-sm mb-4">
-                Zaklenjene težavnosti:
+                {t('difficulty.locked')}
               </p>
               <div className="grid grid-cols-2 gap-4">
                 {DIFFICULTY_MODES.filter(d => d.unlockLevel > playerLevel).map((difficulty) => (
@@ -139,10 +141,10 @@ export function DifficultySelectUI({
                       <span className="text-3xl">🔒</span>
                       <div>
                         <div className="text-gray-400 font-mono font-bold">
-                          {difficulty.name}
+                          {t(`difficulty.name.${difficulty.id}`)}
                         </div>
                         <div className="text-gray-500 font-mono text-xs">
-                          Odklene se na nivoju {difficulty.unlockLevel}
+                          {t('difficulty.unlockLevel', { level: difficulty.unlockLevel })}
                         </div>
                       </div>
                     </div>

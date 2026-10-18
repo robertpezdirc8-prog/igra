@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { ClassicArcadeEngine, ClassicGameState } from '../game/classicArcadeEngine';
+import { t, useLang, localeTag } from '../i18n';
 import {
   ArcadeHighScoreEntry,
   getArcadeHighScores,
@@ -32,6 +33,7 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
   const [gameState, setGameState] = useState<ClassicGameState>('menu');
   const [score, setScore] = useState(0);
   const [stage, setStage] = useState(1);
+  useLang(); // re-render arcade screens on language switch
 
   // High-score flow: 'initials' → 'table'; 'none' = plain game over
   const [hsPhase, setHsPhase] = useState<'none' | 'initials' | 'table'>('none');
@@ -187,9 +189,9 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
       <button
         onClick={onExit}
         className="absolute top-16 right-3 z-50 px-3 py-2 rounded border border-red-500/60 bg-black/70 text-red-400 font-mono text-xs hover:bg-red-950/70 hover:text-red-300 transition-colors"
-        aria-label="Zapri arkadni način"
+        aria-label={t('arcade.exitAria')}
       >
-        ✕ IZHOD
+        {t('arcade.exit')}
       </button>
 
       {/* Menu Screen */}
@@ -206,23 +208,23 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
               className="text-2xl sm:text-3xl font-bold font-mono mb-4 text-purple-400"
               style={{ textShadow: '0 0 15px rgba(255, 0, 255, 0.6)' }}
             >
-              ARKADNI NAČIN
+              {t('arcade.title')}
             </h2>
             <p className="text-gray-400 font-mono text-sm mb-6">
-              Klasični arkadni vertical shooter — življenja, stopnje, bossi
+              {t('arcade.desc')}
             </p>
             <button
               onClick={handleStartGame}
               className="px-8 py-4 bg-cyan-600 hover:bg-cyan-700 text-white font-mono font-bold text-xl rounded transition-all hover:scale-110"
               style={{ boxShadow: '0 0 20px rgba(0, 255, 255, 0.5)' }}
             >
-              ZAČNI IGRO
+              {t('menu.start')}
             </button>
 
             {/* Attract-mode hall of fame (top 5) */}
             <div className="mt-8 mb-6">
               <p className="text-yellow-400 font-mono text-sm mb-3 tracking-widest">
-                ★ NAJBOLJŠI REZULTATI ★
+                {t('arcade.highScores')}
               </p>
               <div className="inline-block text-left">
                 {topFive.map((entry, i) => (
@@ -230,7 +232,7 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
                     <span className="text-gray-500 w-6 text-right">{i + 1}.</span>
                     <span className="text-cyan-300 w-12">{entry.initials}</span>
                     <span className="text-white tabular-nums">
-                      {entry.score.toLocaleString('sl-SI')}
+                      {entry.score.toLocaleString(localeTag())}
                     </span>
                   </div>
                 ))}
@@ -238,10 +240,10 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
             </div>
 
             <div className="text-gray-500 font-mono text-xs space-y-1">
-              <p>WASD/Puščice = Premikanje</p>
-              <p>Miška/Space = Streljanje</p>
-              <p>B = Bomba</p>
-              <p>ESC = Pavza</p>
+              <p>{t('arcade.hintMove')}</p>
+              <p>{t('arcade.hintShoot')}</p>
+              <p>{t('arcade.hintBomb')}</p>
+              <p>{t('arcade.hintPause')}</p>
             </div>
           </div>
         </div>
@@ -255,10 +257,10 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
               className="text-5xl font-bold font-mono mb-8 text-yellow-400"
               style={{ textShadow: '0 0 20px rgba(255, 255, 0, 0.8)' }}
             >
-              PAVZA
+              {t('arcade.paused')}
             </h2>
             <p className="text-gray-400 font-mono text-lg">
-              Pritisni ESC za nadaljevanje
+              {t('arcade.escHint')}
             </p>
           </div>
         </div>
@@ -272,13 +274,13 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
               className="text-3xl sm:text-4xl font-bold font-mono mb-1 text-yellow-400"
               style={{ textShadow: '0 0 20px rgba(255, 255, 0, 0.8)' }}
             >
-              ★ NOV REKORD ★
+              {t('arcade.newRecord')}
             </p>
             <p className="text-lg font-mono text-cyan-300 mb-4">
-              {hsRank}. MESTO MED NAJBOLJŠIMI
+              {t('arcade.rankLine', { rank: hsRank })}
             </p>
             <p className="text-4xl sm:text-5xl font-mono text-white mb-8 tabular-nums">
-              {score.toLocaleString('sl-SI')}
+              {score.toLocaleString(localeTag())}
             </p>
 
             {/* 3-letter roller — classic cabinet style */}
@@ -297,7 +299,7 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
                     className={`text-cyan-400 font-mono text-lg px-3 py-1 ${
                       activeSlot === i ? 'opacity-100' : 'opacity-0 pointer-events-none'
                     }`}
-                    aria-label={`Črka ${i + 1} naprej`}
+                    aria-label={t('arcade.letterNextAria', { n: i + 1 })}
                   >
                     ▲
                   </button>
@@ -318,7 +320,7 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
                     className={`text-cyan-400 font-mono text-lg px-3 py-1 ${
                       activeSlot === i ? 'opacity-100' : 'opacity-0 pointer-events-none'
                     }`}
-                    aria-label={`Črka ${i + 1} nazaj`}
+                    aria-label={t('arcade.letterPrevAria', { n: i + 1 })}
                   >
                     ▼
                   </button>
@@ -332,7 +334,7 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
                   onClick={() => setActiveSlot(s => Math.max(0, s - 1))}
                   className="px-5 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-mono text-sm rounded border border-gray-600"
                 >
-                  ◀ NAZAJ
+                  ◀ {t('common.back')}
                 </button>
               )}
               {activeSlot < 2 ? (
@@ -340,7 +342,7 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
                   onClick={() => setActiveSlot(s => Math.min(2, s + 1))}
                   className="px-5 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-mono text-sm rounded border border-gray-600"
                 >
-                  NAPREJ ▶
+                  {t('arcade.next')}
                 </button>
               ) : (
                 <button
@@ -348,13 +350,13 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
                   className="px-8 py-3 bg-yellow-600 hover:bg-yellow-700 text-white font-mono font-bold text-sm rounded transition-all hover:scale-105"
                   style={{ boxShadow: '0 0 15px rgba(255, 255, 0, 0.5)' }}
                 >
-                  VPISI ▶
+                  {t('arcade.enter')}
                 </button>
               )}
             </div>
 
             <p className="text-gray-600 font-mono text-xs mt-6">
-              Tipkaj črke (A–Z) ali uporabi puščice • ENTER = vpis
+              {t('arcade.typeHint')}
             </p>
           </div>
         </div>
@@ -368,17 +370,17 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
               className="text-4xl sm:text-5xl font-bold font-mono mb-1 text-red-500"
               style={{ textShadow: '0 0 30px rgba(255, 0, 0, 0.8)' }}
             >
-              KONEC IGRE
+              {t('arcade.gameOver')}
             </h2>
             <p className="text-xl font-mono text-yellow-400 mb-6">
-              Rezultat vpisan na {hsRank}. mesto
+              {t('arcade.enteredAt', { rank: hsRank })}
             </p>
 
             <div className="inline-block text-left mb-8 min-w-[260px]">
               <div className="grid grid-cols-[2rem_3.5rem_1fr_3.5rem] gap-x-3 font-mono text-sm leading-7">
                 <span className="text-gray-500">#</span>
-                <span className="text-cyan-400">IME</span>
-                <span className="text-cyan-400 text-right">REZULTAT</span>
+                <span className="text-cyan-400">{t('arcade.tableName')}</span>
+                <span className="text-cyan-400 text-right">{t('arcade.tableScore')}</span>
                 <span className="text-cyan-400 text-right">STG</span>
                 {hsTable.map((entry, i) => {
                   const isNew = i === hsRank - 1;
@@ -395,7 +397,7 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
                           isNew ? 'font-bold text-yellow-300' : 'text-white'
                         }`}
                       >
-                        {entry.score.toLocaleString('sl-SI')}
+                        {entry.score.toLocaleString(localeTag())}
                       </span>
                       <span className={`text-right ${isNew ? 'text-yellow-300' : 'text-gray-400'}`}>
                         {entry.stage}
@@ -412,13 +414,13 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
                 className="px-8 py-4 bg-red-600 hover:bg-red-700 text-white font-mono font-bold text-xl rounded transition-all hover:scale-110"
                 style={{ boxShadow: '0 0 20px rgba(255, 0, 0, 0.5)' }}
               >
-                IGRAJ ZNOVA
+                {t('arcade.playAgain')}
               </button>
               <button
                 onClick={onExit}
                 className="px-6 py-4 bg-gray-800 hover:bg-gray-700 text-gray-300 font-mono text-lg rounded border border-gray-600"
               >
-                GLAVNI MENI
+                {t('common.mainMenu')}
               </button>
             </div>
           </div>
@@ -433,17 +435,19 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
               className="text-5xl sm:text-6xl font-bold font-mono mb-4 text-red-500"
               style={{ textShadow: '0 0 30px rgba(255, 0, 0, 0.8)' }}
             >
-              KONEC IGRE
+              {t('arcade.gameOver')}
             </h2>
             <p className="text-2xl sm:text-3xl font-mono text-white mb-2">
-              Končni rezultat: {score.toLocaleString('sl-SI')}
+              {t('arcade.finalScore', { score: score.toLocaleString(localeTag()) })}
             </p>
             <p className="text-xl font-mono text-gray-400 mb-2">
-              Dosežena stopnja: {stage}
+              {t('arcade.stageReached', { stage })}
             </p>
             <p className="text-sm font-mono text-gray-500 mb-8">
-              Najboljši rezultat: {hsTable[0]?.score.toLocaleString('sl-SI') ?? '—'} (
-              {hsTable[0]?.initials ?? '—'})
+              {t('arcade.bestScore', {
+                score: hsTable[0]?.score.toLocaleString(localeTag()) ?? '—',
+                initials: hsTable[0]?.initials ?? '—'
+              })}
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <button
@@ -451,13 +455,13 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
                 className="px-8 py-4 bg-red-600 hover:bg-red-700 text-white font-mono font-bold text-xl rounded transition-all hover:scale-110"
                 style={{ boxShadow: '0 0 20px rgba(255, 0, 0, 0.5)' }}
               >
-                IGRAJ ZNOVA
+                {t('arcade.playAgain')}
               </button>
               <button
                 onClick={onExit}
                 className="px-6 py-4 bg-gray-800 hover:bg-gray-700 text-gray-300 font-mono text-lg rounded border border-gray-600"
               >
-                GLAVNI MENI
+                {t('common.mainMenu')}
               </button>
             </div>
           </div>
@@ -472,13 +476,13 @@ export function ClassicArcadeMode({ onExit }: ClassicArcadeModeProps) {
               className="text-5xl sm:text-6xl font-bold font-mono mb-4 text-green-400"
               style={{ textShadow: '0 0 30px rgba(0, 255, 0, 0.8)' }}
             >
-              STOPNJA JASENA!
+              {t('arcade.stageClear')}
             </h2>
             <p className="text-3xl font-mono text-white mb-2">
-              Rezultat: {score.toLocaleString('sl-SI')}
+              {t('arcade.scoreLine', { score: score.toLocaleString(localeTag()) })}
             </p>
             <p className="text-xl font-mono text-gray-400">
-              Priprava na naslednji stage...
+              {t('arcade.nextPrep')}
             </p>
           </div>
         </div>

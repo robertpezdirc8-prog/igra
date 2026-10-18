@@ -6,6 +6,7 @@ import { getLevelForPlayer } from './levels';
 import { getEnvironmentForLevel, renderEnvironment } from './environment';
 import { DifficultyMode } from './difficulty';
 import { SkillBonuses, defaultSkillBonuses } from './skillTree';
+import { t, localeTag } from '../i18n';
 import { BulletVisibility } from './saveSystem';
 import { WeatherSystem, EnvironmentalHazardsSystem, WeatherType } from './weatherSystem';
 import { AdvancedEnemyAI, BossAI, FormationSystem } from './enemyAI';
@@ -1405,16 +1406,16 @@ export class GameEngine {
       // sector — classic shmup pacing between the stage card and WARNING.
       const letter = GameEngine.MID_BOSS_LETTERS[(this.sector() - 1) % 3] ?? 'ALFA';
       this.waveAnnouncement = {
-        text: `\u26A0 MID BOSS — PREDSTRAŽA-${letter}`,
-        subtext: 'predstraža blokira pot',
+        text: t('hud.midBoss', { letter }),
+        subtext: t('hud.midBossSub'),
         timer: 2.4,
         color: '#ffaa33'
       };
       this.spawnMidBoss();
     } else {
       this.waveAnnouncement = {
-        text: `VAL ${this.wave}`,
-        subtext: `Zaznanih sovražnikov: ${count}`,
+        text: t('hud.waveN', { n: this.wave }),
+        subtext: t('hud.waveDetected', { count }),
         timer: 2,
         color: '#00ffff'
       };
@@ -2533,7 +2534,7 @@ export class GameEngine {
     this.music.duck(0.9);
     this.floatingTexts.push({
       x: boss.x, y: boss.y - boss.size - 20,
-      text: '\u26A0 PREBITA PREDSTRAŽA', color: '#ffcc44',
+      text: t('hud.vanguardBroken'), color: '#ffcc44',
       life: 1.1, maxLife: 1.1, vy: -1.1
     });
     this.audio.playExplosion();
@@ -2564,7 +2565,7 @@ export class GameEngine {
       m.retreat = true;
       this.floatingTexts.push({
         x: m.x, y: m.y - m.size - 16,
-        text: 'PREDSTRAŽA ODHAJA', color: '#ffaa33',
+        text: t('hud.vanguardRetreat'), color: '#ffaa33',
         life: 1.4, maxLife: 1.4, vy: -0.8
       });
     }
@@ -2750,16 +2751,16 @@ export class GameEngine {
       // out line by line on the result panel (updateSectorTally).
       const s = this.sector();
       const tallyLines: Array<{ label: string; value: number }> = [
-        { label: `SEKTOR ${s} JASEN`, value: Math.round(1000 * s * scoreMul) },
+        { label: t('hud.sectorClearN', { n: s }), value: Math.round(1000 * s * scoreMul) },
       ];
       if (this.sectorDamage === 0) {
-        tallyLines.push({ label: 'BREZ ZADETKOV', value: Math.round(5000 * s * scoreMul) });
+        tallyLines.push({ label: t('tally.noHits'), value: Math.round(5000 * s * scoreMul) });
       }
       if (this.sectorMedals > 0) {
-        tallyLines.push({ label: `MEDALJE ×${this.sectorMedals}`, value: Math.round(this.sectorMedals * 100 * s * scoreMul) });
+        tallyLines.push({ label: t('tally.medals', { n: this.sectorMedals }), value: Math.round(this.sectorMedals * 100 * s * scoreMul) });
       }
       const tallyTotal = tallyLines.reduce((sum, l) => sum + l.value, 0);
-      tallyLines.push({ label: 'SKUPAJ', value: tallyTotal });
+      tallyLines.push({ label: t('tally.total'), value: tallyTotal });
       this.sectorTally = { lines: tallyLines, timer: 0, shown: 0 };
       // Boss death: huge double shockwave ring
       this.particles.push({
@@ -2898,8 +2899,8 @@ export class GameEngine {
 
     // Level up announcement
     this.waveAnnouncement = {
-      text: `NIVO ${this.player.level}`,
-      subtext: 'Izberi nadgradnjo!',
+      text: t('hud.levelUpN', { n: this.player.level }),
+      subtext: t('hud.levelUpSub'),
       timer: 2,
       color: '#ffaa00'
     };
@@ -3168,7 +3169,7 @@ export class GameEngine {
       p.arcadeShield--;
       p.invincible = 0.8;
       this.particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, life: 0.5, maxLife: 0.5, size: 70, color: '#66ffcc', type: 'ring' });
-      this.floatingTexts.push({ x: p.x, y: p.y - 34, text: 'ŠČIT!', color: '#66ffcc', life: 1, maxLife: 1, vy: -1.2 });
+      this.floatingTexts.push({ x: p.x, y: p.y - 34, text: t('hud.shieldHit'), color: '#66ffcc', life: 1, maxLife: 1, vy: -1.2 });
       this.screenShake = 6;
       this.audio.playHit();
       return;
@@ -3350,13 +3351,13 @@ export class GameEngine {
       ctx.fillText(bombStr, 16, h - 22);
       ctx.font = '9px monospace';
       ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.fillText('BOMBA', 16, h - 10);
+      ctx.fillText(t('hud.bomb'), 16, h - 10);
     } else {
       ctx.textAlign = 'right';
       ctx.fillText(bombStr, w - 150, h - 22);
       ctx.font = '9px monospace';
       ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.fillText('BOMBA [X]', w - 150, h - 10);
+      ctx.fillText(t('hud.bombKey'), w - 150, h - 10);
     }
     if (p.options > 0) {
       ctx.font = 'bold 12px monospace';
@@ -3498,7 +3499,7 @@ export class GameEngine {
             // Letter P (Raiden/Truxton): instant weapon level
             this.player.weaponLevel = Math.min(10, this.player.weaponLevel + 1);
             this.checkWeaponEvolution();
-            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: 'OROŽJE +1!', color: '#ffcc00', life: 1.2, maxLife: 1.2, vy: -1.5 });
+            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: t('hud.weaponUp'), color: '#ffcc00', life: 1.2, maxLife: 1.2, vy: -1.5 });
             break;
           case 'speed':
             // Letter S: movement speed boost (capped)
@@ -3736,7 +3737,7 @@ export class GameEngine {
         this.player.score += bonus;
         this.floatingTexts.push({
           x: this.player.x, y: this.player.y - 50,
-          text: `VAL JASEN +${bonus}`, color: '#ffdd44',
+          text: t('hud.waveClear', { bonus }), color: '#ffdd44',
           life: 1.4, maxLife: 1.4, vy: -1.4
         });
         // Perfect wave: untouched through the whole wave — bonus reward.
@@ -3745,7 +3746,7 @@ export class GameEngine {
           this.player.score += perfect;
           this.floatingTexts.push({
             x: this.player.x, y: this.player.y - 76,
-            text: `BREZ ZADETKOV +${perfect}`, color: '#66ff88',
+            text: t('hud.noHitsBonus', { bonus: perfect }), color: '#66ff88',
             life: 1.6, maxLife: 1.6, vy: -1.4
           });
         }
@@ -3949,7 +3950,7 @@ export class GameEngine {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffd700';
     ctx.font = 'bold 22px monospace';
-    ctx.fillText('SEKTOR JASEN', w / 2, py + 34);
+    ctx.fillText(t('hud.sectorClear'), w / 2, py + 34);
     ctx.font = 'bold 15px monospace';
     for (let i = 0; i < tally.shown && i < tally.lines.length; i++) {
       const line = tally.lines[i]!;
@@ -4003,17 +4004,17 @@ export class GameEngine {
     let klaxonFont = Math.round(52 + pulse * 14);
     ctx.font = `bold ${klaxonFont}px monospace`;
     const klaxonMaxW = w - 24;
-    const klaxonW = ctx.measureText('\u26A0 POZOR! \u26A0').width;
+    const klaxonW = ctx.measureText(t('hud.warning')).width;
     if (klaxonW > klaxonMaxW) {
       klaxonFont = Math.max(24, Math.floor(klaxonFont * klaxonMaxW / klaxonW));
       ctx.font = `bold ${klaxonFont}px monospace`;
     }
-    ctx.fillText('\u26A0 POZOR! \u26A0', w / 2, h * 0.3);
+    ctx.fillText(t('hud.warning'), w / 2, h * 0.3);
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 0.9;
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 17px monospace';
-    ctx.fillText('VELIKI SOVRAŽNIK SE HITRO BLIŽA', w / 2, h * 0.3 + 44);
+    ctx.fillText(t('hud.bigEnemyApproaching'), w / 2, h * 0.3 + 44);
     ctx.restore();
   }
 
@@ -5432,35 +5433,35 @@ export class GameEngine {
 
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.font = '14px monospace';
-    ctx.fillText('WebGPU vertikalni vesoljski strelec', w / 2, titleY + 70);
+    ctx.fillText(t('title.subtitle'), w / 2, titleY + 70);
 
     // Start button
     const btnY = h * 0.55;
     const pulse = Math.sin(this.time * 3) * 0.3 + 0.7;
     ctx.fillStyle = `rgba(0, 255, 255, ${pulse})`;
     ctx.font = 'bold 20px monospace';
-    ctx.fillText('[ KLIKNI ZA ZAČETEK ]', w / 2, btnY);
+    ctx.fillText(t('title.clickToStart'), w / 2, btnY);
 
     // Controls
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.font = '12px monospace';
-    ctx.fillText('WASD / puščice — premikanje', w / 2, h * 0.7);
-    ctx.fillText('Miška — ciljanje in streljanje', w / 2, h * 0.7 + 20);
-    ctx.fillText('Preslednica — dash (i-frames)', w / 2, h * 0.7 + 40);
-    ctx.fillText('Desni klik — sekundarno orožje', w / 2, h * 0.7 + 60);
-    ctx.fillText('Q — temporalna staza', w / 2, h * 0.7 + 80);
+    ctx.fillText(t('title.controlsMove'), w / 2, h * 0.7);
+    ctx.fillText(t('title.controlsAim'), w / 2, h * 0.7 + 20);
+    ctx.fillText(t('title.controlsDash'), w / 2, h * 0.7 + 40);
+    ctx.fillText(t('title.controlsSecondary'), w / 2, h * 0.7 + 60);
+    ctx.fillText(t('title.controlsQ'), w / 2, h * 0.7 + 80);
 
     // High score
     if (this.highScore > 0) {
       ctx.fillStyle = '#ffaa00';
       ctx.font = '14px monospace';
-      ctx.fillText(`NAJBOLJŠI: ${this.highScore.toLocaleString()}`, w / 2, h * 0.88);
+      ctx.fillText(`${t('menu.best')} ${this.highScore.toLocaleString()}`, w / 2, h * 0.88);
     }
 
     // WebGPU status
     ctx.fillStyle = this.webgpuSupported ? '#00ff88' : '#ff8800';
     ctx.font = '12px monospace';
-    ctx.fillText(this.webgpuSupported ? '● WebGPU AKTIVEN — pospešeno na GPU' : '● Canvas2D način', w / 2, h * 0.95);
+    ctx.fillText(this.webgpuSupported ? t('menu.webgpuActiveLong') : t('menu.canvasMode'), w / 2, h * 0.95);
 
     ctx.restore();
 
@@ -5518,7 +5519,7 @@ export class GameEngine {
     ctx.font = 'bold 32px monospace';
     ctx.shadowColor = '#00ffff';
     ctx.shadowBlur = 15;
-    ctx.fillText('IZBERI NADGRADNJO', w / 2, h * 0.2);
+    ctx.fillText(t('upgrade.title'), w / 2, h * 0.2);
     ctx.shadowBlur = 0;
   }
 
@@ -5537,27 +5538,33 @@ export class GameEngine {
     ctx.font = 'bold 42px monospace';
     // Auto-fit: game-over headline must survive very narrow screens.
     const goMaxW = w - 24;
-    const goW = ctx.measureText('PRAZNINA ZMAGA').width;
+    const goW = ctx.measureText(t('gameover.title')).width;
     if (goW > goMaxW) {
       ctx.font = `bold ${Math.max(24, Math.floor(42 * goMaxW / goW))}px monospace`;
     }
     ctx.shadowColor = '#ff0044';
     ctx.shadowBlur = 20;
-    ctx.fillText('PRAZNINA ZMAGA', w / 2, h * 0.25);
+    ctx.fillText(t('gameover.title'), w / 2, h * 0.25);
     ctx.shadowBlur = 0;
 
     // Offline hall of fame — top 5 local runs
     if (this.leaderboard.length > 0) {
       ctx.font = 'bold 13px monospace';
       ctx.fillStyle = '#ffcc66';
-      ctx.fillText('— TOP 5 TEKI —', w / 2, h * 0.25 + 46);
+      ctx.fillText(t('gameover2.top5'), w / 2, h * 0.25 + 46);
       ctx.font = '12px monospace';
       for (let i = 0; i < Math.min(5, this.leaderboard.length); i++) {
         const entry = this.leaderboard[i];
         const y = h * 0.25 + 72 + i * 20;
         ctx.fillStyle = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#8899aa';
         ctx.fillText(
-          `${i + 1}. ${entry.score.toLocaleString('sl-SI')} · val ${entry.wave} · ${entry.seed} · ${entry.date}`,
+          t('gameover2.runLine', {
+            rank: i + 1,
+            score: entry.score.toLocaleString(localeTag()),
+            wave: entry.wave,
+            seed: entry.seed,
+            date: entry.date
+          }),
           w / 2, y
         );
       }

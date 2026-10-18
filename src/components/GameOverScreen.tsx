@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './Button';
 import { pseudoRandom } from '../utils/pseudoRandom';
+import { t, useLang } from '../i18n';
 
 
 interface GameOverScreenProps {
@@ -40,6 +41,7 @@ export function GameOverScreen({
 }: GameOverScreenProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  useLang();
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setIsVisible(true));
@@ -51,16 +53,16 @@ export function GameOverScreen({
   }, []);
 
   const stats = [
-    { label: 'Končni rezultat', value: score.toLocaleString(), color: '#00ffff' },
-    { label: 'Nivo igralca', value: playerLevel.toString(), color: '#ffaa00' },
-    { label: 'Val dosežen', value: wave.toString(), color: '#ff8800' },
-    { label: 'Sovražniki ubiti', value: enemiesKilled.toString(), color: '#ff4444' },
-    { label: 'Skupna škoda', value: Math.floor(totalDamage).toLocaleString(), color: '#ffff00' },
-    { label: 'Čas preživetja', value: `${Math.floor(survivalTime)}s`, color: '#00ff88' },
-    { label: 'Največji combo', value: `${maxCombo}x`, color: '#ff00ff' },
-    { label: 'Natančnost', value: `${accuracy}%`, color: '#66ff99' },
-    { label: 'Odmiki', value: grazeCount.toString(), color: '#cc99ff' },
-    { label: 'Osebni rekord', value: highScore.toLocaleString(), color: '#ffffff' }
+    { label: t('gameover.statScore'), value: score.toLocaleString(), color: '#00ffff' },
+    { label: t('gameover.statLevel'), value: playerLevel.toString(), color: '#ffaa00' },
+    { label: t('gameover.statWave'), value: wave.toString(), color: '#ff8800' },
+    { label: t('gameover.statKills'), value: enemiesKilled.toString(), color: '#ff4444' },
+    { label: t('gameover.statDamage'), value: Math.floor(totalDamage).toLocaleString(), color: '#ffff00' },
+    { label: t('gameover.statTime'), value: `${Math.floor(survivalTime)}s`, color: '#00ff88' },
+    { label: t('gameover.statCombo'), value: `${maxCombo}x`, color: '#ff00ff' },
+    { label: t('gameover.statAccuracy'), value: `${accuracy}%`, color: '#66ff99' },
+    { label: t('gameover.statGraze'), value: grazeCount.toString(), color: '#cc99ff' },
+    { label: t('gameover.statRecord'), value: highScore.toLocaleString(), color: '#ffffff' }
   ];
 
   return (
@@ -99,9 +101,9 @@ export function GameOverScreen({
               animation: 'pulse 2s ease-in-out infinite'
             }}
           >
-            PRAZNINA ZMAGA
+            {t('gameover.title')}
           </h1>
-          <p className="text-gray-500 font-mono text-sm">Tvoja pot se je končala v praznini</p>
+          <p className="text-gray-500 font-mono text-sm">{t('gameover.subtitle')}</p>
         </div>
 
         {/* New high score notification */}
@@ -119,7 +121,7 @@ export function GameOverScreen({
                 textShadow: '0 0 20px rgba(255, 170, 0, 0.8)'
               }}
             >
-              ★ NOV NAJBOLJŠI REZULTAT ★
+              {t('gameover.newHighScore')}
             </p>
           </div>
         )}
@@ -170,17 +172,17 @@ export function GameOverScreen({
             {seed}
           </p>
           <p className="text-gray-600 font-mono text-xs mt-1">
-            Deli ta seed s prijatelji za izziv!
+            {t('gameover.shareSeed')}
           </p>
         </div>
 
         {/* Buttons */}
         <div className="flex gap-4">
           <Button onClick={onRestart} variant="primary" size="large" className="flex-1">
-            POSKUSI ZNOVA
+            {t('gameover.retry')}
           </Button>
           <Button onClick={onMainMenu} variant="secondary" size="large" className="flex-1">
-            GLAVNI MENI
+            {t('common.mainMenu')}
           </Button>
         </div>
       </div>

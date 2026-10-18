@@ -1,4 +1,5 @@
 import { HUDBar } from './HUD';
+import { t, useLang } from '../i18n';
 
 interface HealthBarProps {
   hp: number;
@@ -16,6 +17,7 @@ interface HealthBarProps {
 }
 
 export function HealthBar({ hp, maxHp, shield, maxShield, energy, maxEnergy, compact }: HealthBarProps) {
+  useLang();
   if (compact) {
     const hpPct = Math.max(0, (hp / maxHp) * 100);
     const shPct = Math.max(0, (shield / maxShield) * 100);
@@ -79,7 +81,7 @@ export function HealthBar({ hp, maxHp, shield, maxShield, energy, maxEnergy, com
 
       {/* Shield Bar */}
       <HUDBar
-        label="ŠČIT"
+        label={t('hud.shield')}
         value={shield}
         maxValue={maxShield}
         color="#0088ff"

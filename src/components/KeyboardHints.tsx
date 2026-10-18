@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { t, useLang } from '../i18n';
 
 export function KeyboardHints() {
   const [isVisible, setIsVisible] = useState(true);
+  useLang();
 
   useEffect(() => {
     const timer = setTimeout(() => setIsVisible(false), 10000);
@@ -11,11 +13,11 @@ export function KeyboardHints() {
   if (!isVisible) return null;
 
   const hints = [
-    { key: 'WASD', action: 'Gibanje', icon: '🎮' },
-    { key: 'Miška', action: 'Streljanje', icon: '🎯' },
-    { key: 'SPACE', action: 'Dash', icon: '⚡' },
-    { key: 'ESC', action: 'Pavza', icon: '⏸️' },
-    { key: 'Desni klik', action: 'Sekundarno', icon: '🌀' }
+    { key: 'WASD', action: t('hud.hintMove'), icon: '🎮' },
+    { key: t('hud.hintMouse'), action: t('hud.hintShoot'), icon: '🎯' },
+    { key: 'SPACE', action: t('hud.hintDash'), icon: '⚡' },
+    { key: 'ESC', action: t('hud.hintPause'), icon: '⏸️' },
+    { key: t('hud.hintRightClick'), action: t('hud.hintSecondary'), icon: '🌀' }
   ];
 
   return (
@@ -25,7 +27,7 @@ export function KeyboardHints() {
     >
       <div className="bg-black/60 border border-cyan-400/30 rounded-lg p-4 backdrop-blur-sm">
         <p className="text-cyan-400 font-mono text-xs uppercase tracking-wider mb-3">
-          Kontrole
+          {t('hud.hintControls')}
         </p>
         <div className="space-y-2">
           {hints.map((hint, i) => (

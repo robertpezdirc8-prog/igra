@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { GameEngine, GameStats } from './game/engine';
+import { t, useLang } from './i18n';
 import {
   LoadingScreen,
   MainMenu,
@@ -136,6 +137,7 @@ function detectMobileHud(): boolean {
 }
 
 export default function App() {
+  useLang(); // App re-renders when the display language changes
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const webgpuCanvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
@@ -539,12 +541,12 @@ export default function App() {
     const skill = findSkill(skillId, skillTree);
     if (!skill) return;
     if (!canUnlockSkill(skill, skillTree)) {
-      addNotification('Veščina še ni na voljo!', 'warning');
+      addNotification(t('notify.skillLocked'), 'warning');
       return;
     }
     const cost = getSkillCost(skill);
     if (skillPoints < cost) {
-      addNotification('Nimaš dovolj skill točk!', 'error');
+      addNotification(t('notify.noSkillPoints'), 'error');
       return;
     }
 
@@ -572,16 +574,16 @@ export default function App() {
     const data = saveDataRef.current;
     if (!data) return;
     if (data.cosmetics.unlocked.includes(item.id)) {
-      addNotification('Predmet je že last!', 'warning');
+      addNotification(t('notify.itemOwned'), 'warning');
       return;
     }
     const playerLevel = data.player.highestLevel;
     if (item.unlockLevel > playerLevel) {
-      addNotification(`Zahteva nivo ${item.unlockLevel}!`, 'error');
+      addNotification(t('notify.requiresLevel', { level: item.unlockLevel }), 'error');
       return;
     }
     if (!canAffordCosmetic(item, data.currency.gold, data.currency.gems)) {
-      addNotification('Nimaš dovolj sredstev!', 'error');
+      addNotification(t('notify.noFunds'), 'error');
       return;
     }
 
@@ -623,7 +625,7 @@ export default function App() {
         [today]: [...(d.completedChallenges[today] ?? []), challengeId]
       }
     }));
-    addNotification('Izziv zaključen! Poglej nagrade.', 'success');
+    addNotification(t('notify.challengeDone'), 'success');
   }, [completedChallenges, persistSave, addNotification]);
 
   // ============= DAILY REWARDS (applied to wallet) =============
@@ -645,7 +647,19 @@ export default function App() {
     if (reward.reward === 'skillPoint') {
       setSkillPoints(prev => prev + reward.amount);
     }
-    addNotification(`Prejel si ${reward.amount} ${reward.reward === 'gem' ? 'draguljev' : reward.reward === 'skillPoint' ? 'skill točk' : reward.reward === 'xp' ? 'XP za naslednjo igro' : 'zlata'}!`, 'success');
+    addNotification(
+      t('notify.rewardReceived', {
+        amount: reward.amount,
+        unit: reward.reward === 'gem'
+          ? t('notify.rewardGems')
+          : reward.reward === 'skillPoint'
+            ? t('notify.rewardSkillPoints')
+            : reward.reward === 'xp'
+              ? t('notify.rewardXp')
+              : t('notify.rewardGold')
+      }),
+      'success'
+    );
   }, [persistSave, addNotification]);
 
   // ============= DIFFICULTY (persistent + unlock check) =============
@@ -704,7 +718,7 @@ export default function App() {
       setSkillTree(loadSkillTreeFromSave(loaded));
       const today = new Date().toISOString().slice(0, 10);
       setCompletedChallenges(loaded.completedChallenges[today] ?? []);
-      addNotification('Igra naložena!', 'success');
+      addNotification(t('notify.gameLoaded'), 'success');
     }
   }, [addNotification]);
 
@@ -803,7 +817,7 @@ export default function App() {
                 >
                   {stats.score.toLocaleString()}
                 </p>
-                <p className="text-[10px] text-purple-300">NIVO {stats.playerLevel} · XP {stats.playerXp}/{stats.xpToNext}</p>
+                <p className="text-[10px] text-purple-300">{t('gameover.statLevel')} {stats.playerLevel} · XP {stats.playerXp}/{stats.xpToNext}</p>
               </div>
             </div>
           ) : (
@@ -878,7 +892,7 @@ export default function App() {
               <div className="flex gap-2">
                 <button
                   onClick={handleToggleMute}
-                  aria-label={settings.muted ? 'Vklopi zvok' : 'Utišaj zvok'}
+                  aria-label={settings.muted ? t('app.soundOn') : t('app.soundOff')}
                   className="w-11 h-11 flex items-center justify-center bg-black/60 border border-white/25 text-white font-mono text-lg rounded-lg backdrop-blur-sm active:scale-95"
                 >
                   {(settings.muted ?? false) ? '🔇' : '🔊'}
@@ -910,7 +924,7 @@ export default function App() {
                     onClick={() => { setShowDailyChallenges(true); setShowMobileMenu(false); }}
                     className="px-3 py-2 bg-black/70 border border-pink-400/50 text-white font-mono text-xs rounded-lg backdrop-blur-sm"
                   >
-                    🎯 IZZIVI
+                    {t('app.challenges')}
                   </button>
                   <button
                     onClick={() => { setShowAchievements(true); setShowMobileMenu(false); }}
@@ -935,7 +949,7 @@ export default function App() {
               className="px-3 py-2 bg-pink-600 hover:bg-pink-700 text-white font-mono text-sm rounded transition-all hover:scale-110"
               style={{ boxShadow: '0 0 15px rgba(236, 72, 153, 0.5)' }}
             >
-              🎯 IZZIVI
+              {t('app.challenges')}
             </button>
             <button
               onClick={() => setShowAchievements(true)}
@@ -1162,7 +1176,7 @@ export default function App() {
         isOpen={showInteractiveTutorial}
         onClose={() => setShowInteractiveTutorial(false)}
         onComplete={() => {
-          addNotification('Vodnik končan!', 'success');
+          addNotification(t('notify.guideDone'), 'success');
         }}
       />
 

@@ -1,3 +1,5 @@
+import { t, useLang } from '../i18n';
+
 interface WaveInfoProps {
   wave: number;
   enemiesRemaining: number;
@@ -9,6 +11,7 @@ interface WaveInfoProps {
 }
 
 export function WaveInfo({ wave, enemiesRemaining, totalEnemies, isBossWave, compact }: WaveInfoProps) {
+  useLang();
   const progress = totalEnemies > 0
     ? ((totalEnemies - enemiesRemaining) / totalEnemies) * 100
     : 0;
@@ -31,7 +34,7 @@ export function WaveInfo({ wave, enemiesRemaining, totalEnemies, isBossWave, com
                 : '0 0 12px rgba(0,255,255,0.8)'
             }}
           >
-            {isBossWave ? '⚠' : ''} VAL {wave}
+            {isBossWave ? '⚠' : ''} {t('hud.waveN', { n: wave })}
           </span>
           {/* wave-clear progress */}
           <span className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
@@ -59,7 +62,7 @@ export function WaveInfo({ wave, enemiesRemaining, totalEnemies, isBossWave, com
         {/* Wave number */}
         <div className="text-center mb-2">
           <p className="text-gray-400 font-mono text-xs uppercase tracking-wider">
-            {isBossWave ? '⚠️ Boss Val' : 'Val'}
+            {isBossWave ? t('hud.waveBoss') : t('hud.waveLabel')}
           </p>
           <p
             className={`text-2xl font-bold font-mono ${
@@ -78,7 +81,7 @@ export function WaveInfo({ wave, enemiesRemaining, totalEnemies, isBossWave, com
         {/* Enemies remaining */}
         <div className="mb-2">
           <div className="flex justify-between text-xs font-mono mb-1">
-            <span className="text-gray-400">Sovražniki</span>
+            <span className="text-gray-400">{t('hud.enemies')}</span>
             <span className="text-white">{enemiesRemaining}/{totalEnemies}</span>
           </div>
           <div className="h-2 bg-gray-800 rounded-full overflow-hidden">

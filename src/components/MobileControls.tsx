@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { t, useLang } from '../i18n';
 
 /**
  * Mobile controls — built on the mobile-shmup industry standard
@@ -74,6 +75,7 @@ export function MobileControls({
   const [secondaryCooldown, setSecondaryCooldown] = useState(false);
   const [touchRipples, setTouchRipples] = useState<Array<{ id: number; x: number; y: number }>>([]);
   const rippleIdRef = useRef(0);
+  useLang(); // refresh labels on language switch
 
   // Fire mode: AUTO (battery fires itself) vs MANUAL (hold FIRE to shoot).
   const [autoFire, setAutoFire] = useState(true);
@@ -329,7 +331,9 @@ export function MobileControls({
         <div className={`absolute bottom-28 ${hintSide} pointer-events-none animate-pulse`}>
           <div className="w-24 h-24 rounded-full border-2 border-dashed border-cyan-300/25 flex items-center justify-center">
             <span className="text-cyan-200/40 text-[10px] text-center leading-tight">
-              povleci za let<br />🔥 strelja samodejno
+              {t('mobile.dragHint1')}
+              <br />
+              {t('mobile.dragHint2')}
             </span>
           </div>
         </div>
@@ -345,8 +349,8 @@ export function MobileControls({
           onTouchCancel={handleFireCancel}
           aria-label={
             autoFire
-              ? 'Samodejno streljanje vklopljeno — tapni za ročno streljanje'
-              : 'Ročno streljanje — drži za strel, tapni za samodejno'
+              ? t('mobile.fireAriaAuto')
+              : t('mobile.fireAriaManual')
           }
           className={
             `${sideBtn} rounded-full border-2 flex flex-col items-center justify-center select-none transition-transform duration-75 active:scale-90 ` +
@@ -362,14 +366,14 @@ export function MobileControls({
               autoFire ? 'text-emerald-100' : 'text-white/60'
             }`}
           >
-            {autoFire ? 'AVTO' : 'STREL'}
+            {autoFire ? t('mobile.badgeAuto') : t('mobile.badgeManual')}
           </span>
         </button>
 
         {/* Panic button: BOMBA — the one button sized to find blindly */}
         <button
           onTouchStart={handleBomb}
-          aria-label="Bomba"
+          aria-label={t('mobile.bomb')}
           className={`${sideBtn} rounded-full bg-red-600/35 backdrop-blur-sm border-2 border-red-400/60 flex items-center justify-center select-none shadow-lg shadow-red-900/40 transition-transform duration-75 active:scale-90 active:bg-red-500/60`}
           style={{ touchAction: 'none' }}
         >
@@ -382,7 +386,7 @@ export function MobileControls({
             onTouchStart={handleWaveStart}
             onTouchEnd={handleWaveEnd}
             onTouchCancel={handleWaveEnd}
-            aria-label="Valovni top"
+            aria-label={t('mobile.waveTop')}
             className={`${ghost} ${'text-amber-300/90'}`}
             style={{ touchAction: 'none' }}
           >
@@ -390,7 +394,7 @@ export function MobileControls({
           </button>
           <button
             onTouchStart={handleGradius}
-            aria-label="Gradius kapsula"
+            aria-label={t('mobile.gradius')}
             className={`${ghost} text-yellow-300/90`}
             style={{ touchAction: 'none' }}
           >
@@ -398,7 +402,7 @@ export function MobileControls({
           </button>
           <button
             onTouchStart={handleSecondary}
-            aria-label="Posebno orožje"
+            aria-label={t('mobile.special')}
             className={`${ghost} ${secondaryCooldown ? 'opacity-30' : 'text-purple-300/90'}`}
             style={{ touchAction: 'none' }}
           >

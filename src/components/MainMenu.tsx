@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from './Button';
+import { t, useLang } from '../i18n';
 
 interface MainMenuProps {
   onStartGame: () => void;
@@ -21,6 +22,7 @@ interface MainMenuProps {
 export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, onShowSaveLoad, onShowStats, onShowArcade, onShowDailyRewards, onShowShop, onShowDifficulty, onShowMetaProgression, onShowInteractiveTutorial, onShowClassicArcade, highScore, webgpuSupported }: MainMenuProps) {
   const [titleGlow, setTitleGlow] = useState(0);
   const [particles, setParticles] = useState<Array<{ x: number; y: number; vx: number; vy: number; life: number }>>([]);
+  useLang(); // re-render on language switch
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -61,17 +63,17 @@ export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, onShowSa
   }, []);
 
   const secondaryItems: Array<{ label: string; action: () => void }> = [
-    { label: '📖 VODNIK', action: onShowTutorial },
-    { label: '⚙️ NASTAVITVE', action: onShowSettings },
-    { label: '💾 SHRANI/NALOŽI', action: onShowSaveLoad },
-    { label: '📊 STATISTIKA', action: onShowStats },
-    { label: '🎯 ARKADNA IGRA', action: onShowArcade },
-    { label: '🎁 DNEVNE NAGRADE', action: onShowDailyRewards },
-    { label: '🛍️ TRGOVINA', action: onShowShop },
-    { label: '⚔️ TEŽAVNOST', action: onShowDifficulty },
-    { label: '🌳 META-PROGRESIJA', action: onShowMetaProgression },
-    { label: '📚 INTERAKTIVNI VODNIK', action: onShowInteractiveTutorial },
-    { label: '🕹️ KLASIČNI NAČIN', action: onShowClassicArcade }
+    { label: t('menu.guide'), action: onShowTutorial },
+    { label: t('menu.settings'), action: onShowSettings },
+    { label: t('menu.saveLoad'), action: onShowSaveLoad },
+    { label: t('menu.stats'), action: onShowStats },
+    { label: t('menu.arcade'), action: onShowArcade },
+    { label: t('menu.dailyRewards'), action: onShowDailyRewards },
+    { label: t('menu.shop'), action: onShowShop },
+    { label: t('menu.difficulty'), action: onShowDifficulty },
+    { label: t('menu.meta'), action: onShowMetaProgression },
+    { label: t('menu.interactiveGuide'), action: onShowInteractiveTutorial },
+    { label: t('menu.classic'), action: onShowClassicArcade }
   ];
 
   return (
@@ -130,14 +132,14 @@ export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, onShowSa
             VOID BREAKER
           </p>
           <p className="text-gray-500 font-mono text-[10px] sm:text-sm mt-2 sm:mt-4">
-            WebGPU vertikalni vesoljski strelec
+            {t('menu.subtitle')}
           </p>
         </div>
 
         {/* Menu buttons */}
         <div className="w-full max-w-xs sm:max-w-sm">
           <Button onClick={onStartGame} variant="primary" size="large" className="w-full">
-            ZAČNI IGRO
+            {t('menu.start')}
           </Button>
           <div className="grid grid-cols-2 gap-2 mt-2">
             {secondaryItems.map((item) => (
@@ -158,7 +160,7 @@ export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, onShowSa
         <div className="mt-5 sm:mt-8 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-center">
           {highScore > 0 && (
             <p className="text-yellow-400 font-mono text-xs sm:text-sm">
-              <span className="text-gray-500">NAJBOLJŠI:</span>{' '}
+              <span className="text-gray-500">{t('menu.best')}</span>{' '}
               <span
                 className="text-base sm:text-lg font-bold"
                 style={{
@@ -175,14 +177,14 @@ export function MainMenu({ onStartGame, onShowTutorial, onShowSettings, onShowSa
               webgpuSupported ? 'bg-green-500/20 border border-green-400 text-green-400' : 'bg-yellow-500/20 border border-yellow-400 text-yellow-400'
             }`}
           >
-            {webgpuSupported ? '● WebGPU AKTIVEN' : '● Canvas2D NAČIN'}
+            {webgpuSupported ? t('menu.webgpuActive') : t('menu.canvasMode')}
           </div>
         </div>
 
         {/* Controls hint (desktop only — mobile has touch controls) */}
         <div className="hidden md:block mt-6 text-center">
           <p className="text-gray-600 font-mono text-xs">
-            WASD = Gibanje | Miška = Streljanje | SPACE = Dash | ESC = Pavza
+            {t('menu.controlsHint')}
           </p>
         </div>
       </div>

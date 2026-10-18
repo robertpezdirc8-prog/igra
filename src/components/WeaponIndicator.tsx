@@ -1,3 +1,5 @@
+import { t, useLang } from '../i18n';
+
 interface WeaponIndicatorProps {
   weaponLevel: number;
   secondaryWeapon: 'none' | 'gravity' | 'chain' | 'temporal';
@@ -6,6 +8,7 @@ interface WeaponIndicatorProps {
 }
 
 export function WeaponIndicator({ weaponLevel, secondaryWeapon, secondaryCooldown, dashCooldown }: WeaponIndicatorProps) {
+  useLang();
   const secondaryIcons = {
     none: null,
     gravity: { icon: '🌀', name: 'Gravity Well', color: '#8800ff' },
@@ -21,7 +24,7 @@ export function WeaponIndicator({ weaponLevel, secondaryWeapon, secondaryCooldow
         {/* Primary weapon */}
         <div className="mb-3">
           <p className="text-gray-500 font-mono text-xs uppercase tracking-wider mb-1">
-            Primarno orožje
+            {t('hud.primaryWeapon')}
           </p>
           <div className="flex items-center gap-2">
             <span className="text-2xl">🔫</span>
@@ -49,7 +52,7 @@ export function WeaponIndicator({ weaponLevel, secondaryWeapon, secondaryCooldow
         {secondary && (
           <div className="mb-3 pt-3 border-t border-gray-700">
             <p className="text-gray-500 font-mono text-xs uppercase tracking-wider mb-1">
-              Sekundarno orožje
+              {t('hud.secondaryWeapon')}
             </p>
             <div className="flex items-center gap-2">
               <span className="text-2xl">{secondary.icon}</span>
@@ -84,7 +87,7 @@ export function WeaponIndicator({ weaponLevel, secondaryWeapon, secondaryCooldow
                 </p>
               ) : (
                 <p className="text-cyan-400 font-mono text-sm font-bold animate-pulse">
-                  PRIPRAVLJENO
+                  {t('hud.ready')}
                 </p>
               )}
             </div>
