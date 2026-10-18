@@ -79,7 +79,7 @@ interface Player {
   x: number; y: number; vx: number; vy: number;
   hp: number; maxHp: number; shield: number; maxShield: number;
   energy: number; maxEnergy: number;
-  speed: number; dashCooldown: number; dashTimer: number;
+  speed: number; dashCooldown: number; dashCooldownMax: number; dashTimer: number;
   invincible: number; shootTimer: number;
   weaponLevel: number; critRate: number; critDmg: number;
   // Weapon evolution: at level 8+ the primary weapon once transforms into
@@ -156,6 +156,10 @@ export interface GameStats {
   gameStartTime: number;
   shotsFired: number; hitsLanded: number;
   grazeCount: number;
+  /** Dash state for the crosshair ring: ready = can dash right now (cooldown AND energy). */
+  dashReady: boolean;
+  /** Remaining dash cooldown normalized 0..1 (1 = just dashed, 0 = ready). */
+  dashPct: number;
   damageTaken: number; itemsCollected: number;
   webgpuSupported: boolean;
   playerLevel: number; playerXp: number; xpToNext: number;
@@ -288,6 +292,9 @@ export class GameEngine {
   private hitsLanded = 0;
   // Risk/reward tally: near-misses threaded past enemy bullets (grazes)
   private grazeCount = 0;
+  /** Last dash heading (unit vector) — drives the dashed dash-direction indicator. */
+  private dashDirX = 0;
+  private dashDirY = -1;
   private damageTaken = 0;
   private itemsCollected = 0;
   private waveTotalEnemies = 0;
@@ -445,7 +452,7 @@ export class GameEngine {
       hp: 100 + b.maxHp, maxHp: 100 + b.maxHp,
       shield: 50 + b.maxShield, maxShield: 50 + b.maxShield,
       energy: 100 + b.maxEnergy, maxEnergy: 100 + b.maxEnergy,
-      speed: 5 * b.speedMul, dashCooldown: 0, dashTimer: 0,
+      speed: 5 * b.speedMul, dashCooldown: 0, dashCooldownMax: 1, dashTimer: 0,
       invincible: 0, shootTimer: 0,
       weaponLevel: 1, critRate: 0.05 + b.critRateBonus, critDmg: 2 * b.critDmgMul,
       weaponEvolved: false,
@@ -1227,11 +1234,16 @@ export class GameEngine {
     if (this.player.dashCooldown <= 0 && this.player.energy >= dashCost) {
       this.player.dashTimer = 0.15;
       this.player.dashCooldown = 1 * this.skillBonuses.dashCooldownMul;
+      this.player.dashCooldownMax = this.player.dashCooldown;
       this.player.invincible = 0.2;
       this.player.energy -= dashCost;
       const dx = this.mouse.x - this.player.x;
       const dy = this.mouse.y - this.player.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      // Remember the dash heading so the canvas can draw the dashed
+      // "flew toward the crosshair" indicator (teaches SPACE = fly to ring).
+      this.dashDirX = dx !== 0 || dy !== 0 ? dx / dist : 0;
+      this.dashDirY = dx !== 0 || dy !== 0 ? dy / dist : -1;
       this.player.vx += (dx / dist) * 25;
       this.player.vy += (dy / dist) * 25;
       this.audio.playDash();
@@ -4279,6 +4291,36 @@ export class GameEngine {
 
   private renderPlayer(ctx: CanvasRenderingContext2D) {
     const p = this.player;
+
+    // DASH DIRECTION INDICATOR — while dashing, draw a fading dashed line
+    // from the ship toward the crosshair point the dash was aimed at
+    // (teaches "SPACE = fly toward the ring" without a tutorial).
+    if (p.dashTimer > 0) {
+      const a = Math.max(0, p.dashTimer / 0.15);
+      const len = 70;
+      const ex = p.x + this.dashDirX * len;
+      const ey = p.y + this.dashDirY * len;
+      const ang = Math.atan2(this.dashDirY, this.dashDirX);
+      ctx.save();
+      ctx.strokeStyle = `rgba(0, 255, 255, ${(0.6 * a).toFixed(3)})`;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Chevron arrowhead at the end of the dash path
+      ctx.fillStyle = `rgba(0, 255, 255, ${(0.85 * a).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.moveTo(ex + Math.cos(ang) * 9, ey + Math.sin(ang) * 9);
+      ctx.lineTo(ex + Math.cos(ang + 2.5) * 7, ey + Math.sin(ang + 2.5) * 7);
+      ctx.lineTo(ex + Math.cos(ang - 2.5) * 7, ey + Math.sin(ang - 2.5) * 7);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
     ctx.save();
     ctx.translate(p.x, p.y);
 
@@ -5636,6 +5678,10 @@ export class GameEngine {
       shotsFired: this.shotsFired,
       hitsLanded: this.hitsLanded,
       grazeCount: this.grazeCount,
+      dashReady: this.player.dashCooldown <= 0 && this.player.energy >= 20 * this.skillBonuses.energyCostMul,
+      dashPct: this.player.dashCooldownMax > 0
+        ? Math.min(1, Math.max(0, this.player.dashCooldown / this.player.dashCooldownMax))
+        : 0,
       damageTaken: Math.floor(this.damageTaken),
       itemsCollected: this.itemsCollected,
       webgpuSupported: this.webgpuSupported,

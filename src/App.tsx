@@ -105,6 +105,7 @@ const emptyStats: GameStats = {
   gold: 0, fps: 60, seed: '', gameStartTime: 0,
   shotsFired: 0, hitsLanded: 0, damageTaken: 0, itemsCollected: 0,
   grazeCount: 0,
+  dashReady: true, dashPct: 0,
   webgpuSupported: false, playerLevel: 1, playerXp: 0, xpToNext: 100
 };
 
@@ -182,7 +183,9 @@ export default function App() {
     weaponLevel: 1,
     secondaryWeapon: 'none' as 'none' | 'gravity' | 'chain' | 'temporal',
     secondaryCooldown: 0,
-    dashCooldown: 0
+    dashCooldown: 0,
+    dashReady: true,
+    dashPct: 0
   });
   const [minimap, setMinimap] = useState({
     playerX: 0, playerY: 0,
@@ -489,6 +492,7 @@ export default function App() {
         gs.playerLevel, Math.round(gs.playerXp), p.hp.toFixed(0), p.shield.toFixed(0),
         p.energy.toFixed(0), p.combo, p.weaponLevel, p.secondaryWeapon,
         p.secondaryCooldown.toFixed(1), p.dashCooldown.toFixed(1),
+        gs.dashReady ? '1' : '0', gs.dashPct.toFixed(2),
         p.x.toFixed(0), p.y.toFixed(0), p.maxHp, p.maxShield, p.maxEnergy,
         engine.isWebGPUSupported(), gs.gameStartTime,
         // Weather rarely changes - included so the UI updates only on change
@@ -508,7 +512,9 @@ export default function App() {
         weaponLevel: p.weaponLevel,
         secondaryWeapon: p.secondaryWeapon,
         secondaryCooldown: p.secondaryCooldown,
-        dashCooldown: p.dashCooldown
+        dashCooldown: p.dashCooldown,
+        dashReady: gs.dashReady,
+        dashPct: gs.dashPct
       });
       setMinimap(engine.getMinimapData());
       setWebgpuSupported(engine.isWebGPUSupported());
@@ -878,6 +884,8 @@ export default function App() {
               x={mousePos.x}
               y={mousePos.y}
               isActive={isShooting}
+              dashReady={player.dashReady}
+              dashPct={player.dashPct}
             />
           )}
 
