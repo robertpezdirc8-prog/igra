@@ -1,3 +1,5 @@
+import { localeTag } from '../i18n';
+
 export interface GameStats {
   totalGamesPlayed: number;
   totalTimePlayed: number;
@@ -187,10 +189,11 @@ export function formatPlayTime(seconds: number): string {
 }
 
 export function formatNumber(num: number): string {
+  // Locale-aware compact notation: "1,2 M" (sl-SI) vs "1.2M" (en-US)
   if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M';
+    return (num / 1000000).toLocaleString(localeTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'M';
   } else if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K';
+    return (num / 1000).toLocaleString(localeTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'K';
   }
-  return num.toString();
+  return num.toLocaleString(localeTag());
 }

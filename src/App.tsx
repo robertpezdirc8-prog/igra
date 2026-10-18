@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState, useCallback } from 'react';
 import { GameEngine, GameStats } from './game/engine';
 import { t, useLang } from './i18n';
 import {
@@ -8,8 +8,6 @@ import {
   GameOverScreen,
   LevelUpScreen,
   LevelUpChoiceScreen,
-  SettingsMenu,
-  TutorialOverlay,
   Notification,
   AchievementNotification,
   MobileControls,
@@ -25,23 +23,11 @@ import {
   GameTimer,
   LevelDisplay,
   LevelInfo,
-  SkillTreeUI,
-  DailyChallengesUI,
-  SaveLoadUI,
-  StatsLeaderboardUI,
-  ArcadeGame,
-  DailyRewardsUI,
-  ShopUI,
-  DifficultySelectUI,
-  AchievementPanel,
-  MetaProgressionUI,
   BloomEffect,
   ParticleOverlay,
   ChromaticAberration,
-  InteractiveTutorial,
   WeatherDisplay,
-  ActivePowerUpsDisplay,
-  ClassicArcadeMode
+  ActivePowerUpsDisplay
 } from './components';
 import {
   loadGame,
@@ -66,6 +52,28 @@ import { ALL_ACHIEVEMENTS, checkAchievements, Achievement } from './game/achieve
 import { CosmeticItem, canAffordCosmetic } from './game/cosmetics';
 import { updateGameStats, addToLeaderboard } from './game/statsSystem';
 import { BulletVisibility } from './game/saveSystem';
+
+/* ============= CODE-SPLIT PANELS =============
+ * Modal panels load on first open (React.lazy), not at boot.
+ * ClassicArcadeMode drags the whole classic-arcade engine chain
+ * (classicArcadeEngine/classicShooter/classicEnemySystem) out of the
+ * main bundle. Each panel is mounted only while open (previously
+ * always mounted with isOpen=false returning null — identical UX).
+ */
+const SettingsMenu = lazy(() => import('./components/SettingsMenu').then(m => ({ default: m.SettingsMenu })));
+const TutorialOverlay = lazy(() => import('./components/TutorialOverlay').then(m => ({ default: m.TutorialOverlay })));
+const SkillTreeUI = lazy(() => import('./components/SkillTreeUI').then(m => ({ default: m.SkillTreeUI })));
+const DailyChallengesUI = lazy(() => import('./components/DailyChallengesUI').then(m => ({ default: m.DailyChallengesUI })));
+const SaveLoadUI = lazy(() => import('./components/SaveLoadUI').then(m => ({ default: m.SaveLoadUI })));
+const StatsLeaderboardUI = lazy(() => import('./components/StatsLeaderboardUI').then(m => ({ default: m.StatsLeaderboardUI })));
+const ArcadeGame = lazy(() => import('./components/ArcadeGame').then(m => ({ default: m.ArcadeGame })));
+const DailyRewardsUI = lazy(() => import('./components/DailyRewardsUI').then(m => ({ default: m.DailyRewardsUI })));
+const ShopUI = lazy(() => import('./components/ShopUI').then(m => ({ default: m.ShopUI })));
+const DifficultySelectUI = lazy(() => import('./components/DifficultySelectUI').then(m => ({ default: m.DifficultySelectUI })));
+const AchievementPanel = lazy(() => import('./components/AchievementPanel').then(m => ({ default: m.AchievementPanel })));
+const MetaProgressionUI = lazy(() => import('./components/MetaProgressionUI').then(m => ({ default: m.MetaProgressionUI })));
+const InteractiveTutorial = lazy(() => import('./components/InteractiveTutorial').then(m => ({ default: m.InteractiveTutorial })));
+const ClassicArcadeMode = lazy(() => import('./components/ClassicArcadeMode').then(m => ({ default: m.ClassicArcadeMode })));
 
 type GameState = 'loading' | 'menu' | 'playing' | 'paused' | 'levelup' | 'levelchoice' | 'gameover';
 
@@ -773,7 +781,9 @@ export default function App() {
 
       {/* Klasiki arkadni način — fullscreen overlay nad glavno igro */}
       {showClassicArcade && (
-        <ClassicArcadeMode onExit={() => setShowClassicArcade(false)} />
+        <Suspense fallback={null}>
+          <ClassicArcadeMode onExit={() => setShowClassicArcade(false)} />
+        </Suspense>
       )}
 
       {/* In-Game UI (fed with REAL engine data) */}
@@ -1073,18 +1083,23 @@ export default function App() {
         />
       )}
 
+      {/* CODE-SPLIT MODAL CLUSTER — each panel chunk loads on first open */}
+      <Suspense fallback={null}>
       {/* Skill Tree (persistent state, passed in explicitly) */}
+      {showSkillTree && (
       <SkillTreeUI
-        isOpen={showSkillTree}
+        isOpen
         onClose={() => setShowSkillTree(false)}
         skillPoints={skillPoints}
         skillTree={skillTree}
         onUnlockSkill={handleUnlockSkill}
       />
+      )}
 
       {/* Daily Challenges (real run stats) */}
+      {showDailyChallenges && (
       <DailyChallengesUI
-        isOpen={showDailyChallenges}
+        isOpen
         onClose={() => setShowDailyChallenges(false)}
         playerStats={{
           score: stats.score,
@@ -1102,41 +1117,51 @@ export default function App() {
         completedChallenges={completedChallenges}
         onCompleteChallenge={handleCompleteChallenge}
       />
+      )}
 
       {/* Save/Load UI */}
+      {showSaveLoad && (
       <SaveLoadUI
-        isOpen={showSaveLoad}
+        isOpen
         onClose={() => setShowSaveLoad(false)}
         saveData={saveData}
         onSave={handleSaveGame}
         onLoad={handleLoadGame}
       />
+      )}
 
       {/* Stats & Leaderboard */}
+      {showStatsLeaderboard && (
       <StatsLeaderboardUI
-        isOpen={showStatsLeaderboard}
+        isOpen
         onClose={() => setShowStatsLeaderboard(false)}
       />
+      )}
 
       {/* Arcade Game */}
+      {showArcadeGame && (
       <ArcadeGame
-        isOpen={showArcadeGame}
+        isOpen
         onClose={() => setShowArcadeGame(false)}
         onComplete={(score) => {
           addNotification(`Arkadna igra končana! Točke: ${score}`, 'success');
         }}
       />
+      )}
 
       {/* Daily Rewards (applies to persistent wallet) */}
+      {showDailyRewards && (
       <DailyRewardsUI
-        isOpen={showDailyRewards}
+        isOpen
         onClose={() => setShowDailyRewards(false)}
         onClaim={handleClaimReward}
       />
+      )}
 
       {/* Shop (validated + persistent) */}
+      {showShop && (
       <ShopUI
-        isOpen={showShop}
+        isOpen
         onClose={() => setShowShop(false)}
         gold={saveData?.currency.gold ?? 0}
         gems={saveData?.currency.gems ?? 0}
@@ -1146,19 +1171,23 @@ export default function App() {
         onEquip={handleEquipCosmetic}
         playerLevel={saveData?.player.highestLevel ?? 1}
       />
+      )}
 
       {/* Difficulty Select (persistent + unlock gating) */}
+      {showDifficultySelect && (
       <DifficultySelectUI
-        isOpen={showDifficultySelect}
+        isOpen
         onClose={() => setShowDifficultySelect(false)}
         onSelect={handleSelectDifficulty}
         playerLevel={saveData?.player.highestLevel ?? 1}
         currentDifficulty={currentDifficulty}
       />
+      )}
 
       {/* Meta Progression (real run stats + persistent gem wallet) */}
+      {showMetaProgression && (
       <MetaProgressionUI
-        isOpen={showMetaProgression}
+        isOpen
         onClose={() => setShowMetaProgression(false)}
         playerStats={{
           level: stats.playerLevel,
@@ -1171,39 +1200,49 @@ export default function App() {
           addNotification(`Odklenjeno: ${nodeId}`, 'success');
         }}
       />
+      )}
 
       {/* Interactive Tutorial */}
+      {showInteractiveTutorial && (
       <InteractiveTutorial
-        isOpen={showInteractiveTutorial}
+        isOpen
         onClose={() => setShowInteractiveTutorial(false)}
         onComplete={() => {
           addNotification(t('notify.guideDone'), 'success');
         }}
       />
+      )}
 
       {/* Settings Menu (persistent + applied to engine) */}
+      {showSettings && (
       <SettingsMenu
-        isOpen={showSettings}
+        isOpen
         onClose={() => setShowSettings(false)}
         settings={settings}
         onSettingsChange={handleSettingsChange}
       />
+      )}
 
       {/* Tutorial Overlay */}
+      {showTutorial && (
       <TutorialOverlay
-        isOpen={showTutorial}
+        isOpen
         onClose={() => setShowTutorial(false)}
       />
+      )}
 
       {/* Achievement Panel (real achievement list + unlock state) */}
+      {showAchievements && (
       <AchievementPanel
-        isOpen={showAchievements}
+        isOpen
         achievements={allAchievements.map(a => ({
           ...a,
           unlocked: unlockedAchievementIds.has(a.id)
         }))}
         onClose={() => setShowAchievements(false)}
       />
+      )}
+      </Suspense>
 
       {/* Achievement toast notifications */}
       {newAchievements.map((achievement, i) => (
