@@ -1252,14 +1252,22 @@ export default function App() {
       )}
       </Suspense>
 
-      {/* Achievement toast notifications */}
-      {newAchievements.map((achievement, i) => (
-        <AchievementNotification
-          key={`${achievement.id}_${i}`}
-          achievement={achievement}
-          onClose={() => setNewAchievements(prev => prev.filter(a => a.id !== achievement.id))}
-        />
-      ))}
+      {/* Achievement toast notifications — stacked vertically (newest at the
+          corner), max 3 visible at once; the rest queue and slide in as
+          earlier toasts are dismissed. Clicking a toast skips it early. */}
+      <div
+        className="fixed bottom-20 right-4 z-50 flex flex-col gap-2 items-end pointer-events-none max-w-[calc(100vw-2rem)]"
+        role="status"
+        aria-live="polite"
+      >
+        {newAchievements.slice(0, 3).map((achievement) => (
+          <AchievementNotification
+            key={achievement.id}
+            achievement={achievement}
+            onClose={() => setNewAchievements(prev => prev.filter(a => a.id !== achievement.id))}
+          />
+        ))}
+      </div>
 
       {/* Notifications */}
       {notifications.map((notification) => (

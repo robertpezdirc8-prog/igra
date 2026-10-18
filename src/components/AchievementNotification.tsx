@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { t, useLang } from '../i18n';
 
 interface Achievement {
@@ -13,31 +13,47 @@ interface AchievementNotificationProps {
   onClose: () => void;
 }
 
+// Positioned by the parent stack container (App renders up to 3 of these
+// in a fixed flex column) — this component only handles its own lifecycle:
+// slide in, hold 4 s, slide out, report back via onClose. The timer is kept
+// in a ref-stable effect so parent re-renders never restart the countdown,
+// and clicking the toast dismisses it immediately.
 export function AchievementNotification({ achievement, onClose }: AchievementNotificationProps) {
   useLang();
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setIsVisible(true));
     const timer = setTimeout(() => {
       setIsExiting(true);
-      setTimeout(onClose, 500);
+      setTimeout(() => onCloseRef.current(), 500);
     }, 4000);
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(timer);
     };
-  }, [onClose]);
+  }, [achievement.id]);
 
   return (
     <div
-      className={`fixed bottom-20 right-4 z-50 transition-all duration-500 ${
+      role="status"
+      onClick={() => {
+        if (!isExiting) {
+          setIsExiting(true);
+          setTimeout(() => onCloseRef.current(), 500);
+        }
+      }}
+      className={`relative pointer-events-auto cursor-pointer transition-all duration-500 ${
         isVisible && !isExiting ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
       }`}
     >
       <div
-        className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-400 rounded-lg p-4 min-w-[300px]"
+        className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-400 rounded-lg p-4 min-w-[300px] max-w-full"
         style={{
           boxShadow: '0 0 30px rgba(255, 170, 0, 0.5), inset 0 0 20px rgba(255, 170, 0, 0.1)',
           backdropFilter: 'blur(10px)'
