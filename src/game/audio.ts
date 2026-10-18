@@ -142,6 +142,24 @@ export class AudioEngine {
     osc2.stop(t + 0.3);
   }
 
+  /** Graze chime — a soft, short high "tink". Quiet by design: grazes
+   *  can fire rapidly inside dense curtains, so it must stay subtle. */
+  playGraze() {
+    if (!this.ctx || !this.sfxGain) return;
+    const t0 = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(2400, t0);
+    osc.frequency.exponentialRampToValueAtTime(3600, t0 + 0.06);
+    gain.gain.setValueAtTime(0.1, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.09);
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(t0);
+    osc.stop(t0 + 0.1);
+  }
+
   playDash() {
     if (!this.ctx || !this.sfxGain) return;
     const bufferSize = this.ctx.sampleRate * 0.15;

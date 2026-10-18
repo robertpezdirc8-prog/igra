@@ -185,7 +185,7 @@ export default function App() {
   const [isShooting, setIsShooting] = useState(false);
   const [damageFlash, setDamageFlash] = useState(false);
   const [notifications, setNotifications] = useState<Array<{ id: number; message: string; type: 'success' | 'warning' | 'error' | 'info' }>>([]);
-  const [levelChoices, setLevelChoices] = useState<Array<{ name: string; description: string; icon: string }>>([]);
+  const [levelChoices, setLevelChoices] = useState<Array<{ nameKey: string; descKey: string; icon: string }>>([]);
 
   // Overlay menus
   const [showTutorial, setShowTutorial] = useState(false);
@@ -262,7 +262,7 @@ export default function App() {
     // Snapshot level-up choices for the React screens
     if (state === 'levelup' || state === 'levelchoice') {
       setLevelChoices(engine.getLevelChoices().map(u => ({
-        name: u.name, description: u.description, icon: u.icon
+        nameKey: u.nameKey, descKey: u.descKey, icon: u.icon
       })));
       // Award a skill point for every XP level-up
       if (state === 'levelchoice') {
@@ -836,6 +836,7 @@ export default function App() {
                 score={stats.score}
                 wave={stats.wave}
                 combo={stats.combo}
+                grazeCount={stats.grazeCount}
                 fps={stats.fps}
                 seed={stats.seed}
                 webgpuSupported={stats.webgpuSupported}
@@ -1048,7 +1049,7 @@ export default function App() {
       {/* Level Up (wave milestone) - real engine choices */}
       {gameState === 'levelup' && (
         <LevelUpScreen
-          upgrades={levelChoices}
+          upgrades={levelChoices.map(u => ({ name: t(u.nameKey), description: t(u.descKey), icon: u.icon }))}
           onSelectUpgrade={handleChooseUpgrade}
         />
       )}
@@ -1059,14 +1060,14 @@ export default function App() {
           level={stats.playerLevel}
           choices={levelChoices.map((c, i) => ({
             id: `choice_${i}`,
-            name: c.name,
-            description: c.description,
+            name: t(c.nameKey),
+            description: t(c.descKey),
             icon: c.icon,
             rarity: rarities[i % rarities.length]
           }))}
           onSelect={(_choice) => {
             // The engine owns the ordered choice list; map back by index.
-            const idx = levelChoices.findIndex(c => c.name === _choice.name);
+            const idx = levelChoices.findIndex(c => t(c.nameKey) === _choice.name);
             handleChooseUpgrade(idx >= 0 ? idx : 0);
           }}
         />

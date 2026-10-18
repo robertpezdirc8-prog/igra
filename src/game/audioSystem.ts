@@ -134,6 +134,33 @@ export class ProceduralAudioSystem {
     osc.stop(this.audioContext.currentTime + 0.1);
   }
 
+  /** Graze chime — soft high "tink" (kept quiet: dense curtains fire it rapidly). */
+  playGraze(): void {
+    if (!this.enabled || !this.audioContext || !this.masterGain) return;
+
+    const osc = this.audioContext.createOscillator();
+    const gain = this.audioContext.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(2400, this.audioContext.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(
+      3600,
+      this.audioContext.currentTime + 0.06
+    );
+
+    gain.gain.setValueAtTime(0.08, this.audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(
+      0.01,
+      this.audioContext.currentTime + 0.09
+    );
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+
+    osc.start(this.audioContext.currentTime);
+    osc.stop(this.audioContext.currentTime + 0.1);
+  }
+
   playPowerUp(): void {
     if (!this.enabled || !this.audioContext || !this.masterGain) return;
 

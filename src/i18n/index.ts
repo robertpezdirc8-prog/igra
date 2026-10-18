@@ -18,6 +18,7 @@ import { dict as metaDict } from './dicts/meta';
 import { dict as progressDict } from './dicts/progress';
 import { dict as worldDict } from './dicts/world';
 import { dict as helpDict } from './dicts/help';
+import { dict as engineDict } from './dicts/engine';
 
 export type Language = 'sl' | 'en';
 const LANGUAGES: Language[] = ['sl', 'en'];
@@ -518,6 +519,7 @@ const sl = {
   ...progressDict.sl,
   ...worldDict.sl,
   ...helpDict.sl,
+  ...engineDict.sl,
 };
 
 const en: Record<keyof typeof sl, string> = {
@@ -526,6 +528,7 @@ const en: Record<keyof typeof sl, string> = {
   ...progressDict.en,
   ...worldDict.en,
   ...helpDict.en,
+  ...engineDict.en,
 };
 
 type Dict = typeof sl;

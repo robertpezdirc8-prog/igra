@@ -18,6 +18,8 @@
  *    "ne le povečevanje hitrosti in gostote metkov" — zmerno 35 % bonus.
  */
 
+import { t } from '../i18n';
+
 export type FormationType = 'line' | 'sine' | 'vshape' | 'pincer' | 'circle' | 'spiral';
 
 export interface WavePlan {
@@ -53,18 +55,9 @@ export interface WavePlan {
 }
 
 /** Mejniki po sektorjih — "kaj se dogaja" na vsaki stopnji pripovedi. */
-const SECTOR_MILESTONES: ReadonlyArray<string> = [
-  'VPAD — nauči se leteti in streljati',
-  'prvi snajperji in elitne enote',
-  'TITANI stopijo na sceno',
-  'pospešek — hitrejši metki in potopi',
-  'POL POT — peklenska sredina poti',
-  'plazma zidovi — gostota se dviga',
-  'agresivni psi — sovražniki divjajo',
-  'titan dominantnost — težka pečata',
-  'elitne legije — vsak valu je preizkus',
-  'ZADNJI VZPON — dokler traja',
-];
+
+// Milestoney so v i18n dictu (mile.1–mile.10) — ključana po sektorju,
+// tako da se prevod zamenja tudi sredi teka ob preklopu jezika.
 
 /** Avtorizirane mešanice tipov po sektorju — nove grožnje prihajajo
  *  postopoma (lekcija "Designing smart, meaningful SHMUPs": prvi val
@@ -150,10 +143,11 @@ export function getWavePlan(wave: number): WavePlan {
   // ── Asteroidi: 9 → 27 na ekranu ──
   const asteroidCap = Math.min(27, 7 + sector * 2);
 
+  const mile = t(`mile.${sector}`);
   const milestone =
     loop > 0
-      ? `ZANKA ${loop + 1} — ${SECTOR_MILESTONES[sector - 1]}`
-      : SECTOR_MILESTONES[sector - 1];
+      ? t('mile.loop', { n: loop + 1, mile })
+      : mile;
 
   return {
     wave: w,

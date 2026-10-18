@@ -4,12 +4,13 @@ interface ScoreDisplayProps {
   score: number;
   wave: number;
   combo: number;
+  grazeCount: number;
   fps: number;
   seed: string;
   webgpuSupported: boolean;
 }
 
-export function ScoreDisplay({ score, wave, combo, fps, seed, webgpuSupported }: ScoreDisplayProps) {
+export function ScoreDisplay({ score, wave, combo, grazeCount, fps, seed, webgpuSupported }: ScoreDisplayProps) {
   useLang();
   return (
     <div className="fixed top-4 right-4 z-30 text-right">
@@ -53,6 +54,22 @@ export function ScoreDisplay({ score, wave, combo, fps, seed, webgpuSupported }:
             }}
           >
             {combo}x
+          </p>
+        </div>
+      )}
+
+      {/* Graze: live risk/reward counter (purple = graze identity color) */}
+      {grazeCount > 0 && (
+        <div className="mb-4">
+          <p className="text-gray-500 font-mono text-xs uppercase tracking-wider">{t('score.graze')}</p>
+          <p
+            className="text-xl font-bold font-mono"
+            style={{
+              color: '#cc99ff',
+              textShadow: '0 0 10px rgba(204, 153, 255, 0.6)'
+            }}
+          >
+            {grazeCount.toLocaleString(localeTag())}
           </p>
         </div>
       )}

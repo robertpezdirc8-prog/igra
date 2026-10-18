@@ -70,7 +70,7 @@ interface Enemy {
 
 type EliteAffix = 'armored' | 'swift' | 'menace' | 'gilded' | 'elder';
 interface EliteAffixDef {
-  tag: string;      // displayed spawn tag (icon + Slovenian name)
+  tagKey: string;   // i18n key of the displayed spawn tag (icon + name)
   color: string;    // aura + tag color
   hpMul: number; speedMul: number; fireMul: number; goldMul: number;
   minSector: number; // gated by sector for a fair ramp
@@ -101,7 +101,7 @@ interface Player {
   totalXp: number;
 }
 interface Upgrade {
-  name: string; description: string; icon: string;
+  nameKey: string; descKey: string; icon: string;
   apply: (player: Player) => void;
 }
 interface PowerOrb {
@@ -141,6 +141,8 @@ interface WaveAnnouncement {
 interface FloatingText {
   x: number; y: number; text: string; color: string;
   life: number; maxLife: number; vy: number;
+  /** Optional smaller font (graze popups use 10 vs default 14). */
+  size?: number;
 }
 
 export interface GameStats {
@@ -231,26 +233,28 @@ export class GameEngine {
   private assistMul = 1;
   private static readonly MEDAL_VALUES = [100, 200, 400, 800, 1600, 3200, 6400, 10000];
   // Sector identity — Gradius stage names with a mood tint per sector.
-  private static readonly SECTORS: ReadonlyArray<{ name: string; subtitle: string; tint: string }> = [
-    { name: 'PREDSTRAŽA', subtitle: 'mejni nadzor', tint: 'rgba(64,255,255,0.045)' },
-    { name: 'ASTEROIDNA POLJA', subtitle: 'gost skalnat pas', tint: 'rgba(255,170,80,0.05)' },
-    { name: 'ZAVESA MEGLENICE', subtitle: 'pas ionskih neviht', tint: 'rgba(180,100,255,0.055)' },
-    { name: 'OLUPKOVNA FLOTA', subtitle: 'opuščena armada', tint: 'rgba(255,110,110,0.05)' },
-    { name: 'CITADELA PRAZNINE', subtitle: 'sovražnikova trdnjava', tint: 'rgba(255,60,130,0.055)' },
+  // Names/subtitles live in the i18n dict (sector.<n>.name/.sub) so the
+  // stage card swaps language live; this array only carries the palette.
+  private static readonly SECTOR_TINTS: readonly string[] = [
+    'rgba(64,255,255,0.045)',
+    'rgba(255,170,80,0.05)',
+    'rgba(180,100,255,0.055)',
+    'rgba(255,110,110,0.05)',
+    'rgba(255,60,130,0.055)',
   ];
   // Elite affix table (Vampire Survivors / 10 Minutes Till Dawn lesson:
   // rare modified enemies create spike moments and jackpot rewards).
   private static readonly MID_BOSS_LETTERS = ['ALFA', 'BETA', 'GAMA'] as const;
 
   private static readonly ELITE_AFFIXES: Readonly<Record<EliteAffix, EliteAffixDef>> = {
-    armored: { tag: '🛡 OKLEPEN',  color: '#d8e8ff', hpMul: 1.8, speedMul: 0.85, fireMul: 1.0, goldMul: 3, minSector: 1 },
-    swift:   { tag: '⚡ HITRI',    color: '#66ffff', hpMul: 1.2, speedMul: 1.35, fireMul: 1.0, goldMul: 2.5, minSector: 1 },
-    menace:  { tag: '💀 NEVAREN', color: '#ff5566', hpMul: 1.3, speedMul: 1.0,  fireMul: 1.6, goldMul: 2.5, minSector: 2 },
-    gilded:  { tag: '💎 ZLATEN',  color: '#ffd700', hpMul: 1.15, speedMul: 1.0, fireMul: 1.0, goldMul: 6, minSector: 2 },
-    elder:   { tag: '👁 STAREŠINA', color: '#cc66ff', hpMul: 2.2, speedMul: 0.95, fireMul: 1.2, goldMul: 4, minSector: 3 },
+    armored: { tagKey: 'elite.armored', color: '#d8e8ff', hpMul: 1.8, speedMul: 0.85, fireMul: 1.0, goldMul: 3, minSector: 1 },
+    swift:   { tagKey: 'elite.swift',   color: '#66ffff', hpMul: 1.2, speedMul: 1.35, fireMul: 1.0, goldMul: 2.5, minSector: 1 },
+    menace:  { tagKey: 'elite.menace', color: '#ff5566', hpMul: 1.3, speedMul: 1.0,  fireMul: 1.6, goldMul: 2.5, minSector: 2 },
+    gilded:  { tagKey: 'elite.gilded',  color: '#ffd700', hpMul: 1.15, speedMul: 1.0, fireMul: 1.0, goldMul: 6, minSector: 2 },
+    elder:   { tagKey: 'elite.elder',   color: '#cc66ff', hpMul: 2.2, speedMul: 0.95, fireMul: 1.2, goldMul: 4, minSector: 3 },
   };
   private elitesThisWave = 0;
-  private static readonly GRADIUS_SLOTS: readonly string[] = ['HITRO', 'RAKETA', 'DVOJNIK', 'LASER', 'OPCIJA', 'ŠČIT'];
+  private static readonly GRADIUS_SLOT_KEYS: readonly string[] = ['speed', 'missile', 'double', 'laser', 'option', 'shield'];
   private upgrades: Upgrade[] = [];
   private highScore = 0;
   // Offline hall of fame: top-10 runs
@@ -461,16 +465,16 @@ export class GameEngine {
 
   private generateUpgrades() {
     this.upgrades = [
-      { name: 'Napolnjena plazma', description: '+25% škode, +1 nivo orožja', icon: '⚡', apply: (p) => { p.weaponLevel++; } },
-      { name: 'Nevronski refleksi', description: '+15% hitrosti premikanja', icon: '🧠', apply: (p) => { p.speed *= 1.15; } },
-      { name: 'Ščit praznine', description: '+30 max ščita, polna obnova', icon: '🛡️', apply: (p) => { p.maxShield += 30; p.shield = p.maxShield; } },
-      { name: 'Temporalno jedro', description: '+25 max energije, hitrejša regeneracija', icon: '⏱️', apply: (p) => { p.maxEnergy += 25; } },
-      { name: 'Kritična matrika', description: '+10% kritičnosti, +50% kritične škode', icon: '💀', apply: (p) => { p.critRate += 0.1; p.critDmg += 0.5; } },
-      { name: 'Bio-rekonstrukcija', description: '+30 max HP, polno zdravljenje', icon: '❤️', apply: (p) => { p.maxHp += 30; p.hp = p.maxHp; } },
-      { name: 'Razcepljena plazma', description: 'Izstrelki se razcepijo na 3', icon: '🔱', apply: (p) => { p.weaponLevel += 2; } },
-      { name: 'Gravitacijski vrtinec', description: 'Odkleni gravitacijsko sekundarno orožje', icon: '🌀', apply: (p) => { p.secondaryWeapon = 'gravity'; } },
-      { name: 'Verižna molnja', description: 'Odkleni verižno sekundarno orožje', icon: '⚡', apply: (p) => { p.secondaryWeapon = 'chain'; } },
-      { name: 'Temporalna staza', description: 'Odkleni zaustavitev časa', icon: '⏸️', apply: (p) => { p.secondaryWeapon = 'temporal'; } },
+      { nameKey: 'upg.plasmaCharge.name', descKey: 'upg.plasmaCharge.desc', icon: '⚡', apply: (p) => { p.weaponLevel++; } },
+      { nameKey: 'upg.neuralReflex.name', descKey: 'upg.neuralReflex.desc', icon: '🧠', apply: (p) => { p.speed *= 1.15; } },
+      { nameKey: 'upg.voidShield.name', descKey: 'upg.voidShield.desc', icon: '🛡️', apply: (p) => { p.maxShield += 30; p.shield = p.maxShield; } },
+      { nameKey: 'upg.temporalCore.name', descKey: 'upg.temporalCore.desc', icon: '⏱️', apply: (p) => { p.maxEnergy += 25; } },
+      { nameKey: 'upg.critMatrix.name', descKey: 'upg.critMatrix.desc', icon: '💀', apply: (p) => { p.critRate += 0.1; p.critDmg += 0.5; } },
+      { nameKey: 'upg.bioRecon.name', descKey: 'upg.bioRecon.desc', icon: '❤️', apply: (p) => { p.maxHp += 30; p.hp = p.maxHp; } },
+      { nameKey: 'upg.splitPlasma.name', descKey: 'upg.splitPlasma.desc', icon: '🔱', apply: (p) => { p.weaponLevel += 2; } },
+      { nameKey: 'upg.gravityWell.name', descKey: 'upg.gravityWell.desc', icon: '🌀', apply: (p) => { p.secondaryWeapon = 'gravity'; } },
+      { nameKey: 'upg.chainLightning.name', descKey: 'upg.chainLightning.desc', icon: '⚡', apply: (p) => { p.secondaryWeapon = 'chain'; } },
+      { nameKey: 'upg.temporalField.name', descKey: 'upg.temporalField.desc', icon: '⏸️', apply: (p) => { p.secondaryWeapon = 'temporal'; } },
     ];
   }
 
@@ -740,9 +744,9 @@ export class GameEngine {
     p.invincible = Math.max(p.invincible, 1.0);
     if (counter) {
       p.score += 500;
-      this.floatingTexts.push({ x: p.x, y: p.y - 40, text: 'PROTIBOMBA!', color: '#ffdd66', life: 1.4, maxLife: 1.4, vy: -1.2 });
+      this.floatingTexts.push({ x: p.x, y: p.y - 40, text: t('hud.antiBomb'), color: '#ffdd66', life: 1.4, maxLife: 1.4, vy: -1.2 });
     } else {
-      this.floatingTexts.push({ x: p.x, y: p.y - 40, text: 'BOMBA!', color: '#ff8866', life: 1, maxLife: 1, vy: -1.2 });
+      this.floatingTexts.push({ x: p.x, y: p.y - 40, text: t('hud.bombBlast'), color: '#ff8866', life: 1, maxLife: 1, vy: -1.2 });
     }
     this.audio.playExplosion();
     this.proceduralAudio.playExplosion();
@@ -778,7 +782,7 @@ export class GameEngine {
       this.fireWaveCannon(c);
     } else if (this.state === 'playing') {
       // Released too early: the charge fizzles out
-      this.floatingTexts.push({ x: this.player.x, y: this.player.y - 30, text: 'PREMALO NABOJA', color: '#8899aa', life: 0.7, maxLife: 0.7, vy: -1 });
+      this.floatingTexts.push({ x: this.player.x, y: this.player.y - 30, text: t('hud.noCharges'), color: '#8899aa', life: 0.7, maxLife: 0.7, vy: -1 });
     }
   }
 
@@ -812,7 +816,7 @@ export class GameEngine {
     this.screenShake = 4 + 9 * charge;
     this.hitStop = Math.max(this.hitStop, 0.03 + 0.05 * charge);
     if (charge >= 0.98) {
-      this.floatingTexts.push({ x: p.x, y: p.y - 44, text: 'VALOVNI TOP!', color: '#ffdd66', life: 1.2, maxLife: 1.2, vy: -1.2 });
+      this.floatingTexts.push({ x: p.x, y: p.y - 44, text: t('hud.waveCannon'), color: '#ffdd66', life: 1.2, maxLife: 1.2, vy: -1.2 });
       this.audio.playExplosion();
       this.proceduralAudio.playExplosion();
     }
@@ -825,11 +829,11 @@ export class GameEngine {
     if (this.state !== 'playing') return;
     const p = this.player;
     if (p.gradiusMeter <= 0) {
-      this.floatingTexts.push({ x: p.x, y: p.y - 30, text: 'NI KAPSUL', color: '#8899aa', life: 0.8, maxLife: 0.8, vy: -1 });
+      this.floatingTexts.push({ x: p.x, y: p.y - 30, text: t('hud.noCapsules'), color: '#8899aa', life: 0.8, maxLife: 0.8, vy: -1 });
       return;
     }
     const slot = p.gradiusMeter - 1;
-    const name = GameEngine.GRADIUS_SLOTS[slot];
+    const name = t(`gradius.${GameEngine.GRADIUS_SLOT_KEYS[slot] ?? 'speed'}`);
     let color = '#ffcc22';
     switch (slot) {
       case 0: // HITRO
@@ -1392,12 +1396,12 @@ export class GameEngine {
       // First wave of a sector: a proper stage intro (Gradius stage card)
       // with the sector's milestone — the player always KNOWS what's new.
       const sec = this.sector();
-      const info = GameEngine.SECTORS[(sec - 1) % GameEngine.SECTORS.length];
+      const secKey = ((sec - 1) % 5) + 1;
       this.sectorDamage = 0;
       this.sectorMedals = 0;
       this.waveAnnouncement = {
-        text: `SEKTOR ${sec}${sec <= 10 ? '/10' : ''} — ${info?.name ?? 'PRAZNINA'}`,
-        subtext: `${plan.milestone} · ${count} sovražnikov`,
+        text: `${t('hud.sectorN', { n: `${sec}${sec <= 10 ? '/10' : ''}` })} — ${t(`sector.${secKey}.name`)}`,
+        subtext: `${plan.milestone} · ${t('hud.hostilesCount', { n: count })}`,
         timer: 2.8,
         color: '#66ffe0'
       };
@@ -1485,7 +1489,7 @@ export class GameEngine {
       if (affix) {
         this.floatingTexts.push({
           x: pos.x, y: pos.y - 30,
-          text: affix.tag, color: affix.color,
+          text: t(affix.tagKey), color: affix.color,
           life: 1.8, maxLife: 1.8, vy: -0.6
         });
       }
@@ -3149,14 +3153,21 @@ export class GameEngine {
         this.grazeCount++;
         p.score += Math.round(20 * (this.difficulty?.scoreMultiplier ?? 1));
         p.energy = Math.min(p.maxEnergy, p.energy + 2);
-        for (let j = 0; j < 2; j++) {
+        // Graze feedback — classic shmups make the near-miss FELT: a tiny
+        // purple popup (graze identity color, matches game-over ODMIKI),
+        // sparks and a soft high chime. Small font + short life so dense
+        // bullet curtains don't turn into a text wall.
+        this.floatingTexts.push({ x: b.x, y: b.y - 14, text: t('hud.graze'), color: '#cc99ff', life: 0.45, maxLife: 0.45, vy: -0.9, size: 10 });
+        for (let j = 0; j < 3; j++) {
           this.particles.push({
             x: b.x, y: b.y,
             vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3,
             life: 0.25, maxLife: 0.25, size: 1.8,
-            color: '#ffffff', type: 'spark'
+            color: '#cc99ff', type: 'spark'
           });
         }
+        this.audio.playGraze();
+        this.proceduralAudio.playGraze();
       }
     }
     return false;
@@ -3391,7 +3402,8 @@ export class GameEngine {
     // Gradius power meter (Konami): bottom-center — the only area that
     // stays clear of the React overlay panels on desktop AND mobile
     const slotCols = ['#00ffcc', '#ff8844', '#ffff44', '#ff44cc', '#66ffff', '#66ffcc'];
-    const slotLabels = ['H', 'R', 'D', 'L', 'O', '\u0160'];
+    // Slot letters derive from the TRANSLATED slot names (HITRO→H … / SPEED→S …)
+    const slotLabels = GameEngine.GRADIUS_SLOT_KEYS.map(k => t(`gradius.${k}`).charAt(0).toUpperCase());
     const meterW = 24, meterH = 8, gap = 3;
     const mx = w / 2 - (6 * (meterW + gap) - gap) / 2;
     const my = h - 56;
@@ -3504,12 +3516,12 @@ export class GameEngine {
           case 'speed':
             // Letter S: movement speed boost (capped)
             this.player.speed = Math.min(11, this.player.speed * 1.1);
-            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: 'HITROST +1!', color: '#00ffcc', life: 1.2, maxLife: 1.2, vy: -1.5 });
+            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: t('hud.speedUp'), color: '#00ffcc', life: 1.2, maxLife: 1.2, vy: -1.5 });
             break;
           case 'bomb':
             // Letter B: +1 bomb stock
             this.player.bombs = Math.min(this.player.maxBombs, this.player.bombs + 1);
-            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: '+1 BOMBA', color: '#ff6644', life: 1.2, maxLife: 1.2, vy: -1.5 });
+            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: t('hud.bombUp'), color: '#ff6644', life: 1.2, maxLife: 1.2, vy: -1.5 });
             break;
           case 'option':
             // Letter O (Gradius): companion drone, max 3
@@ -3523,13 +3535,13 @@ export class GameEngine {
           case 'capsule': {
             // Gradius power capsule: fills the meter; C spends the lit slot
             this.player.gradiusMeter = Math.min(6, this.player.gradiusMeter + 1);
-            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: `KAPSULA ${this.player.gradiusMeter}/6`, color: '#ffcc22', life: 1.2, maxLife: 1.2, vy: -1.5 });
+            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: t('hud.capsuleN', { n: this.player.gradiusMeter }), color: '#ffcc22', life: 1.2, maxLife: 1.2, vy: -1.5 });
             break;
           }
           case 'plasma':
             // Raiden II purple "toothpaste" plasma laser (temporary)
             this.plasmaTimer = 12;
-            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: 'PLAZMA LASER!', color: '#cc66ff', life: 1.4, maxLife: 1.4, vy: -1.5 });
+            this.floatingTexts.push({ x: orb.x, y: orb.y - 18, text: t('hud.plasmaLaser'), color: '#cc66ff', life: 1.4, maxLife: 1.4, vy: -1.5 });
             break;
           case 'medal': {
             // DoDonPachi medal chain: quick pickups multiply the value
@@ -3864,9 +3876,9 @@ export class GameEngine {
     ctx.globalAlpha = 1;
     // Sector mood wash — every sector carries its own color identity
     // (the classic arcade stage-palette shift).
-    const sectorInfo = GameEngine.SECTORS[(this.sector() - 1) % GameEngine.SECTORS.length];
-    if (sectorInfo) {
-      ctx.fillStyle = sectorInfo.tint;
+    const sectorTint = GameEngine.SECTOR_TINTS[(this.sector() - 1) % GameEngine.SECTOR_TINTS.length];
+    if (sectorTint) {
+      ctx.fillStyle = sectorTint;
       ctx.fillRect(0, 0, w, h);
     }
   }
@@ -3917,11 +3929,11 @@ export class GameEngine {
           annFont = Math.max(16, Math.floor(annFont * annMaxW / annW));
           ctx.font = `bold ${annFont}px monospace`;
         }
-        ctx.fillText(this.waveAnnouncement.text, w / 2, h * 0.2);
+        ctx.fillText(this.waveAnnouncement.text, w / 2, h * 0.32);
         ctx.shadowBlur = 0;
         ctx.fillStyle = 'rgba(255,255,255,0.7)';
         ctx.font = '14px monospace';
-        ctx.fillText(this.waveAnnouncement.subtext, w / 2, h * 0.2 + 30);
+        ctx.fillText(this.waveAnnouncement.subtext, w / 2, h * 0.32 + 30);
         ctx.restore();
       }
     }
@@ -4023,7 +4035,7 @@ export class GameEngine {
       const alpha = ft.life / ft.maxLife;
       ctx.globalAlpha = alpha;
       ctx.fillStyle = ft.color;
-      ctx.font = 'bold 14px monospace';
+      ctx.font = `bold ${ft.size ?? 14}px monospace`;
       ctx.textAlign = 'center';
       ctx.fillText(ft.text, ft.x, ft.y);
     }
@@ -4697,7 +4709,7 @@ export class GameEngine {
       ctx.font = mid ? '9px monospace' : '10px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(
-        mid ? `PREDSTRAŽA-${this.midBossLetter}` : isSkull ? 'LOBANJA-NIČELA' : isStation ? 'POSTAJA NIČ' : 'VOID TITAN',
+        mid ? `${t('boss.vanguard')}-${this.midBossLetter}` : isSkull ? t('boss.skull') : isStation ? t('boss.station') : t('boss.titan'),
         this.width / 2, barY - 4
       );
     }
@@ -5385,7 +5397,7 @@ export class GameEngine {
       ctx.fillStyle = 'rgba(0,255,255,0.8)';
       ctx.font = '10px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('DASH READY [SPACE]', w / 2, h - 20);
+      ctx.fillText(t('hud.dashReady'), w / 2, h - 20);
     }
 
     // Wave announcement
@@ -5402,11 +5414,11 @@ export class GameEngine {
         ctx.shadowBlur = 20;
         ctx.fillStyle = this.waveAnnouncement.color;
         ctx.font = 'bold 32px monospace';
-        ctx.fillText(this.waveAnnouncement.text, w / 2, h * 0.2);
+        ctx.fillText(this.waveAnnouncement.text, w / 2, h * 0.32);
         ctx.shadowBlur = 0;
         ctx.fillStyle = 'rgba(255,255,255,0.7)';
         ctx.font = '14px monospace';
-        ctx.fillText(this.waveAnnouncement.subtext, w / 2, h * 0.2 + 30);
+        ctx.fillText(this.waveAnnouncement.subtext, w / 2, h * 0.32 + 30);
         ctx.restore();
       }
     }
